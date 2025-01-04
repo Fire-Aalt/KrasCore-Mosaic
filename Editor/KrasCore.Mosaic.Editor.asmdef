@@ -1,0 +1,18 @@
+{
+    "name": "KrasCore.Mosaic.Editor",
+    "rootNamespace": "KrasCore.Mosaic.Editor",
+    "references": [
+        "GUID:dc481f1363b07f24ba1ec8a06394f3cb"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
