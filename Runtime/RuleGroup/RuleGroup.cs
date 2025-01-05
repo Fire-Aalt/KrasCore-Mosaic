@@ -2,9 +2,10 @@ using System;
 using System.Collections.Generic;
 using Sirenix.OdinInspector;
 using Sirenix.Utilities.Editor;
+using Unity.Mathematics;
 using UnityEngine;
 
-namespace Mosaic.Runtime
+namespace KrasCore.Mosaic
 {
     [HideMonoScript]
     [CreateAssetMenu(menuName = "Mosaic/RuleGroup")]
@@ -55,6 +56,8 @@ namespace Mosaic.Runtime
         public class Rule : ISerializationCallbackReceiver
         {
             public const int MatrixSize = 9;
+            public const int MatrixSizeHalf = MatrixSize / 2;
+            public const int AnyIntGridValue = 999;
 
             [HorizontalGroup("Split", 0.2f)] [EnumToggleButtons, HideLabel]
             public Enabled enabled = Enabled.Enabled;
@@ -71,12 +74,16 @@ namespace Mosaic.Runtime
             [HorizontalGroup("Split", 0.3f)] [VerticalGroup("Split/Right")] [EnumToggleButtons, HideLabel]
             public Mirror mirror;
 
-            public int[] RuleMatrix { get; private set; } = new int[MatrixSize * MatrixSize];
-            public List<RuleResult<Sprite>> TileSprites { get; private set; } = new();
-            public List<RuleResult<GameObject>> TileEntities { get; private set; } = new();
-            public RuleResultType ResultType { get; set; }
-
-            public IntGrid BoundIntGrid { get; private set; }
+            [HideInInspector, SerializeField]
+            public int[] RuleMatrix = new int[MatrixSize * MatrixSize];
+            [HideInInspector, SerializeField]
+            public List<RuleResult<Sprite>> TileSprites = new();
+            [HideInInspector, SerializeField]
+            public List<RuleResult<GameObject>> TileEntities = new();
+            [HideInInspector, SerializeField]
+            public RuleResultType ResultType;
+            [HideInInspector, SerializeField]
+            public IntGrid BoundIntGrid;
 
             public void OnBeforeSerialize()
             {
@@ -84,7 +91,7 @@ namespace Mosaic.Runtime
                 {
                     for (int y = 0; y < MatrixSize; y++)
                     {
-                        RuleMatrix[x * MatrixSize + y] = Matrix[x, y];
+                        RuleMatrix[y * MatrixSize + x] = Matrix[x, y];
                     }
                 }
             }
@@ -95,7 +102,7 @@ namespace Mosaic.Runtime
                 {
                     for (int y = 0; y < MatrixSize; y++)
                     {
-                        Matrix[x, y] = RuleMatrix[x * MatrixSize + y];
+                        Matrix[x, y] = RuleMatrix[y * MatrixSize + x];
                     }
                 }
             }
@@ -122,6 +129,13 @@ namespace Mosaic.Runtime
                 return value;
             }
 #endif
+            public static int2 GetOffsetFromCenter(int index)
+            {
+                var x = index % MatrixSize;
+                var y = index / MatrixSize;
+
+                return new int2(x - MatrixSizeHalf, y - MatrixSizeHalf);
+            }
         }
     }
 }

@@ -4,7 +4,7 @@ using KrasCore.Editor;
 using Sirenix.OdinInspector;
 using UnityEngine;
 
-namespace Mosaic.Runtime
+namespace KrasCore.Mosaic
 {
     [CreateAssetMenu(menuName = "Mosaic/IntGrid")]
     public class IntGrid : ScriptableObject

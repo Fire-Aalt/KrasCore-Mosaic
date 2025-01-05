@@ -5,7 +5,7 @@ using Sirenix.OdinInspector.Editor;
 using Sirenix.Utilities.Editor;
 using UnityEngine;
 
-namespace Mosaic.Runtime
+namespace KrasCore.Mosaic
 {
     public class RuleGroupMatrixWindow : OdinEditorWindow
     {

@@ -3,7 +3,7 @@ using Sirenix.OdinInspector;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-namespace Mosaic.Runtime
+namespace KrasCore.Mosaic
 {
     [Serializable]
     public class RuleResult<T> where T : Object

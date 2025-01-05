@@ -5,12 +5,12 @@ using Sirenix.Utilities.Editor;
 using UnityEditor;
 using UnityEngine;
 
-namespace Mosaic.Runtime
+namespace KrasCore.Mosaic
 {
     [InitializeOnLoad]
     public static class RuleGroupEditorHelper
     {
-        public const int AnyIntGridValue = 999;
+        public const int AnyIntGridValue = RuleGroup.Rule.AnyIntGridValue;
         
         public static readonly Color BackgroundCellColor = new(0f, 0f, 0f, 0.5f);
         
