@@ -19,13 +19,15 @@ namespace KrasCore.Mosaic
                 var weightedEntityBuffer = AddBuffer<WeightedEntityElement>(entity);
 
                 AddComponent(entity, new IntGridReference { Value = authoring._intGrid });
+
+                var refreshPositions = new NativeHashSet<int2>(64, Allocator.Temp);
                 
                 var entityCount = 0;
                 foreach (var group in authoring._intGrid.ruleGroups)
                 {
                     foreach (var rule in group.rules)
                     {
-                        var blob = Create(rule, entityCount);
+                        var blob = Create(rule, entityCount, refreshPositions);
                         AddBlobAsset(ref blob, out _);
 
                         ruleBlobBuffer.Add(new RuleBlobReferenceElement
@@ -53,10 +55,13 @@ namespace KrasCore.Mosaic
                         entityCount += rule.TileEntities.Count;
                     }
                 }
+
+                var refreshPositionsBuffer = AddBuffer<RefreshPositionElement>(entity);
+                refreshPositionsBuffer.AddRange(refreshPositions.ToNativeArray(Allocator.Temp).Reinterpret<RefreshPositionElement>());
             }
         }
         
-        private static BlobAssetReference<RuleBlob> Create(RuleGroup.Rule rule, int entityCount)
+        private static BlobAssetReference<RuleBlob> Create(RuleGroup.Rule rule, int entityCount, NativeHashSet<int2> refreshPositions)
         {
             using var builder = new BlobBuilder(Allocator.Temp);
             ref var root = ref builder.ConstructRoot<RuleBlob>();
@@ -82,10 +87,13 @@ namespace KrasCore.Mosaic
                 if (intGridValue == 0) continue;
                 ref var cell = ref cells[cnt];
 
+                var pos = RuleGroup.Rule.GetOffsetFromCenter(index);
+                refreshPositions.Add(pos);
+                
                 cell = new RuleCell
                 {
                     IntGridValue = intGridValue,
-                    Offset = RuleGroup.Rule.GetOffsetFromCenter(index)
+                    Offset = pos
                 };
                 cnt++;
             }
@@ -116,6 +124,11 @@ namespace KrasCore.Mosaic
     public struct WeightedEntityElement : IBufferElementData
     {
         public Entity Value;
+    }
+    
+    public struct RefreshPositionElement : IBufferElementData
+    {
+        public int2 Position;
     }
     
     public struct RuleBlob

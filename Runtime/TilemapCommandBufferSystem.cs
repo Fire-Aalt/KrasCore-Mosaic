@@ -8,7 +8,6 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
-using Unity.Jobs.LowLevel.Unsafe;
 using Unity.Mathematics;
 using Unity.Profiling;
 using Unity.Transforms;
@@ -31,19 +30,27 @@ namespace KrasCore.Mosaic
     {
         public NativeHashMap<int2, int> IntGrid;
         public NativeHashSet<int2> ChangedPositions;
+        public NativeHashSet<int2> PositionsToRefresh;
         public NativeParallelMultiHashMap<int2, Entity> SpawnedEntities;
+
+        public NativeList<int2> PositionsToRefreshList;
 
         public IntGridLayer(int capacity, Allocator allocator)
         {
             IntGrid = new NativeHashMap<int2, int>(capacity, allocator);
             ChangedPositions = new NativeHashSet<int2>(capacity, allocator);
+            PositionsToRefresh = new NativeHashSet<int2>(capacity, allocator);
             SpawnedEntities = new NativeParallelMultiHashMap<int2, Entity>(capacity, allocator);
+            
+            PositionsToRefreshList = new NativeList<int2>(capacity, allocator);
         }
 
         public void Dispose()
         {
             IntGrid.Dispose();
             ChangedPositions.Dispose();
+            PositionsToRefresh.Dispose();
+            PositionsToRefreshList.Dispose();
             SpawnedEntities.Dispose();
         }
     }
@@ -60,10 +67,11 @@ namespace KrasCore.Mosaic
             {
                 Tcb = new TilemapCommandBuffer(64, Allocator.Persistent)
             });
-            _intGridLayers = new NativeHashMap<int, IntGridLayer>(8, Allocator.Persistent);
 
+            _intGridLayers = new NativeHashMap<int, IntGridLayer>(8, Allocator.Persistent);
             _commandsParallelList = new ParallelList<DeferredCommand>(256, Allocator.Persistent);
             _commandsList = new NativeList<DeferredCommand>(256, Allocator.Persistent);
+            _jobHandles = new NativeList<JobHandle>(8, Allocator.Persistent);
             state.RequireForUpdate<TilemapCommandBufferSingleton>();
         }
 
@@ -83,7 +91,7 @@ namespace KrasCore.Mosaic
 
         private ParallelList<DeferredCommand> _commandsParallelList;
         private NativeList<DeferredCommand> _commandsList;
-
+        private NativeList<JobHandle> _jobHandles;
 
         private static readonly ProfilerMarker ProcessCommands = new ProfilerMarker("Process Commands");
         private static readonly ProfilerMarker ScheduleJobs = new ProfilerMarker("Schedule Jobs");
@@ -97,91 +105,106 @@ namespace KrasCore.Mosaic
             var ecbSingleton = SystemAPI.GetSingleton<EndInitializationEntityCommandBufferSystem.Singleton>();
             var ecb = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged);
             
-            // Set NativeHashMap
-            ProcessCommands.Begin();
-            while (tcb.SetCommandsQueue.TryDequeue(out var command))
-            {
-                if (!_intGridLayers.ContainsKey(command.IntGridHash))
-                {
-                    _intGridLayers.Add(command.IntGridHash, new IntGridLayer(64, Allocator.Persistent));
-                }
-
-                var intGrid = _intGridLayers[command.IntGridHash].IntGrid;
-                intGrid[command.Position] = command.IntGridValue;
-                _intGridLayers[command.IntGridHash].ChangedPositions.Add(command.Position);
-            }
-            ProcessCommands.End();
-            // Add refresh positions set back
-            JobHandle finalDep = default;
-            
-            // Apply rules
-            ScheduleJobs.Begin();
-            foreach (var (intGridRef, rulesBuffer, entityBuffer) in SystemAPI.Query<RefRO<IntGridReference>, DynamicBuffer<RuleBlobReferenceElement>, DynamicBuffer<WeightedEntityElement>>())
+            foreach (var (intGridRef, rulesBuffer, refreshPositionsBuffer, entityBuffer) in SystemAPI.Query<RefRO<IntGridReference>, DynamicBuffer<RuleBlobReferenceElement>, DynamicBuffer<RefreshPositionElement>, DynamicBuffer<WeightedEntityElement>>())
             {
                 var intGridHash = intGridRef.ValueRO.Value.GetHashCode();
 
-                var changedPositions = _intGridLayers[intGridHash].ChangedPositions;
-                if (changedPositions.IsEmpty) continue;
-                
-                var changedPositionsTemp = changedPositions.ToNativeArray(Allocator.TempJob);
-                var job = new RuleJob
+                if (!_intGridLayers.ContainsKey(intGridHash))
                 {
-                    IntGrid = _intGridLayers[intGridHash].IntGrid,
-                    ChangedPositions = changedPositionsTemp,
+                    _intGridLayers.Add(intGridHash, new IntGridLayer(64, Allocator.Persistent));
+                }
+                var layer = _intGridLayers[intGridHash];
+                
+                var commandsQueue = tcb.Layers[intGridHash];
+                if (commandsQueue.IsEmpty()) continue;
+                
+                // ProcessCommandsJob
+                var processCommandsJob = new ProcessCommandsJob
+                {
+                    IntGrid = layer.IntGrid,
+                    ChangedPositions = layer.ChangedPositions,
+                    SetCommandsQueue = tcb.Layers[intGridHash]
+                };
+                var jobDependency = processCommandsJob.Schedule();
+                //
+                // Find and filter refresh positions
+                var findRefreshPositionsJob = new FindRefreshPositionsJob
+                {
+                    RefreshOffsets = refreshPositionsBuffer.AsNativeArray().Reinterpret<int2>(),
+                    ChangedPositions = layer.ChangedPositions,
+                    PositionsToRefresh = layer.PositionsToRefresh,
+                    PositionsToRefreshList = layer.PositionsToRefreshList
+                };
+                jobDependency = findRefreshPositionsJob.Schedule(jobDependency);
+                
+                // Apply rules
+                var processRulesJob = new ProcessRulesJob
+                {
+                    IntGrid = layer.IntGrid,
+                    PositionsToRefresh = layer.PositionsToRefreshList.AsDeferredJobArray(),
                     EntityBuffer = entityBuffer.AsNativeArray(),
                     RulesBuffer = rulesBuffer.AsNativeArray(),
                     Writer = _commandsParallelList.AsThreadWriter()
                 };
-                var dep = job.ScheduleParallel(changedPositionsTemp.Length, 16, state.Dependency);
-                changedPositionsTemp.Dispose(dep);
-
-                finalDep = dep;
+                
+                jobDependency = JobHandle.CombineDependencies(state.Dependency, jobDependency);
+                _jobHandles.Add(processRulesJob.Schedule(layer.PositionsToRefreshList, 16, jobDependency));
             }
 
-            if (finalDep == default)
+            var combinedDependency = JobHandle.CombineDependencies(_jobHandles.AsArray());
+            if (combinedDependency == default)
             {
-                ScheduleJobs.End();
                 return;
             }
             
-            finalDep = _commandsParallelList.CopyToArraySingle(ref _commandsList, finalDep);
+            combinedDependency = _commandsParallelList.CopyToArraySingle(ref _commandsList, combinedDependency);
 
-            finalDep = new CreateBatchedEntities
+            combinedDependency = new CreateBatchedEntities
             {
                 Ecb = ecb,
                 LocalTransform = SystemAPI.GetComponentLookup<LocalTransform>(true),
                 CommandsList = _commandsList
-            }.Schedule(finalDep);
+            }.Schedule(combinedDependency);
 
             state.Dependency = new ClearBuffersJob
             {
-                IntGridLayers = _intGridLayers,
                 CommandsParallelList = _commandsParallelList,
                 CommandsList = _commandsList
-            }.Schedule(finalDep);
+            }.Schedule(combinedDependency);
             
-            ScheduleJobs.End();
+            _jobHandles.Clear();
         }
         
         [BurstCompile]
         private struct ClearBuffersJob : IJob
         {
-            [NativeDisableContainerSafetyRestriction]
-            public NativeHashMap<int, IntGridLayer> IntGridLayers;
             public ParallelList<DeferredCommand> CommandsParallelList;
             public NativeList<DeferredCommand> CommandsList;
             
             public void Execute()
             {
-                foreach (var layer in IntGridLayers)
-                {
-                    layer.Value.ChangedPositions.Clear();
-                }
                 CommandsParallelList.Clear();
                 CommandsList.Clear();
             }
         }
 
+        [BurstCompile]
+        private struct ProcessCommandsJob : IJob
+        {
+            public NativeQueue<TilemapCommandBuffer.SetCommand> SetCommandsQueue;
+            public NativeHashMap<int2, int> IntGrid;
+            public NativeHashSet<int2> ChangedPositions;
+            
+            public void Execute()
+            {
+                while (SetCommandsQueue.TryDequeue(out var command))
+                {
+                    IntGrid[command.Position] = command.IntGridValue;
+                    ChangedPositions.Add(command.Position);
+                }
+            }
+        }
+        
         [BurstCompile]
         private struct CreateBatchedEntities : IJob
         {
@@ -236,14 +259,38 @@ namespace KrasCore.Mosaic
             }
         }
 
-        
+
         [BurstCompile]
-        private struct RuleJob : IJobFor
+        private struct FindRefreshPositionsJob : IJob
+        {
+            [ReadOnly]
+            public NativeArray<int2> RefreshOffsets;
+            
+            public NativeHashSet<int2> ChangedPositions;
+            public NativeHashSet<int2> PositionsToRefresh;
+            public NativeList<int2> PositionsToRefreshList;
+
+            public void Execute()
+            {
+                foreach (var changedPosition in ChangedPositions)
+                {
+                    foreach (var refreshOffset in RefreshOffsets)
+                    {
+                        PositionsToRefresh.Add(changedPosition + refreshOffset);
+                    }
+                }
+                PositionsToRefresh.ToNativeList(ref PositionsToRefreshList);
+                ChangedPositions.Clear();
+            }
+        }
+
+        [BurstCompile]
+        private struct ProcessRulesJob : IJobParallelForDefer
         {
             [ReadOnly]
             public NativeHashMap<int2, int> IntGrid;
             [ReadOnly]
-            public NativeArray<int2> ChangedPositions;
+            public NativeArray<int2> PositionsToRefresh;
             [ReadOnly]
             public NativeArray<RuleBlobReferenceElement> RulesBuffer;
             [ReadOnly]
@@ -253,64 +300,55 @@ namespace KrasCore.Mosaic
             
             public void Execute(int index)
             {
-                var changedPos = ChangedPositions[index];
+                var posToRefresh = PositionsToRefresh[index];
                 Writer.Begin();
                 
-                for (int x = -RuleGroup.Rule.MatrixSizeHalf; x < RuleGroup.Rule.MatrixSizeHalf + 1; x++)
+                foreach (var ruleElement in RulesBuffer)
                 {
-                    for (int y = -RuleGroup.Rule.MatrixSizeHalf; y < RuleGroup.Rule.MatrixSizeHalf + 1; y++)
+                    if (!ruleElement.Enabled) continue;
+
+                    ref var rule = ref ruleElement.Value.Value;
+                    var passed = true;
+
+                    for (int i = 0; i < rule.Cells.Length; i++)
                     {
-                        var posToRefresh = changedPos + new int2(x, y);
-                        
-                        foreach (var ruleElement in RulesBuffer)
-                        {
-                            if (!ruleElement.Enabled) continue;
+                        var cell = rule.Cells[i];
 
-                            ref var rule = ref ruleElement.Value.Value;
-                            var passed = true;
-
-                            for (int i = 0; i < rule.Cells.Length; i++)
-                            {
-                                var cell = rule.Cells[i];
-
-                                var posToCheck = posToRefresh + cell.Offset;
-                                    
-                                IntGrid.TryGetValue(posToCheck, out var value);
-                                passed = CanPlace(cell, value);
-
-                                if (!passed)
-                                    break;
-                            }
+                        var posToCheck = posToRefresh + cell.Offset;
                             
-                            if (passed)
-                            {
-                                Writer.Write(new DeferredCommand
-                                {
-                                    SrcEntity = EntityBuffer[rule.WeightedEntities[0].EntityBufferIndex].Value,
-                                    Position = posToRefresh
-                                });
+                        IntGrid.TryGetValue(posToCheck, out var value);
+                        passed = CanPlace(cell, value);
 
-                                break;
-                            }
-                        }
+                        if (!passed)
+                            break;
+                    }
+                    
+                    if (passed)
+                    {
+                        Writer.Write(new DeferredCommand
+                        {
+                            SrcEntity = EntityBuffer[rule.WeightedEntities[0].EntityBufferIndex].Value,
+                            Position = posToRefresh
+                        });
+
+                        break;
                     }
                 }
-                
-                
+            }
+            
+            private static bool CanPlace(RuleCell cell, int value)
+            {
+                if (cell.IntGridValue == -RuleGroup.Rule.AnyIntGridValue) 
+                    return false;
+                if (cell.IntGridValue < 0 && -cell.IntGridValue == value) 
+                    return false;
+                if (cell.IntGridValue != RuleGroup.Rule.AnyIntGridValue &&
+                         (cell.IntGridValue > 0 && cell.IntGridValue != value)) 
+                    return false;
+                return true;
             }
         }
 
-        private static bool CanPlace(RuleCell cell, int value)
-        {
-            if (cell.IntGridValue == -RuleGroup.Rule.AnyIntGridValue) 
-                return false;
-            if (cell.IntGridValue < 0 && -cell.IntGridValue == value) 
-                return false;
-            if (cell.IntGridValue != RuleGroup.Rule.AnyIntGridValue &&
-                     (cell.IntGridValue > 0 && cell.IntGridValue != value)) 
-                return false;
-            return true;
-        }
 
         [BurstCompile]
         public void OnDestroy(ref SystemState state)
@@ -322,38 +360,55 @@ namespace KrasCore.Mosaic
             }
             _commandsParallelList.Dispose();
             _commandsList.Dispose();
+            _jobHandles.Dispose();
         }
     }
 
     public struct TilemapCommandBuffer : IDisposable
     {
-        public NativeQueue<SetCommand> SetCommandsQueue;
+        public NativeHashMap<int, NativeQueue<SetCommand>> Layers;
 
+        private readonly Allocator _allocator;
+        
         public TilemapCommandBuffer(int capacity, Allocator allocator)
         {
-            SetCommandsQueue = new NativeQueue<SetCommand>(allocator);
+            _allocator = allocator;
+            Layers = new NativeHashMap<int, NativeQueue<SetCommand>>(capacity, allocator);
         }
         
         public void Set(IntGrid intGrid, int2 position, int intGridValue)
         {
-            SetCommandsQueue.Enqueue(new SetCommand { IntGridHash = intGrid.GetHashCode(), Position = position, IntGridValue = intGridValue });
+            Set(intGrid.GetHashCode(), position, intGridValue);
         }
         
         public void Set(UnityObjectRef<IntGrid> intGrid, int2 position, int intGridValue)
         {
-            SetCommandsQueue.Enqueue(new SetCommand { IntGridHash = intGrid.GetHashCode(), Position = position, IntGridValue = intGridValue });
+            Set(intGrid.GetHashCode(), position, intGridValue);
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Set(int intGridHash, int2 position, int intGridValue)
+        {
+            if (!Layers.ContainsKey(intGridHash))
+            {
+                Layers[intGridHash] = new NativeQueue<SetCommand>(_allocator);
+            }
+            Layers[intGridHash].Enqueue(new SetCommand { Position = position, IntGridValue = intGridValue });
         }
             
         public struct SetCommand
         {
-            public int IntGridHash;
             public int2 Position;
             public int IntGridValue;
         }
 
         public void Dispose()
         {
-            SetCommandsQueue.Dispose();
+            foreach (var layer in Layers)
+            {
+                layer.Value.Dispose();
+            }
+            Layers.Dispose();
         }
     }
 }
