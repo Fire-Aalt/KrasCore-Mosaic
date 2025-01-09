@@ -1,5 +1,4 @@
 using System;
-using Drawing;
 using Game;
 using KrasCore.Mosaic;
 using KrasCore.NZCore;
@@ -9,10 +8,12 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
-using UnityEngine;
 
-[assembly: RegisterGenericJobType(typeof(ParallelList<DeferredCommand>.UnsafeParallelListToArraySingleThreaded))]
+[assembly: RegisterGenericJobType(typeof(ParallelList<EntityCommand>.UnsafeParallelListToArraySingleThreaded))]
+[assembly: RegisterGenericJobType(typeof(ParallelList<SpriteCommand>.UnsafeParallelListToArraySingleThreaded))]
 [assembly: RegisterGenericJobType(typeof(ParallelList<PositionToRemove>.UnsafeParallelListToArraySingleThreaded))]
+
+
 
 namespace KrasCore.Mosaic
 {
@@ -30,8 +31,9 @@ namespace KrasCore.Mosaic
     {
         public NativeHashMap<int, IntGridLayer> IntGridLayers;
 
-        public NativeList<DeferredCommand> CommandsList;
-        public NativeList<PositionToRemove> PositionToRemoveList;
+        public NativeList<EntityCommand> EntityCommands;
+        public NativeList<SpriteCommand> SpriteCommands;
+        public NativeList<PositionToRemove> PositionToRemove;
         
         public void Dispose()
         {
@@ -40,8 +42,9 @@ namespace KrasCore.Mosaic
                 layer.Value.Dispose();
             }
             IntGridLayers.Dispose();
-            CommandsList.Dispose();
-            PositionToRemoveList.Dispose();
+            EntityCommands.Dispose();
+            SpriteCommands.Dispose();
+            PositionToRemove.Dispose();
         }
     }
 
@@ -50,18 +53,24 @@ namespace KrasCore.Mosaic
         public NativeParallelHashMap<int2, int> IntGrid;
         public NativeHashSet<int2> ChangedPositions;
         public NativeHashSet<int2> PositionsToRefresh;
+        
         public NativeParallelHashMap<int2, Entity> SpawnedEntities;
+        public NativeParallelHashMap<int2, SpriteProperties> RenderedSprites;
 
         public NativeList<int2> PositionsToRefreshList;
 
-        public IntGridLayer(int capacity, Allocator allocator)
+        public TilemapData TilemapData;
+        
+        public IntGridLayer(TilemapData tilemapData, int capacity, Allocator allocator)
         {
             IntGrid = new NativeParallelHashMap<int2, int>(capacity, allocator);
             ChangedPositions = new NativeHashSet<int2>(capacity, allocator);
             PositionsToRefresh = new NativeHashSet<int2>(capacity, allocator);
             SpawnedEntities = new NativeParallelHashMap<int2, Entity>(capacity, allocator);
+            RenderedSprites = new NativeParallelHashMap<int2, SpriteProperties>(capacity, allocator);
             
             PositionsToRefreshList = new NativeList<int2>(capacity, allocator);
+            TilemapData = tilemapData;
         }
 
         public void Dispose()
@@ -71,6 +80,7 @@ namespace KrasCore.Mosaic
             PositionsToRefresh.Dispose();
             PositionsToRefreshList.Dispose();
             SpawnedEntities.Dispose();
+            RenderedSprites.Dispose();
         }
     }
 
@@ -80,9 +90,18 @@ namespace KrasCore.Mosaic
         public int IntGridHash;
     }
     
+    public struct SpriteCommand
+    {
+        public SpriteProperties SpriteProperties;
+        public int2 Position;
+        public int IntGridHash;
+    }
+    
+    [RequireMatchingQueriesForUpdate]
     public partial struct TilemapCommandBufferSystem : ISystem
     {
-        private ParallelList<DeferredCommand> _commandsParallelList;
+        private ParallelList<EntityCommand> _entityCommands;
+        private ParallelList<SpriteCommand> _spriteCommands;
         private ParallelList<PositionToRemove> _entityPositionsToRemove;
         private NativeList<JobHandle> _jobHandles;
         
@@ -98,11 +117,13 @@ namespace KrasCore.Mosaic
             state.EntityManager.CreateSingleton(new TilemapDataSingleton
             {
                 IntGridLayers = new NativeHashMap<int, IntGridLayer>(8, Allocator.Persistent),
-                CommandsList = new NativeList<DeferredCommand>(64, Allocator.Persistent),
-                PositionToRemoveList = new NativeList<PositionToRemove>(64, Allocator.Persistent)
+                EntityCommands = new NativeList<EntityCommand>(64, Allocator.Persistent),
+                SpriteCommands = new NativeList<SpriteCommand>(64, Allocator.Persistent),
+                PositionToRemove = new NativeList<PositionToRemove>(64, Allocator.Persistent)
             });
 
-            _commandsParallelList = new ParallelList<DeferredCommand>(256, Allocator.Persistent);
+            _entityCommands = new ParallelList<EntityCommand>(256, Allocator.Persistent);
+            _spriteCommands = new ParallelList<SpriteCommand>(256, Allocator.Persistent);
             _entityPositionsToRemove = new ParallelList<PositionToRemove>(256, Allocator.Persistent);
             _jobHandles = new NativeList<JobHandle>(8, Allocator.Persistent);
             state.RequireForUpdate<TilemapCommandBufferSingleton>();
@@ -113,7 +134,8 @@ namespace KrasCore.Mosaic
         {
             SystemAPI.GetSingleton<TilemapCommandBufferSingleton>().Dispose();
             SystemAPI.GetSingleton<TilemapDataSingleton>().Dispose();
-            _commandsParallelList.Dispose();
+            _entityCommands.Dispose();
+            _spriteCommands.Dispose();
             _entityPositionsToRemove.Dispose();
             _jobHandles.Dispose();
         }
@@ -124,16 +146,14 @@ namespace KrasCore.Mosaic
             var tcb = SystemAPI.GetSingleton<TilemapCommandBufferSingleton>().Tcb;
             var singleton = SystemAPI.GetSingleton<TilemapDataSingleton>();
             var intGridLayers = singleton.IntGridLayers;
-            
-            var sing = SystemAPI.GetSingleton<DrawSingleton>();
-            
-            foreach (var (intGridRef, rulesBuffer, refreshPositionsBuffer, entityBuffer) in SystemAPI.Query<RefRO<IntGridReference>, DynamicBuffer<RuleBlobReferenceElement>, DynamicBuffer<RefreshPositionElement>, DynamicBuffer<WeightedEntityElement>>())
+
+            foreach (var (tilemapDataRO, rulesBuffer, refreshPositionsBuffer, entityBuffer) in SystemAPI.Query<RefRO<TilemapData>, DynamicBuffer<RuleBlobReferenceElement>, DynamicBuffer<RefreshPositionElement>, DynamicBuffer<WeightedEntityElement>>())
             {
-                var intGridHash = intGridRef.ValueRO.Value.GetHashCode();
+                var intGridHash = tilemapDataRO.ValueRO.IntGridReference.GetHashCode();
 
                 if (!intGridLayers.ContainsKey(intGridHash))
                 {
-                    intGridLayers.Add(intGridHash, new IntGridLayer(64, Allocator.Persistent));
+                    intGridLayers.Add(intGridHash, new IntGridLayer(tilemapDataRO.ValueRO, 64, Allocator.Persistent));
                 }
                 var layer = intGridLayers[intGridHash];
                 
@@ -165,7 +185,9 @@ namespace KrasCore.Mosaic
                     EntityBuffer = entityBuffer.AsNativeArray(),
                     RulesBuffer = rulesBuffer.AsNativeArray(),
                     SpawnedEntities = layer.SpawnedEntities,
-                    Commands = _commandsParallelList.AsThreadWriter(),
+                    RenderedSprites = layer.RenderedSprites,
+                    EntityCommands = _entityCommands.AsThreadWriter(),
+                    SpriteCommands = _spriteCommands.AsThreadWriter(),
                     EntityPositionsToRemove = _entityPositionsToRemove.AsThreadWriter(),
                     IntGridHash = intGridHash
                 };
@@ -176,14 +198,16 @@ namespace KrasCore.Mosaic
             if (_jobHandles.Length == 0) return;
             var combinedDependency = JobHandle.CombineDependencies(_jobHandles.AsArray());
             
-            var handle1 = _commandsParallelList.CopyToArraySingle(ref singleton.CommandsList, combinedDependency);
-            var handle2 = _entityPositionsToRemove.CopyToArraySingle(ref singleton.PositionToRemoveList, combinedDependency);
+            var handle1 = _entityCommands.CopyToArraySingle(ref singleton.EntityCommands, combinedDependency);
+            var handle2 = _spriteCommands.CopyToArraySingle(ref singleton.SpriteCommands, combinedDependency);
+            var handle3 = _entityPositionsToRemove.CopyToArraySingle(ref singleton.PositionToRemove, combinedDependency);
 
             state.Dependency = new ClearBuffersJob
             {
-                CommandsParallelList = _commandsParallelList,
+                EntityCommands = _entityCommands,
+                SpriteCommands = _spriteCommands,
                 PositionsToRemoveParallelList = _entityPositionsToRemove
-            }.Schedule(JobHandle.CombineDependencies(handle1, handle2));
+            }.Schedule(JobHandle.CombineDependencies(handle1, handle2, handle3));
             
             _jobHandles.Clear();
         }
@@ -243,11 +267,16 @@ namespace KrasCore.Mosaic
             public NativeArray<RuleBlobReferenceElement> RulesBuffer;
             [ReadOnly]
             public NativeArray<WeightedEntityElement> EntityBuffer;
+            
             [ReadOnly]
             public NativeParallelHashMap<int2, Entity> SpawnedEntities;
+            [ReadOnly]
+            public NativeParallelHashMap<int2, SpriteProperties> RenderedSprites;
 
             [NativeDisableContainerSafetyRestriction]
-            public ParallelList<DeferredCommand>.ThreadWriter Commands;
+            public ParallelList<EntityCommand>.ThreadWriter EntityCommands;
+            [NativeDisableContainerSafetyRestriction]
+            public ParallelList<SpriteCommand>.ThreadWriter SpriteCommands;
             [NativeDisableContainerSafetyRestriction]
             public ParallelList<PositionToRemove>.ThreadWriter EntityPositionsToRemove;
 
@@ -256,7 +285,8 @@ namespace KrasCore.Mosaic
             public void Execute(int index)
             {
                 var posToRefresh = PositionsToRefresh[index];
-                Commands.Begin();
+                EntityCommands.Begin();
+                SpriteCommands.Begin();
                 EntityPositionsToRemove.Begin();
                 
                 var rulePassed = false;
@@ -283,23 +313,41 @@ namespace KrasCore.Mosaic
                     
                     if (passed)
                     {
-                        var newEntity = EntityBuffer[rule.WeightedEntities[0].EntityBufferIndex].Value;
-
-                        var posOccupied = SpawnedEntities.TryGetValue(posToRefresh, out var presentEntity);
-                        if (posOccupied && newEntity == presentEntity) continue;
-                        if (posOccupied) QueueRemovePos(posToRefresh);
-                        
-                        Commands.Write(new DeferredCommand
+                        if (rule.ResultType == RuleResultType.Entity)
                         {
-                            SrcEntity = newEntity,
-                            Position = posToRefresh,
-                            IntGridHash = IntGridHash
-                        });
+                            var newEntity = EntityBuffer[rule.WeightedEntities[0].EntityBufferIndex].Value;
+
+                            var posOccupied = SpawnedEntities.TryGetValue(posToRefresh, out var presentEntity);
+                            if (posOccupied && newEntity == presentEntity) continue;
+                            if (posOccupied) QueueRemovePos(posToRefresh);
+                            
+                            EntityCommands.Write(new EntityCommand
+                            {
+                                SrcEntity = newEntity,
+                                Position = posToRefresh,
+                                IntGridHash = IntGridHash
+                            });
+                        }
+                        else
+                        {
+                            var newSprite = rule.WeightedSprites[0].SpriteProperties;
+
+                            var posOccupied = RenderedSprites.TryGetValue(posToRefresh, out var presentSprite);
+                            if (posOccupied && newSprite.Equals(presentSprite)) continue;
+                            if (posOccupied) QueueRemovePos(posToRefresh);
+                            
+                            SpriteCommands.Write(new SpriteCommand
+                            {
+                                SpriteProperties = newSprite,
+                                Position = posToRefresh,
+                                IntGridHash = IntGridHash
+                            });
+                        }
                         rulePassed = true;
                         break;
                     }
                 }
-                if (!rulePassed && SpawnedEntities.ContainsKey(posToRefresh))
+                if (!rulePassed && (SpawnedEntities.ContainsKey(posToRefresh) || RenderedSprites.ContainsKey(posToRefresh)))
                 {
                     QueueRemovePos(posToRefresh);
                 }
@@ -330,12 +378,14 @@ namespace KrasCore.Mosaic
         [BurstCompile]
         private struct ClearBuffersJob : IJob
         {
-            public ParallelList<DeferredCommand> CommandsParallelList;
+            public ParallelList<EntityCommand> EntityCommands;
+            public ParallelList<SpriteCommand> SpriteCommands;
             public ParallelList<PositionToRemove> PositionsToRemoveParallelList;
             
             public void Execute()
             {
-                CommandsParallelList.Clear();
+                EntityCommands.Clear();
+                SpriteCommands.Clear();
                 PositionsToRemoveParallelList.Clear();
             }
         }

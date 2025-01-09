@@ -4,16 +4,16 @@ using Unity.Mathematics;
 
 namespace KrasCore.Mosaic
 {
-    public struct DeferredCommand
+    public struct EntityCommand
     {
         public Entity SrcEntity;
         public int2 Position;
         public int IntGridHash;
     }
     
-    public struct DeferredCommandComparer : IComparer<DeferredCommand>
+    public struct DeferredCommandComparer : IComparer<EntityCommand>
     {
-        public int Compare(DeferredCommand x, DeferredCommand y)
+        public int Compare(EntityCommand x, EntityCommand y)
         {
             return x.SrcEntity.Index.CompareTo(y.SrcEntity.Index);
         }

@@ -9,7 +9,7 @@ namespace KrasCore.Mosaic
     [UpdateInGroup(typeof(InitializationSystemGroup))]
     public partial struct TilemapEntityInitializationSystem : ISystem
     {
-        private NativeList<DeferredCommand> _commandsList;
+        private NativeList<EntityCommand> _commandsList;
         private NativeHashMap<int, IntGridLayer> _intGridLayers;
         
         [BurstCompile]
@@ -22,7 +22,7 @@ namespace KrasCore.Mosaic
         public void OnUpdate(ref SystemState state)
         {
             var singleton = SystemAPI.GetSingleton<TilemapDataSingleton>();
-            _commandsList = singleton.CommandsList;
+            _commandsList = singleton.EntityCommands;
             _intGridLayers = singleton.IntGridLayers;
             
             if (_commandsList.Length == 0) return;
@@ -59,15 +59,17 @@ namespace KrasCore.Mosaic
                 var instance = instances[i];
                     
                 var position = currentCommand.Position;
+
+                var layer = _intGridLayers[currentCommand.IntGridHash];
                 
                 state.EntityManager.SetComponentData(instance, new LocalTransform
                 {
-                    Position = new float3(position.x, 0f, position.y) + srcTransform.Position, 
+                    Position = MosaicUtils.ApplySwizzle(position, layer.TilemapData.Swizzle) * layer.TilemapData.GridData.CellSize + srcTransform.Position, 
                     Scale = srcTransform.Scale,
                     Rotation = srcTransform.Rotation
                 });
                 
-                _intGridLayers[currentCommand.IntGridHash].SpawnedEntities.Add(position, instance);
+                layer.SpawnedEntities.Add(position, instance);
             }
         }
     }

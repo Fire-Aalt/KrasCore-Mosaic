@@ -19,7 +19,7 @@ namespace KrasCore.Mosaic
         public void OnUpdate(ref SystemState state)
         {
             var singleton = SystemAPI.GetSingleton<TilemapDataSingleton>();
-            var list = singleton.PositionToRemoveList;
+            var list = singleton.PositionToRemove;
             var layers = singleton.IntGridLayers;
             
             if (list.Length == 0) return;

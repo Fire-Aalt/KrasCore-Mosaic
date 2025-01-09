@@ -1,3 +1,4 @@
+using System;
 using Game;
 using Unity.Collections;
 using UnityEngine;
@@ -6,21 +7,29 @@ using Unity.Mathematics;
 
 namespace KrasCore.Mosaic
 {
-    public class IntGridAuthoring : MonoBehaviour
+    public class TilemapAuthoring : MonoBehaviour
     {
         [SerializeField] private IntGrid _intGrid;
+        [SerializeField] private Material _material;
+        [SerializeField] private Orientation _orientation;
+
+        public IntGrid IntGrid => _intGrid;
         
-        public class Baker : Baker<IntGridAuthoring>
+        public class Baker : Baker<TilemapAuthoring>
         {
-            public override void Bake(IntGridAuthoring authoring)
+            public override void Bake(TilemapAuthoring authoring)
             {
                 var entity = GetEntity(TransformUsageFlags.None);
                 var ruleBlobBuffer = AddBuffer<RuleBlobReferenceElement>(entity);
                 var weightedEntityBuffer = AddBuffer<WeightedEntityElement>(entity);
 
-                AddComponent(entity, new IntGridReference { Value = authoring._intGrid });
+
+
+
 
                 var refreshPositions = new NativeHashSet<int2>(64, Allocator.Temp);
+
+                Texture2D refTexture = null;
                 
                 var entityCount = 0;
                 foreach (var group in authoring._intGrid.ruleGroups)
@@ -52,9 +61,28 @@ namespace KrasCore.Mosaic
                             });
                         }
 
+                        for (int i = 0; i < rule.TileSprites.Count; i++)
+                        {
+                            var spriteTexture = rule.TileSprites[i].spriteResult.texture;
+
+                            if (refTexture == null)
+                                refTexture = spriteTexture;
+                            else if (refTexture != spriteTexture)
+                            {
+                                throw new Exception("Different textures in one tilemap. This is not supported yet");
+                            }
+                        }
+
                         entityCount += rule.TileEntities.Count;
                     }
                 }
+                
+                AddComponent(entity, new TilemapData
+                {
+                    IntGridReference = authoring._intGrid,
+                    Orientation = authoring._orientation,
+                    Material = refTexture != null ? MaterialAssetsStorage.GetOrCreateMaterialAsset(authoring._material, refTexture) : null
+                });
 
                 var refreshPositionsBuffer = AddBuffer<RefreshPositionElement>(entity);
                 refreshPositionsBuffer.AddRange(refreshPositions.ToNativeArray(Allocator.Temp).Reinterpret<RefreshPositionElement>());
@@ -68,6 +96,7 @@ namespace KrasCore.Mosaic
 
             root.Chance = rule.ruleChance;
             root.Mirror = rule.mirror;
+            root.ResultType = rule.ResultType;
             
             var usedCellCount = 0;
             foreach (var intGridValue in rule.RuleMatrix)
@@ -107,6 +136,15 @@ namespace KrasCore.Mosaic
                 weightedEntity.Weight = rule.TileEntities[i].weight;
                 weightedEntity.EntityBufferIndex = entityCount + i;
             }
+            
+            var weightedSprites = builder.Allocate(ref root.WeightedSprites, rule.TileSprites.Count);
+            for (int i = 0; i < weightedSprites.Length; i++)
+            {
+                ref var weightedEntity = ref weightedSprites[i];
+
+                weightedEntity.Weight = rule.TileEntities[i].weight;
+                weightedEntity.SpriteProperties = RenderingStorage.GetSpriteProperties(rule.TileSprites[i].spriteResult);
+            }
 
             return builder.CreateBlobAssetReference<RuleBlob>(Allocator.Persistent);
         }
@@ -118,6 +156,7 @@ namespace KrasCore.Mosaic
     public struct RuleBlobReferenceElement : IBufferElementData
     {
         public bool Enabled;
+        public RuleResultType ResultType;
         public BlobAssetReference<RuleBlob> Value;
     }
     
@@ -136,7 +175,9 @@ namespace KrasCore.Mosaic
         public BlobArray<RuleCell> Cells;
 
         public BlobArray<WeightedEntity> WeightedEntities;
-        
+        public BlobArray<WeightedSprite> WeightedSprites;
+
+        public RuleResultType ResultType;
         public float Chance;
         public RuleGroup.Mirror Mirror;
     }
@@ -146,10 +187,22 @@ namespace KrasCore.Mosaic
         public int Weight;
         public int EntityBufferIndex;
     }
-
-    public struct IntGridReference : IComponentData
+    
+    public struct WeightedSprite
     {
-        public UnityObjectRef<IntGrid> Value;
+        public int Weight;
+        public SpriteProperties SpriteProperties;
+    }
+
+    public struct TilemapData : IComponentData
+    {
+        public UnityObjectRef<IntGrid> IntGridReference;
+        public Orientation Orientation;
+        
+        public GridData GridData;
+
+        public UnityObjectRef<Material> Material;
+        public Swizzle Swizzle => GridData.CellSwizzle;
     }
 
     // public struct WeightedSprite
