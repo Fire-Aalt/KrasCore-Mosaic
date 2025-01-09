@@ -1,9 +1,12 @@
+using Drawing;
 using Unity.Burst;
 using Unity.Entities;
+using Unity.Mathematics;
 
 namespace KrasCore.Mosaic
 {
     [UpdateInGroup(typeof(InitializationSystemGroup))]
+    [UpdateBefore(typeof(TilemapEntityInitializationSystem))]
     public partial struct TilemapEntityCleanupSystem : ISystem
     {
         [BurstCompile]
@@ -11,7 +14,7 @@ namespace KrasCore.Mosaic
         {
             state.RequireForUpdate<TilemapDataSingleton>();
         }
-
+        
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
@@ -25,12 +28,9 @@ namespace KrasCore.Mosaic
             {
                 var spawnedEntities = layers[positionToRemove.IntGridHash].SpawnedEntities;
 
-                if (spawnedEntities.ContainsKey(positionToRemove.Position))
+                if (spawnedEntities.TryGetValue(positionToRemove.Position, out var entity))
                 {
-                    foreach (var entity in spawnedEntities.GetValuesForKey(positionToRemove.Position))
-                    {
-                        state.EntityManager.DestroyEntity(entity);
-                    }
+                    state.EntityManager.DestroyEntity(entity);
                     spawnedEntities.Remove(positionToRemove.Position);
                 }
             }

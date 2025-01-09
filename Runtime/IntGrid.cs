@@ -11,7 +11,7 @@ namespace KrasCore.Mosaic
     {
         public List<IntGridValue> intGridValues = new();
 
-        [ReadOnly]
+        //[ReadOnly]
         public List<RuleGroup> ruleGroups = new();
         
         [SerializeField, HideInInspector]

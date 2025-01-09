@@ -11,7 +11,7 @@ namespace KrasCore.Mosaic
     [CreateAssetMenu(menuName = "Mosaic/RuleGroup")]
     public class RuleGroup : ScriptableObject
     {
-        [ReadOnly]
+        //[ReadOnly]
         [Title("Bound IntGrid")]
         public IntGrid intGrid;
         
