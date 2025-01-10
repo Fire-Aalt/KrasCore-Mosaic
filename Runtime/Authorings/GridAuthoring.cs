@@ -18,7 +18,7 @@ namespace KrasCore.Mosaic
         {
             public override void Bake(GridAuthoring authoring)
             {
-                var entity = GetEntity(TransformUsageFlags.None);
+                var entity = GetEntity(TransformUsageFlags.Dynamic);
                 AddComponent(entity, new GridData
                 {
                     CellSize = authoring._cellSize,

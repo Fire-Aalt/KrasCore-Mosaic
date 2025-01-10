@@ -1,5 +1,4 @@
 using System;
-using Game;
 using KrasCore.Mosaic;
 using KrasCore.NZCore;
 using Unity.Burst;
@@ -8,6 +7,7 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
+using Unity.Transforms;
 
 [assembly: RegisterGenericJobType(typeof(ParallelList<EntityCommand>.UnsafeParallelListToArraySingleThreaded))]
 [assembly: RegisterGenericJobType(typeof(ParallelList<SpriteCommand>.UnsafeParallelListToArraySingleThreaded))]
@@ -35,6 +35,8 @@ namespace KrasCore.Mosaic
         public NativeList<SpriteCommand> SpriteCommands;
         public NativeList<PositionToRemove> PositionToRemove;
         
+        public JobHandle JobHandle;
+        
         public void Dispose()
         {
             foreach (var layer in IntGridLayers)
@@ -55,11 +57,12 @@ namespace KrasCore.Mosaic
         public NativeHashSet<int2> PositionsToRefresh;
         
         public NativeParallelHashMap<int2, Entity> SpawnedEntities;
-        public NativeParallelHashMap<int2, SpriteProperties> RenderedSprites;
+        public NativeParallelHashMap<int2, SpriteMesh> RenderedSprites;
 
         public NativeList<int2> PositionsToRefreshList;
 
         public TilemapData TilemapData;
+        public LocalTransform TilemapTransform;
         
         public IntGridLayer(TilemapData tilemapData, int capacity, Allocator allocator)
         {
@@ -67,10 +70,11 @@ namespace KrasCore.Mosaic
             ChangedPositions = new NativeHashSet<int2>(capacity, allocator);
             PositionsToRefresh = new NativeHashSet<int2>(capacity, allocator);
             SpawnedEntities = new NativeParallelHashMap<int2, Entity>(capacity, allocator);
-            RenderedSprites = new NativeParallelHashMap<int2, SpriteProperties>(capacity, allocator);
+            RenderedSprites = new NativeParallelHashMap<int2, SpriteMesh>(capacity, allocator);
             
             PositionsToRefreshList = new NativeList<int2>(capacity, allocator);
             TilemapData = tilemapData;
+            TilemapTransform = default;
         }
 
         public void Dispose()
@@ -92,7 +96,7 @@ namespace KrasCore.Mosaic
     
     public struct SpriteCommand
     {
-        public SpriteProperties SpriteProperties;
+        public SpriteMesh SpriteMesh;
         public int2 Position;
         public int IntGridHash;
     }
@@ -144,10 +148,11 @@ namespace KrasCore.Mosaic
         public void OnUpdate(ref SystemState state)
         {
             var tcb = SystemAPI.GetSingleton<TilemapCommandBufferSingleton>().Tcb;
-            var singleton = SystemAPI.GetSingleton<TilemapDataSingleton>();
+            ref var singleton = ref SystemAPI.GetSingletonRW<TilemapDataSingleton>().ValueRW;
+            singleton.JobHandle = default;
             var intGridLayers = singleton.IntGridLayers;
 
-            foreach (var (tilemapDataRO, rulesBuffer, refreshPositionsBuffer, entityBuffer) in SystemAPI.Query<RefRO<TilemapData>, DynamicBuffer<RuleBlobReferenceElement>, DynamicBuffer<RefreshPositionElement>, DynamicBuffer<WeightedEntityElement>>())
+            foreach (var (tilemapDataRO, transformRO, rulesBuffer, refreshPositionsBuffer, entityBuffer) in SystemAPI.Query<RefRO<TilemapData>, RefRO<LocalTransform>, DynamicBuffer<RuleBlobReferenceElement>, DynamicBuffer<RefreshPositionElement>, DynamicBuffer<WeightedEntityElement>>())
             {
                 var intGridHash = tilemapDataRO.ValueRO.IntGridReference.GetHashCode();
 
@@ -156,6 +161,8 @@ namespace KrasCore.Mosaic
                     intGridLayers.Add(intGridHash, new IntGridLayer(tilemapDataRO.ValueRO, 64, Allocator.Persistent));
                 }
                 var layer = intGridLayers[intGridHash];
+                layer.TilemapTransform = transformRO.ValueRO;
+                intGridLayers[intGridHash] = layer;
                 
                 var commandsQueue = tcb.Layers[intGridHash];
                 if (commandsQueue.IsEmpty()) continue;
@@ -208,6 +215,8 @@ namespace KrasCore.Mosaic
                 SpriteCommands = _spriteCommands,
                 PositionsToRemoveParallelList = _entityPositionsToRemove
             }.Schedule(JobHandle.CombineDependencies(handle1, handle2, handle3));
+
+            singleton.JobHandle = state.Dependency;
             
             _jobHandles.Clear();
         }
@@ -271,7 +280,7 @@ namespace KrasCore.Mosaic
             [ReadOnly]
             public NativeParallelHashMap<int2, Entity> SpawnedEntities;
             [ReadOnly]
-            public NativeParallelHashMap<int2, SpriteProperties> RenderedSprites;
+            public NativeParallelHashMap<int2, SpriteMesh> RenderedSprites;
 
             [NativeDisableContainerSafetyRestriction]
             public ParallelList<EntityCommand>.ThreadWriter EntityCommands;
@@ -330,7 +339,7 @@ namespace KrasCore.Mosaic
                         }
                         else
                         {
-                            var newSprite = rule.WeightedSprites[0].SpriteProperties;
+                            var newSprite = rule.WeightedSprites[0].SpriteMesh;
 
                             var posOccupied = RenderedSprites.TryGetValue(posToRefresh, out var presentSprite);
                             if (posOccupied && newSprite.Equals(presentSprite)) continue;
@@ -338,7 +347,7 @@ namespace KrasCore.Mosaic
                             
                             SpriteCommands.Write(new SpriteCommand
                             {
-                                SpriteProperties = newSprite,
+                                SpriteMesh = newSprite,
                                 Position = posToRefresh,
                                 IntGridHash = IntGridHash
                             });

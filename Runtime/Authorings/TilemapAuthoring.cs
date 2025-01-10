@@ -19,13 +19,9 @@ namespace KrasCore.Mosaic
         {
             public override void Bake(TilemapAuthoring authoring)
             {
-                var entity = GetEntity(TransformUsageFlags.None);
+                var entity = GetEntity(TransformUsageFlags.Dynamic);
                 var ruleBlobBuffer = AddBuffer<RuleBlobReferenceElement>(entity);
                 var weightedEntityBuffer = AddBuffer<WeightedEntityElement>(entity);
-
-
-
-
 
                 var refreshPositions = new NativeHashSet<int2>(64, Allocator.Temp);
 
@@ -142,8 +138,8 @@ namespace KrasCore.Mosaic
             {
                 ref var weightedEntity = ref weightedSprites[i];
 
-                weightedEntity.Weight = rule.TileEntities[i].weight;
-                weightedEntity.SpriteProperties = RenderingStorage.GetSpriteProperties(rule.TileSprites[i].spriteResult);
+                weightedEntity.Weight = rule.TileSprites[i].weight;
+                weightedEntity.SpriteMesh = new SpriteMesh(rule.TileSprites[i].spriteResult);
             }
 
             return builder.CreateBlobAssetReference<RuleBlob>(Allocator.Persistent);
@@ -191,7 +187,7 @@ namespace KrasCore.Mosaic
     public struct WeightedSprite
     {
         public int Weight;
-        public SpriteProperties SpriteProperties;
+        public SpriteMesh SpriteMesh;
     }
 
     public struct TilemapData : IComponentData

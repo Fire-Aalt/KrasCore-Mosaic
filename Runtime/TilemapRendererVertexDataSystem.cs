@@ -1,32 +1,84 @@
+using System;
 using Game;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
+using Unity.Transforms;
 using UnityEngine;
 
 namespace KrasCore.Mosaic
 {
+	public struct TilemapRendererSingleton : IComponentData, IDisposable
+	{
+		public struct IntGridLayer : IDisposable
+		{
+			public NativeList<Vertex> Vertices;
+			public NativeList<int> Triangles;
+
+			public IntGridLayer(int capacity, Allocator allocator)
+			{
+				Vertices = new NativeList<Vertex>(capacity, allocator);
+				Triangles = new NativeList<int>(capacity, allocator);
+			}
+
+			public void Dispose()
+			{
+				Vertices.Dispose();
+				Triangles.Dispose();
+			}
+		}
+		
+		public NativeHashMap<int, IntGridLayer> IntGridLayers;
+		public JobHandle JobHandle;
+		
+		public TilemapRendererSingleton(int capacity, Allocator allocator)
+		{
+			IntGridLayers = new NativeHashMap<int, IntGridLayer>(capacity, allocator);
+			JobHandle = default;
+		}
+
+		public void Dispose()
+		{
+			IntGridLayers.Dispose();
+		}
+	}
+	
+	[UpdateAfter(typeof(TilemapCommandBufferSystem))]
     public partial struct TilemapRendererVertexDataSystem : ISystem
     {
         private NativeList<SpriteCommand> _commandsList;
         private NativeHashMap<int, IntGridLayer> _intGridLayers;
+        private NativeList<JobHandle> _jobHandles;
         
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
+	        state.RequireForUpdate<TilemapRendererSingleton>();
+	        state.EntityManager.CreateSingleton(new TilemapRendererSingleton(8, Allocator.Persistent));
             state.RequireForUpdate<TilemapDataSingleton>();
+            _jobHandles = new NativeList<JobHandle>(8, Allocator.Persistent);
+        }
+        
+        [BurstCompile]
+        public void OnDestroy(ref SystemState state)
+        {
+	        SystemAPI.GetSingleton<TilemapRendererSingleton>().Dispose();
+	        _jobHandles.Dispose();
         }
 
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            var singleton = SystemAPI.GetSingleton<TilemapDataSingleton>();
-            _commandsList = singleton.SpriteCommands;
-            _intGridLayers = singleton.IntGridLayers;
+	        ref var rendererSingleton = ref SystemAPI.GetSingletonRW<TilemapRendererSingleton>().ValueRW;
+            var dataSingleton = SystemAPI.GetSingleton<TilemapDataSingleton>();
+            _commandsList = dataSingleton.SpriteCommands;
+            _intGridLayers = dataSingleton.IntGridLayers;
+            rendererSingleton.JobHandle = default;
+            dataSingleton.JobHandle.Complete();
 
-            foreach (var positionToRemove in singleton.PositionToRemove)
+            foreach (var positionToRemove in dataSingleton.PositionToRemove)
             {
                 var layer = _intGridLayers[positionToRemove.IntGridHash];
                 
@@ -37,73 +89,118 @@ namespace KrasCore.Mosaic
             {
                 var layer = _intGridLayers[command.IntGridHash];
                 
-                layer.RenderedSprites.Add(command.Position, command.SpriteProperties);
-
+                layer.RenderedSprites.Add(command.Position, command.SpriteMesh);
             }
-
+            _commandsList.Clear();
             foreach (var layer in _intGridLayers)
             {
+	            if (!rendererSingleton.IntGridLayers.TryGetValue(layer.Key, out var rendererLayer))
+	            {
+		            rendererLayer = new TilemapRendererSingleton.IntGridLayer(256, Allocator.Persistent);
+		            rendererSingleton.IntGridLayers.Add(layer.Key, rendererLayer);
+	            }
                 var keyValueArrays = layer.Value.RenderedSprites.GetKeyValueArrays(Allocator.TempJob);
+
+                var meshesCount = keyValueArrays.Values.Length;
                 
+                var vertexCount = meshesCount * 4;
+                var indexCount = meshesCount * 6;
+
+                rendererLayer.Vertices.Clear();
+                rendererLayer.Triangles.Clear();
+                
+                if (rendererLayer.Vertices.Capacity < vertexCount)
+                {
+		            rendererLayer.Vertices.Capacity = vertexCount;
+		            rendererLayer.Triangles.Capacity = indexCount;
+                }
+
+                rendererLayer.Vertices.SetLengthNoClear(vertexCount);
+                rendererLayer.Triangles.SetLengthNoClear(indexCount);
+                
+	            var handle = new GenerateVertexDataJob
+	            {
+		            Positions = keyValueArrays.Keys,
+		            SpriteMeshes = keyValueArrays.Values,
+		            verts = rendererLayer.Vertices.AsArray(),
+		            tris = rendererLayer.Triangles.AsArray(),
+		            GridCellSize = layer.Value.TilemapData.GridData.CellSize,
+		            Orientation = layer.Value.TilemapData.Orientation,
+		            Swizzle = layer.Value.TilemapData.GridData.CellSwizzle,
+		            TilemapTransform = layer.Value.TilemapTransform
+	            }.ScheduleParallel(meshesCount, 32, dataSingleton.JobHandle);
+	            keyValueArrays.Dispose(handle);
+	            
+	            _jobHandles.Add(handle);
             }
             
+	        rendererSingleton.JobHandle = JobHandle.CombineDependencies(_jobHandles.AsArray());
+	        _jobHandles.Clear();
         }
         
 		[BurstCompile]
-        public struct JobGenerateMesh : IJobFor
+        public struct GenerateVertexDataJob : IJobFor
         {
 	        [ReadOnly]
 	        public NativeArray<int2> Positions;
 	        [ReadOnly]
-	        public NativeArray<SpriteProperties> SpriteProperties;
+	        public NativeArray<SpriteMesh> SpriteMeshes;
 
+	        [NativeDisableParallelForRestriction]
 			[WriteOnly] public NativeArray<Vertex> verts;
+	        [NativeDisableParallelForRestriction]
         	[WriteOnly] public NativeArray<int> tris;
 
         	public Swizzle Swizzle;
 	        public float3 GridCellSize;
 	        public Orientation Orientation;
 
+	        public LocalTransform TilemapTransform;
+
         	public void Execute(int index)
 	        {
-		        var spritePos = MosaicUtils.ToWorldSpace(Positions[index], GridCellSize, Swizzle);
+		        var spriteMesh = SpriteMeshes[index];
+		        MosaicUtils.GetSpriteMeshTranslation(spriteMesh, default, out var meshTranslation);
+
+		        var rotatedPos = TilemapTransform.TransformPoint(MosaicUtils.ToWorldSpace(Positions[index], GridCellSize, Swizzle)
+		                                                            + MosaicUtils.ApplySwizzle(meshTranslation.AsFloat3() + GridCellSize * new float3(0.5f, 0.5f, 0f), Swizzle));
+
+		        var rotatedSize = MosaicUtils.ApplyOrientation(spriteMesh.RectScale, Orientation);
 		        
-        		// Create a square with the "forward" direction along the agent's velocity
-        		float3 forward = transform.Forward() * shape.radius;
-        		if (math.all(forward == 0)) forward = new float3(0, 0, shape.radius);
-        		float3 right = math.cross(new float3(0, 1, 0), forward);
-        		float3 orig = transform.Position + (float3)renderingOffset;
+		        var normal = TilemapTransform.TransformDirection(MosaicUtils.ApplyOrientation(new float3(0, 0, 1), Orientation));
+		        
+		        var up = TilemapTransform.TransformDirection(MosaicUtils.ApplyOrientation(new float3(0, 1, 0), Orientation) * rotatedSize);
+		        var right = TilemapTransform.TransformDirection(MosaicUtils.ApplyOrientation(new float3(1, 0, 0), Orientation) * rotatedSize);
 
-        		int vc = 4 * entityIndex;
-        		int tc = 2 * 3 * entityIndex;
+        		int vc = 4 * index;
+        		int tc = 2 * 3 * index;
 
-        		Color32 color = agentData.color;
         		verts[vc + 0] = new Vertex
         		{
-        			position = (orig + forward - right),
-        			uv = new float2(0, 1),
-        			color = color,
+        			position = (rotatedPos + up),
+			        normal = normal,
+        			uv = new float2(spriteMesh.MinUv.x, spriteMesh.MaxUv.y)
         		};
 
         		verts[vc + 1] = new Vertex
         		{
-        			position = (orig + forward + right),
-        			uv = new float2(1, 1),
-        			color = color,
+        			position = (rotatedPos + up + right),
+			        normal = normal,
+        			uv = new float2(spriteMesh.MaxUv.x, spriteMesh.MaxUv.y)
         		};
 
         		verts[vc + 2] = new Vertex
         		{
-        			position = (orig - forward + right),
-        			uv = new float2(1, 0),
-        			color = color,
+        			position = (rotatedPos + right),
+			        normal = normal,
+        			uv = new float2(spriteMesh.MaxUv.x, spriteMesh.MinUv.y)
         		};
 
         		verts[vc + 3] = new Vertex
         		{
-        			position = (orig - forward - right),
-        			uv = new float2(0, 0),
-        			color = color,
+        			position = (rotatedPos),
+			        normal = normal,
+        			uv = new float2(spriteMesh.MinUv.x, spriteMesh.MinUv.y)
         		};
 
         		tris[tc + 0] = (vc + 0);
@@ -114,13 +211,6 @@ namespace KrasCore.Mosaic
         		tris[tc + 4] = (vc + 2);
         		tris[tc + 5] = (vc + 3);
         	}
-        }
-        
-        
-        [BurstCompile]
-        public void OnDestroy(ref SystemState state)
-        {
-
         }
     }
     
