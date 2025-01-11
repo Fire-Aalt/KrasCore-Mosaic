@@ -36,16 +36,6 @@ namespace KrasCore.Mosaic
         }
 
         [Flags]
-        public enum Mirror
-        {
-            [InspectorName("X")] [Tooltip("X mirror. Enable this to also check for match when mirrored horizontally")]
-            MirrorX = 1,
-
-            [InspectorName("Y")] [Tooltip("Y mirror. Enable this to also check for match when mirrored vertically")]
-            MirrorY = 2
-        }
-
-        [Flags]
         public enum Enabled
         {
             [InspectorName("Enabled")] [Tooltip("Enable/disable this rule")]
@@ -72,7 +62,7 @@ namespace KrasCore.Mosaic
             public float ruleChance = 100f;
 
             [HorizontalGroup("Split", 0.3f)] [VerticalGroup("Split/Right")] [EnumToggleButtons, HideLabel]
-            public Mirror mirror;
+            public RuleTransform ruleTransform;
 
             [HideInInspector, SerializeField]
             public int[] RuleMatrix = new int[MatrixSize * MatrixSize];
@@ -129,12 +119,39 @@ namespace KrasCore.Mosaic
                 return value;
             }
 #endif
-            public static int2 GetOffsetFromCenter(int index)
+            public static int2 GetOffsetFromCenterMirrored(int index, bool2 mirror)
             {
                 var x = index % MatrixSize;
                 var y = index / MatrixSize;
 
-                return new int2(x - MatrixSizeHalf, MatrixSizeHalf - y);
+                var offset = new int2(x - MatrixSizeHalf, MatrixSizeHalf - y);
+                
+                if (mirror.x)
+                {
+                    offset.x = MatrixSizeHalf - x;
+                }
+                if (mirror.y)
+                {
+                    offset.y = y - MatrixSizeHalf;
+                }
+                return offset;
+            }
+            
+            public static int2 GetOffsetFromCenterRotated(int index, int rotation)
+            {
+                var x = index % MatrixSize;
+                var y = index / MatrixSize;
+
+                var offset = new int2(x - MatrixSizeHalf, MatrixSizeHalf - y);
+
+                return rotation switch
+                {
+                    0 => offset,
+                    1 => new int2(offset.y, -offset.x),
+                    2 => new int2(-offset.x, offset.y),
+                    3 => new int2(offset.y, offset.x),
+                    _ => default
+                };
             }
         }
     }

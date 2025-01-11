@@ -91,7 +91,6 @@ namespace KrasCore.Mosaic
             ref var root = ref builder.ConstructRoot<RuleBlob>();
 
             root.Chance = rule.ruleChance;
-            root.Mirror = rule.mirror;
             root.ResultType = rule.ResultType;
             
             var usedCellCount = 0;
@@ -100,28 +99,19 @@ namespace KrasCore.Mosaic
                 usedCellCount += intGridValue == 0 ? 0 : 1;
             }
 
-            var xMirror = rule.mirror.HasFlag(RuleGroup.Mirror.MirrorX) ? 2 : 1;
-            var yMirror = rule.mirror.HasFlag(RuleGroup.Mirror.MirrorY) ? 2 : 1;
-            var combinedMirroredCellCount = usedCellCount * xMirror * yMirror;
-            var cells = builder.Allocate(ref root.Cells, usedCellCount);
+            root.RuleTransform = rule.ruleTransform;
+            
+            var combinedMirroredCellCount = usedCellCount * MosaicUtils.GetCellsToCheckBucketsCount(rule.ruleTransform);
+            var cells = builder.Allocate(ref root.Cells, combinedMirroredCellCount);
 
             var cnt = 0;
-            for (var index = 0; index < rule.RuleMatrix.Length; index++)
-            {
-                var intGridValue = rule.RuleMatrix[index];
-                if (intGridValue == 0) continue;
-                ref var cell = ref cells[cnt];
-
-                var pos = RuleGroup.Rule.GetOffsetFromCenter(index);
-                refreshPositions.Add(pos);
-                
-                cell = new RuleCell
-                {
-                    IntGridValue = intGridValue,
-                    Offset = pos
-                };
-                cnt++;
-            }
+            AddMirrorPattern(rule, cells, refreshPositions, ref cnt, default);
+            root.CellsToCheckCount = cnt;
+            
+            if (rule.ruleTransform.IsMirroredX()) AddMirrorPattern(rule, cells, refreshPositions, ref cnt, new bool2(true, false));
+            if (rule.ruleTransform.IsMirroredY()) AddMirrorPattern(rule, cells, refreshPositions, ref cnt, new bool2(false, true));
+            if (rule.ruleTransform == RuleTransform.MirrorXY) AddMirrorPattern(rule, cells, refreshPositions, ref cnt, new bool2(true, true));
+            if (rule.ruleTransform == RuleTransform.Rotated) AddRotatedPattern(rule, cells, refreshPositions, ref cnt);
 
             var weightedEntities = builder.Allocate(ref root.WeightedEntities, rule.TileEntities.Count);
 
@@ -144,6 +134,51 @@ namespace KrasCore.Mosaic
 
             return builder.CreateBlobAssetReference<RuleBlob>(Allocator.Persistent);
         }
+
+        private static void AddMirrorPattern(RuleGroup.Rule rule, BlobBuilderArray<RuleCell> cells,
+            NativeHashSet<int2> refreshPositions, ref int cnt, bool2 mirror)
+        {
+            for (var index = 0; index < rule.RuleMatrix.Length; index++)
+            {
+                var intGridValue = rule.RuleMatrix[index];
+                if (intGridValue == 0) continue;
+                ref var cell = ref cells[cnt];
+
+                var pos = RuleGroup.Rule.GetOffsetFromCenterMirrored(index, mirror);
+                refreshPositions.Add(pos);
+                
+                cell = new RuleCell
+                {
+                    IntGridValue = intGridValue,
+                    Offset = pos
+                };
+                cnt++;
+            }
+        }
+        
+        private static void AddRotatedPattern(RuleGroup.Rule rule, BlobBuilderArray<RuleCell> cells,
+            NativeHashSet<int2> refreshPositions, ref int cnt)
+        {
+            for (int rotation = 1; rotation < 4; rotation++)
+            {
+                for (var index = 0; index < rule.RuleMatrix.Length; index++)
+                {
+                    var intGridValue = rule.RuleMatrix[index];
+                    if (intGridValue == 0) continue;
+                    ref var cell = ref cells[cnt];
+
+                    var pos = RuleGroup.Rule.GetOffsetFromCenterRotated(index, rotation);
+                    refreshPositions.Add(pos);
+                    
+                    cell = new RuleCell
+                    {
+                        IntGridValue = intGridValue,
+                        Offset = pos
+                    };
+                    cnt++;
+                }
+            }
+        }
     }
 
 
@@ -152,7 +187,6 @@ namespace KrasCore.Mosaic
     public struct RuleBlobReferenceElement : IBufferElementData
     {
         public bool Enabled;
-        public RuleResultType ResultType;
         public BlobAssetReference<RuleBlob> Value;
     }
     
@@ -169,13 +203,14 @@ namespace KrasCore.Mosaic
     public struct RuleBlob
     {
         public BlobArray<RuleCell> Cells;
+        public int CellsToCheckCount;
 
         public BlobArray<WeightedEntity> WeightedEntities;
         public BlobArray<WeightedSprite> WeightedSprites;
 
         public RuleResultType ResultType;
         public float Chance;
-        public RuleGroup.Mirror Mirror;
+        public RuleTransform RuleTransform;
     }
     
     public struct WeightedEntity

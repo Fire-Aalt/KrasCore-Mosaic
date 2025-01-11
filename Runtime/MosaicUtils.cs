@@ -8,12 +8,30 @@ namespace KrasCore.Mosaic
 {
     public static class MosaicUtils
     {
-        public static void GetSpriteMeshTranslation(in SpriteMesh spriteMesh, in bool2 flip, out float2 translation)
+        public static int GetCellsToCheckBucketsCount(RuleTransform transform)
+        {
+            return transform switch
+            {
+                RuleTransform.MirrorX => 2,
+                RuleTransform.MirrorY => 2,
+                RuleTransform.MirrorXY => 4,
+                RuleTransform.Rotated => 4,
+                _ => 1
+            };
+        }
+
+        public static bool IsMirroredX(this RuleTransform ruleTransform) =>
+            ruleTransform == RuleTransform.MirrorX || ruleTransform == RuleTransform.MirrorXY;
+        
+        public static bool IsMirroredY(this RuleTransform ruleTransform) =>
+            ruleTransform == RuleTransform.MirrorY || ruleTransform == RuleTransform.MirrorXY;
+        
+        public static void GetSpriteMeshTranslation(in SpriteMesh spriteMesh, out float2 translation)
         {
             var pivot = spriteMesh.NormalizedPivot;
             
-            pivot.x = flip.x ? 1.0f - pivot.x : pivot.x;
-            pivot.y = flip.y ? 1.0f - pivot.y : pivot.y;
+            pivot.x = spriteMesh.Flip.x ? 1.0f - pivot.x : pivot.x;
+            pivot.y = spriteMesh.Flip.y ? 1.0f - pivot.y : pivot.y;
                 
             // Offset by from center (0.5f - x/y)
             translation = new float2((0.5f - pivot.x) * spriteMesh.RectScale.x, (0.5f - pivot.y) * spriteMesh.RectScale.y);
@@ -67,6 +85,9 @@ namespace KrasCore.Mosaic
         public float2 MinUv;
         public float2 MaxUv;
 
+        public bool2 Flip;
+        public int Rotation;
+
         public SpriteMesh(Sprite sprite)
         {
             if (sprite != null)
@@ -83,16 +104,23 @@ namespace KrasCore.Mosaic
                 MinUv = float2.zero;
                 MaxUv = new float2(1f, 1f);
             }
+            Flip = default;
+            Rotation = default;
         }
 
         public bool Equals(SpriteMesh other)
         {
-            return NormalizedPivot.Equals(other.NormalizedPivot) && RectScale.Equals(other.RectScale) && MinUv.Equals(other.MinUv) && MaxUv.Equals(other.MaxUv);
+            return NormalizedPivot.Equals(other.NormalizedPivot) 
+                   && RectScale.Equals(other.RectScale) 
+                   && MinUv.Equals(other.MinUv) 
+                   && MaxUv.Equals(other.MaxUv) 
+                   && Flip.Equals(other.Flip) 
+                   && Rotation.Equals(other.Rotation);
         }
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(NormalizedPivot, RectScale, MinUv, MaxUv);
+            return HashCode.Combine(NormalizedPivot, RectScale, MinUv, MaxUv, Flip, Rotation);
         }
     }
     

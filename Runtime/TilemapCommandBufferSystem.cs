@@ -1,4 +1,5 @@
 using System;
+using Drawing;
 using KrasCore.Mosaic;
 using KrasCore.NZCore;
 using Unity.Burst;
@@ -144,7 +145,7 @@ namespace KrasCore.Mosaic
             _jobHandles.Dispose();
         }
         
-        [BurstCompile]
+        //[BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
             var tcb = SystemAPI.GetSingleton<TilemapCommandBufferSingleton>().Tcb;
@@ -189,6 +190,7 @@ namespace KrasCore.Mosaic
                 }.Schedule(jobDependency);
                 
                 // Apply rules
+                var builder = DrawingManager.GetBuilder();
                 var processRulesJob = new ProcessRulesJob
                 {
                     IntGrid = layer.IntGrid,
@@ -200,10 +202,12 @@ namespace KrasCore.Mosaic
                     EntityCommands = _entityCommands.AsThreadWriter(),
                     SpriteCommands = _spriteCommands.AsThreadWriter(),
                     PositionsToRemove = _entityPositionsToRemove.AsThreadWriter(),
-                    IntGridHash = intGridHash
+                    IntGridHash = intGridHash,
+                    Builder = builder
                 };
-                
-                _jobHandles.Add(processRulesJob.Schedule(layer.PositionsToRefreshList, 16, jobDependency));
+                var handle = processRulesJob.Schedule(layer.PositionsToRefreshList, 16, jobDependency);
+                builder.DisposeAfter(handle);
+                _jobHandles.Add(handle);
             }
 
             if (_jobHandles.Length == 0) return;
@@ -294,6 +298,7 @@ namespace KrasCore.Mosaic
             public ParallelList<PositionToRemove>.ThreadWriter PositionsToRemove;
 
             public int IntGridHash;
+            public CommandBuilder Builder;
             
             public void Execute(int index)
             {
@@ -305,23 +310,51 @@ namespace KrasCore.Mosaic
                 foreach (var ruleElement in RulesBuffer)
                 {
                     if (!ruleElement.Enabled) continue;
-
                     ref var rule = ref ruleElement.Value.Value;
-                    var passedCheck = true;
 
-                    for (int i = 0; i < rule.Cells.Length; i++)
+                    var appliedRotation = 0;
+                    var appliedMirror = new bool2(false, false);
+                    var passedCheck = ExecuteRule(ref rule, posToRefresh, 0);
+                    
+                    if (rule.RuleTransform != RuleTransform.None)
                     {
-                        var cell = rule.Cells[i];
-
-                        var posToCheck = posToRefresh + cell.Offset;
-                            
-                        IntGrid.TryGetValue(posToCheck, out var value);
-                        passedCheck = CanPlace(cell, value);
-
-                        if (!passedCheck)
-                            break;
+                        if (!passedCheck && rule.RuleTransform.IsMirroredX())
+                        {
+                            appliedMirror = new bool2(true, false);
+                            passedCheck = ExecuteRule(ref rule, posToRefresh, 1);
+                        }
+                        if (!passedCheck && rule.RuleTransform.IsMirroredY())
+                        {
+                            appliedMirror = new bool2(false, true);
+                            passedCheck = ExecuteRule(ref rule, posToRefresh, 2);
+                        }
+                        if (!passedCheck && rule.RuleTransform == RuleTransform.MirrorXY)
+                        {
+                            appliedMirror = new bool2(true, true);
+                            passedCheck = ExecuteRule(ref rule, posToRefresh, 3);
+                        }
+                        if (!passedCheck && rule.RuleTransform == RuleTransform.Rotated)
+                        {
+                            for (appliedRotation = 1; appliedRotation < 4; appliedRotation++)
+                            {
+                                passedCheck = ExecuteRule(ref rule, posToRefresh, appliedRotation);
+                                if (passedCheck) break;
+                            }
+                        }
                     }
                     if (!passedCheck) continue;
+
+                    if (appliedRotation != 0)
+                    {
+                        Builder.PushDuration(1f);
+
+                        for (int i = 1; i <= appliedRotation; i++)
+                        {
+                            Builder.Line(((float2)posToRefresh).AsFloat3().xzy,
+                                ((float2)posToRefresh).AsFloat3().xzy + new float3(0, i, 0));
+                        }
+                        Builder.PopDuration();
+                    }
                     
                     if (rule.ResultType == RuleResultType.Entity)
                     {
@@ -342,7 +375,9 @@ namespace KrasCore.Mosaic
                     else
                     {
                         var newSprite = rule.WeightedSprites[0].SpriteMesh;
-
+                        newSprite.Flip = appliedMirror;
+                        newSprite.Rotation = appliedRotation;
+                        
                         var posOccupied = RenderedSprites.TryGetValue(posToRefresh, out var presentSprite);
                         if (posOccupied && newSprite.Equals(presentSprite)) return;
                         if (posOccupied) QueueRemovePos(posToRefresh);
@@ -361,6 +396,27 @@ namespace KrasCore.Mosaic
                 {
                     QueueRemovePos(posToRefresh);
                 }
+            }
+
+            private bool ExecuteRule(ref RuleBlob rule, in int2 posToRefresh, int patternOffset)
+            {
+                var offset = patternOffset * rule.CellsToCheckCount;
+                var passedCheck = true;
+                
+                for (int i = 0; i < rule.CellsToCheckCount; i++)
+                {
+                    var cell = rule.Cells[offset + i];
+
+                    var posToCheck = posToRefresh + cell.Offset;
+                            
+                    IntGrid.TryGetValue(posToCheck, out var value);
+                    passedCheck = CanPlace(cell, value);
+
+                    if (!passedCheck)
+                        break;
+                }
+
+                return passedCheck;
             }
 
             private void QueueRemovePos(int2 posToRefresh)
