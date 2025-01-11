@@ -8,11 +8,6 @@ namespace KrasCore.Mosaic
 {
     public static class MosaicUtils
     {
-        public static float3 TranslateAndScale(this LocalTransform transform, float3 point)
-        {
-            return transform.Position + point * transform.Scale;
-        }
-        
         public static void GetSpriteMeshTranslation(in SpriteMesh spriteMesh, in bool2 flip, out float2 translation)
         {
             var pivot = spriteMesh.NormalizedPivot;
@@ -31,15 +26,20 @@ namespace KrasCore.Mosaic
         
         public static float3 ApplyOrientation(float3 pos, Orientation orientation)
         {
-            return orientation == Orientation.XZ ? new float3(pos.x, pos.z, pos.y) : new float3(pos.x, pos.y, pos.z);
+            return orientation switch
+            {
+                Orientation.XY => new float3(pos.x, pos.y, -pos.z),
+                Orientation.XZ => new float3(pos.x, pos.z, pos.y),
+                _ => float3.zero
+            };
         }
         
-        public static float3 ToWorldSpace(in int2 pos, in float3 gridCellSize, in Swizzle swizzle)
+        public static float3 ToWorldSpace(in float2 pos, in float3 gridCellSize, in Swizzle swizzle)
         {
             return ApplySwizzle(pos, swizzle) * ApplySwizzle(gridCellSize, swizzle);
         }
         
-        public static float3 ApplySwizzle(in int2 pos, in Swizzle swizzle)
+        public static float3 ApplySwizzle(in float2 pos, in Swizzle swizzle)
         {
             return swizzle switch
             {

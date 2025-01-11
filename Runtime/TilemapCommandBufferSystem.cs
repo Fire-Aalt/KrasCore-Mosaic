@@ -151,7 +151,11 @@ namespace KrasCore.Mosaic
             ref var singleton = ref SystemAPI.GetSingletonRW<TilemapDataSingleton>().ValueRW;
             singleton.JobHandle = default;
             var intGridLayers = singleton.IntGridLayers;
-
+            
+            singleton.EntityCommands.Clear();
+            singleton.SpriteCommands.Clear();
+            singleton.PositionToRemove.Clear();
+            
             foreach (var (tilemapDataRO, transformRO, rulesBuffer, refreshPositionsBuffer, entityBuffer) in SystemAPI.Query<RefRO<TilemapData>, RefRO<LocalTransform>, DynamicBuffer<RuleBlobReferenceElement>, DynamicBuffer<RefreshPositionElement>, DynamicBuffer<WeightedEntityElement>>())
             {
                 var intGridHash = tilemapDataRO.ValueRO.IntGridReference.GetHashCode();
@@ -195,7 +199,7 @@ namespace KrasCore.Mosaic
                     RenderedSprites = layer.RenderedSprites,
                     EntityCommands = _entityCommands.AsThreadWriter(),
                     SpriteCommands = _spriteCommands.AsThreadWriter(),
-                    EntityPositionsToRemove = _entityPositionsToRemove.AsThreadWriter(),
+                    PositionsToRemove = _entityPositionsToRemove.AsThreadWriter(),
                     IntGridHash = intGridHash
                 };
                 
@@ -287,7 +291,7 @@ namespace KrasCore.Mosaic
             [NativeDisableContainerSafetyRestriction]
             public ParallelList<SpriteCommand>.ThreadWriter SpriteCommands;
             [NativeDisableContainerSafetyRestriction]
-            public ParallelList<PositionToRemove>.ThreadWriter EntityPositionsToRemove;
+            public ParallelList<PositionToRemove>.ThreadWriter PositionsToRemove;
 
             public int IntGridHash;
             
@@ -296,16 +300,14 @@ namespace KrasCore.Mosaic
                 var posToRefresh = PositionsToRefresh[index];
                 EntityCommands.Begin();
                 SpriteCommands.Begin();
-                EntityPositionsToRemove.Begin();
-                
-                var rulePassed = false;
+                PositionsToRemove.Begin();
                 
                 foreach (var ruleElement in RulesBuffer)
                 {
                     if (!ruleElement.Enabled) continue;
 
                     ref var rule = ref ruleElement.Value.Value;
-                    var passed = true;
+                    var passedCheck = true;
 
                     for (int i = 0; i < rule.Cells.Length; i++)
                     {
@@ -314,49 +316,48 @@ namespace KrasCore.Mosaic
                         var posToCheck = posToRefresh + cell.Offset;
                             
                         IntGrid.TryGetValue(posToCheck, out var value);
-                        passed = CanPlace(cell, value);
+                        passedCheck = CanPlace(cell, value);
 
-                        if (!passed)
+                        if (!passedCheck)
                             break;
                     }
+                    if (!passedCheck) continue;
                     
-                    if (passed)
+                    if (rule.ResultType == RuleResultType.Entity)
                     {
-                        if (rule.ResultType == RuleResultType.Entity)
-                        {
-                            var newEntity = EntityBuffer[rule.WeightedEntities[0].EntityBufferIndex].Value;
+                        var newEntity = EntityBuffer[rule.WeightedEntities[0].EntityBufferIndex].Value;
 
-                            var posOccupied = SpawnedEntities.TryGetValue(posToRefresh, out var presentEntity);
-                            if (posOccupied && newEntity == presentEntity) continue;
-                            if (posOccupied) QueueRemovePos(posToRefresh);
+                        var posOccupied = SpawnedEntities.TryGetValue(posToRefresh, out var presentEntity);
+                        if (posOccupied && newEntity == presentEntity) return;
+                        if (posOccupied) QueueRemovePos(posToRefresh);
                             
-                            EntityCommands.Write(new EntityCommand
-                            {
-                                SrcEntity = newEntity,
-                                Position = posToRefresh,
-                                IntGridHash = IntGridHash
-                            });
-                        }
-                        else
+                        EntityCommands.Write(new EntityCommand
                         {
-                            var newSprite = rule.WeightedSprites[0].SpriteMesh;
+                            SrcEntity = newEntity,
+                            Position = posToRefresh,
+                            IntGridHash = IntGridHash
+                        });
+                        return;
+                    }
+                    else
+                    {
+                        var newSprite = rule.WeightedSprites[0].SpriteMesh;
 
-                            var posOccupied = RenderedSprites.TryGetValue(posToRefresh, out var presentSprite);
-                            if (posOccupied && newSprite.Equals(presentSprite)) continue;
-                            if (posOccupied) QueueRemovePos(posToRefresh);
+                        var posOccupied = RenderedSprites.TryGetValue(posToRefresh, out var presentSprite);
+                        if (posOccupied && newSprite.Equals(presentSprite)) return;
+                        if (posOccupied) QueueRemovePos(posToRefresh);
                             
-                            SpriteCommands.Write(new SpriteCommand
-                            {
-                                SpriteMesh = newSprite,
-                                Position = posToRefresh,
-                                IntGridHash = IntGridHash
-                            });
-                        }
-                        rulePassed = true;
-                        break;
+                        SpriteCommands.Write(new SpriteCommand
+                        {
+                            SpriteMesh = newSprite,
+                            Position = posToRefresh,
+                            IntGridHash = IntGridHash
+                        });
+                        return;
                     }
                 }
-                if (!rulePassed && (SpawnedEntities.ContainsKey(posToRefresh) || RenderedSprites.ContainsKey(posToRefresh)))
+                
+                if (SpawnedEntities.ContainsKey(posToRefresh) || RenderedSprites.ContainsKey(posToRefresh))
                 {
                     QueueRemovePos(posToRefresh);
                 }
@@ -364,7 +365,7 @@ namespace KrasCore.Mosaic
 
             private void QueueRemovePos(int2 posToRefresh)
             {
-                EntityPositionsToRemove.Write(new PositionToRemove
+                PositionsToRemove.Write(new PositionToRemove
                 {
                     Position = posToRefresh,
                     IntGridHash = IntGridHash

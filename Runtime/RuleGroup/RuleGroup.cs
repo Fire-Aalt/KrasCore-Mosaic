@@ -134,7 +134,7 @@ namespace KrasCore.Mosaic
                 var x = index % MatrixSize;
                 var y = index / MatrixSize;
 
-                return new int2(x - MatrixSizeHalf, y - MatrixSizeHalf);
+                return new int2(x - MatrixSizeHalf, MatrixSizeHalf - y);
             }
         }
     }

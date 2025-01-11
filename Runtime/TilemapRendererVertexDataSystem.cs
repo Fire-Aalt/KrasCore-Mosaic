@@ -41,6 +41,10 @@ namespace KrasCore.Mosaic
 
 		public void Dispose()
 		{
+			foreach (var layer in IntGridLayers)
+			{
+				layer.Value.Dispose();
+			}
 			IntGridLayers.Dispose();
 		}
 	}
@@ -91,7 +95,7 @@ namespace KrasCore.Mosaic
                 
                 layer.RenderedSprites.Add(command.Position, command.SpriteMesh);
             }
-            _commandsList.Clear();
+            
             foreach (var layer in _intGridLayers)
             {
 	            if (!rendererSingleton.IntGridLayers.TryGetValue(layer.Key, out var rendererLayer))
@@ -163,7 +167,7 @@ namespace KrasCore.Mosaic
 		        MosaicUtils.GetSpriteMeshTranslation(spriteMesh, default, out var meshTranslation);
 
 		        var rotatedPos = TilemapTransform.TransformPoint(MosaicUtils.ToWorldSpace(Positions[index], GridCellSize, Swizzle)
-		                                                            + MosaicUtils.ApplySwizzle(meshTranslation.AsFloat3() + GridCellSize * new float3(0.5f, 0.5f, 0f), Swizzle));
+		                                                            + MosaicUtils.ApplyOrientation(meshTranslation, Orientation));
 
 		        var rotatedSize = MosaicUtils.ApplyOrientation(spriteMesh.RectScale, Orientation);
 		        

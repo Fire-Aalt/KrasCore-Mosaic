@@ -34,7 +34,6 @@ namespace KrasCore.Mosaic
                     spawnedEntities.Remove(positionToRemove.Position);
                 }
             }
-            list.Clear();
         }
     }
 }

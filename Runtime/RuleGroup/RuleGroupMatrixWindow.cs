@@ -28,12 +28,12 @@ namespace KrasCore.Mosaic
         [HorizontalGroup("Split", width: 0.3f)]
         [VerticalGroup("Split/Right")]
         [ShowIf("_ruleResultType", RuleResultType.Sprite)]
-        [SerializeField] private List<RuleResult<Sprite>> _tileSprites = new();
+        [SerializeField] private List<RuleResult<Sprite>> _tileSprites;
         
         [HorizontalGroup("Split", width: 0.3f)]
         [VerticalGroup("Split/Right")]
         [ShowIf("_ruleResultType", RuleResultType.Entity)]
-        [SerializeField] private List<RuleResult<GameObject>> _tileEntities = new();
+        [SerializeField] private List<RuleResult<GameObject>> _tileEntities;
         
         [HorizontalGroup("Split", width: 0.3f)]
         [VerticalGroup("Split/Right")]
