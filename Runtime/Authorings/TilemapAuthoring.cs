@@ -138,6 +138,7 @@ namespace KrasCore.Mosaic
         private static void AddMirrorPattern(RuleGroup.Rule rule, BlobBuilderArray<RuleCell> cells,
             NativeHashSet<int2> refreshPositions, ref int cnt, bool2 mirror)
         {
+                var s = "";
             for (var index = 0; index < rule.RuleMatrix.Length; index++)
             {
                 var intGridValue = rule.RuleMatrix[index];
@@ -146,6 +147,7 @@ namespace KrasCore.Mosaic
 
                 var pos = RuleGroup.Rule.GetOffsetFromCenterMirrored(index, mirror);
                 refreshPositions.Add(pos);
+                s += "Pos: " + pos.ToString() + " val: " + intGridValue + " | ";
                 
                 cell = new RuleCell
                 {
@@ -154,6 +156,7 @@ namespace KrasCore.Mosaic
                 };
                 cnt++;
             }
+            Debug.Log(s + " at: " + rule.BoundIntGrid.name + " mirror: " + mirror);
         }
         
         private static void AddRotatedPattern(RuleGroup.Rule rule, BlobBuilderArray<RuleCell> cells,
@@ -161,6 +164,7 @@ namespace KrasCore.Mosaic
         {
             for (int rotation = 1; rotation < 4; rotation++)
             {
+                var s = "";
                 for (var index = 0; index < rule.RuleMatrix.Length; index++)
                 {
                     var intGridValue = rule.RuleMatrix[index];
@@ -168,6 +172,7 @@ namespace KrasCore.Mosaic
                     ref var cell = ref cells[cnt];
 
                     var pos = RuleGroup.Rule.GetOffsetFromCenterRotated(index, rotation);
+                    s += "Pos: " + pos.ToString() + " val: " + intGridValue + " | ";
                     refreshPositions.Add(pos);
                     
                     cell = new RuleCell
@@ -177,6 +182,7 @@ namespace KrasCore.Mosaic
                     };
                     cnt++;
                 }
+                Debug.Log(s + " at: " + rule.BoundIntGrid.name + " rot: " + rotation);
             }
         }
     }

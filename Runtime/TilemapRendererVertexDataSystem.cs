@@ -53,6 +53,14 @@ namespace KrasCore.Mosaic
 	[UpdateAfter(typeof(TilemapCommandBufferSystem))]
     public partial struct TilemapRendererVertexDataSystem : ISystem
     {
+	    private static readonly quaternion RotY90 = quaternion.RotateY(90f * math.TORADIANS);
+	    private static readonly quaternion RotY180 = quaternion.RotateY(180f * math.TORADIANS);
+	    private static readonly quaternion RotY270 = quaternion.RotateY(270f * math.TORADIANS);
+
+	    private static readonly quaternion RotZ90 = quaternion.RotateZ(90f * math.TORADIANS);
+	    private static readonly quaternion RotZ180 = quaternion.RotateZ(180f * math.TORADIANS);
+	    private static readonly quaternion RotZ270 = quaternion.RotateZ(270f * math.TORADIANS);
+	    
         private NativeList<SpriteCommand> _commandsList;
         private NativeHashMap<int, IntGridLayer> _intGridLayers;
         private NativeList<JobHandle> _jobHandles;
@@ -73,7 +81,7 @@ namespace KrasCore.Mosaic
 	        _jobHandles.Dispose();
         }
 
-        //[BurstCompile]
+        [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
 	        ref var rendererSingleton = ref SystemAPI.GetSingletonRW<TilemapRendererSingleton>().ValueRW;
@@ -123,7 +131,6 @@ namespace KrasCore.Mosaic
                 rendererLayer.Vertices.SetLengthNoClear(vertexCount);
                 rendererLayer.Triangles.SetLengthNoClear(indexCount);
 
-                var builder = DrawingManager.GetBuilder();
 	            var handle = new GenerateVertexDataJob
 	            {
 		            Positions = keyValueArrays.Keys,
@@ -133,36 +140,18 @@ namespace KrasCore.Mosaic
 		            GridCellSize = layer.Value.TilemapData.GridData.CellSize,
 		            Orientation = layer.Value.TilemapData.Orientation,
 		            Swizzle = layer.Value.TilemapData.GridData.CellSwizzle,
-		            TilemapTransform = layer.Value.TilemapTransform,
-		            CommandBuilder = builder
+		            TilemapTransform = layer.Value.TilemapTransform
 	            }.ScheduleParallel(meshesCount, 32, dataSingleton.JobHandle);
 	            keyValueArrays.Dispose(handle);
-	            builder.DisposeAfter(handle);
 	            _jobHandles.Add(handle);
             }
             
 	        rendererSingleton.JobHandle = JobHandle.CombineDependencies(_jobHandles.AsArray());
 	        _jobHandles.Clear();
         }
-
-        private static readonly quaternion Rot90 = quaternion.RotateZ(90f * math.TORADIANS);
-        private static readonly quaternion Rot180 = quaternion.RotateZ(180f * math.TORADIANS);
-        private static readonly quaternion Rot270 = quaternion.RotateZ(270f * math.TORADIANS);
-
-        private static float2 Rotate(float2 direction, int rotation)
-        {
-	        return rotation switch
-	        {
-		        0 => direction,
-		        1 => math.mul(Rot90, direction.AsFloat3()).xy,
-		        2 => math.mul(Rot180, direction.AsFloat3()).xy,
-		        3 => math.mul(Rot270, direction.AsFloat3()).xy,
-		        _ => default
-	        };
-        }
         
 		[BurstCompile]
-        public struct GenerateVertexDataJob : IJobFor
+        private struct GenerateVertexDataJob : IJobFor
         {
 	        [ReadOnly]
 	        public NativeArray<int2> Positions;
@@ -180,8 +169,6 @@ namespace KrasCore.Mosaic
 
 	        public LocalTransform TilemapTransform;
 
-	        public CommandBuilder CommandBuilder;
-
         	public void Execute(int index)
 	        {
 		        var spriteMesh = SpriteMeshes[index];
@@ -190,6 +177,8 @@ namespace KrasCore.Mosaic
 		        var rotatedPos = TilemapTransform.TransformPoint(MosaicUtils.ToWorldSpace(Positions[index], GridCellSize, Swizzle)
 		                                                            + MosaicUtils.ApplyOrientation(meshTranslation, Orientation));
 
+		        var pivotPoint = TilemapTransform.TransformPoint(MosaicUtils.ApplyOrientation(spriteMesh.RectScale * spriteMesh.NormalizedPivot, Orientation));
+		        
 		        var rotatedSize = MosaicUtils.ApplyOrientation(spriteMesh.RectScale, Orientation);
 		        
 		        var normal = TilemapTransform.TransformDirection(MosaicUtils.ApplyOrientation(new float3(0, 0, 1), Orientation));
@@ -207,62 +196,30 @@ namespace KrasCore.Mosaic
 			        spriteMesh.Flip.x ? spriteMesh.MinUv.x : spriteMesh.MaxUv.x,
 			        spriteMesh.Flip.y ? spriteMesh.MinUv.y : spriteMesh.MaxUv.y);
 
-		        var rotMinUv = minUv;
-		        var rotMaxUv = maxUv;
-		        
-		        switch (spriteMesh.Rotation)
-		        {
-			        case 0:
-				        break;
-			        case 1:
-				        rotMinUv = new float2(maxUv.x, minUv.y);
-				        rotMaxUv = new float2(minUv.x, maxUv.y);
-				        break;
-			        case 2:
-				        rotMinUv = new float2(maxUv.x, maxUv.y);
-				        rotMaxUv = new float2(minUv.x, minUv.y);
-				        break;
-			        case 3:
-				        rotMinUv = new float2(minUv.x, maxUv.y);
-				        rotMaxUv = new float2(maxUv.x, minUv.y);
-				        break;
-		        }
-		        
-		        CommandBuilder.PushDuration(1f);
-		        CommandBuilder.PushColor(Color.red);
-		        
-		        CommandBuilder.DashedLine(rotatedPos, rotatedPos + new float3(0, spriteMesh.Rotation, 0), 0.2f, 0.2f);
-				
-		        CommandBuilder.PopColor();
-		        CommandBuilder.PopDuration();
-
-		        minUv = rotMinUv;
-		        maxUv = rotMaxUv;
-		        
         		verts[vc + 0] = new Vertex
         		{
-        			position = (rotatedPos + up),
+        			position = rotatedPos + Rotate(up - pivotPoint, spriteMesh.Rotation) + pivotPoint,
 			        normal = normal,
         			uv = new float2(minUv.x, maxUv.y)
         		};
 
         		verts[vc + 1] = new Vertex
         		{
-        			position = (rotatedPos + up + right),
+        			position = rotatedPos + Rotate(up + right - pivotPoint, spriteMesh.Rotation) + pivotPoint,
 			        normal = normal,
         			uv = new float2(maxUv.x, maxUv.y)
         		};
 
         		verts[vc + 2] = new Vertex
         		{
-        			position = (rotatedPos + right),
+        			position = rotatedPos + Rotate(right - pivotPoint, spriteMesh.Rotation) + pivotPoint,
 			        normal = normal,
         			uv = new float2(maxUv.x, minUv.y)
         		};
 
         		verts[vc + 3] = new Vertex
         		{
-        			position = (rotatedPos),
+        			position = rotatedPos + Rotate(-pivotPoint, spriteMesh.Rotation) + pivotPoint,
 			        normal = normal,
         			uv = new float2(minUv.x, minUv.y)
         		};
@@ -275,6 +232,18 @@ namespace KrasCore.Mosaic
         		tris[tc + 4] = (vc + 2);
         		tris[tc + 5] = (vc + 3);
         	}
+	        
+	        private float3 Rotate(in float3 direction, in int rotation)
+	        {
+		        return rotation switch
+		        {
+			        0 => direction,
+			        1 => math.mul(Orientation == Orientation.XY ? RotZ90 : RotY90, direction),
+			        2 => math.mul(Orientation == Orientation.XY ? RotZ180 : RotY180, direction),
+			        3 => math.mul(Orientation == Orientation.XY ? RotZ270 : RotY270, direction),
+			        _ => default
+		        };
+	        }
         }
     }
     

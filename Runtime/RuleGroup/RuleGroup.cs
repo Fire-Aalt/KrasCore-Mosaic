@@ -148,8 +148,8 @@ namespace KrasCore.Mosaic
                 {
                     0 => offset,
                     1 => new int2(offset.y, -offset.x),
-                    2 => new int2(-offset.x, offset.y),
-                    3 => new int2(offset.y, offset.x),
+                    2 => new int2(-offset.x, -offset.y),
+                    3 => new int2(-offset.y, offset.x),
                     _ => default
                 };
             }

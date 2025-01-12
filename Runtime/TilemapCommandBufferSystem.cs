@@ -145,7 +145,7 @@ namespace KrasCore.Mosaic
             _jobHandles.Dispose();
         }
         
-        //[BurstCompile]
+        [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
             var tcb = SystemAPI.GetSingleton<TilemapCommandBufferSingleton>().Tcb;
@@ -190,7 +190,6 @@ namespace KrasCore.Mosaic
                 }.Schedule(jobDependency);
                 
                 // Apply rules
-                var builder = DrawingManager.GetBuilder();
                 var processRulesJob = new ProcessRulesJob
                 {
                     IntGrid = layer.IntGrid,
@@ -202,11 +201,9 @@ namespace KrasCore.Mosaic
                     EntityCommands = _entityCommands.AsThreadWriter(),
                     SpriteCommands = _spriteCommands.AsThreadWriter(),
                     PositionsToRemove = _entityPositionsToRemove.AsThreadWriter(),
-                    IntGridHash = intGridHash,
-                    Builder = builder
+                    IntGridHash = intGridHash
                 };
                 var handle = processRulesJob.Schedule(layer.PositionsToRefreshList, 16, jobDependency);
-                builder.DisposeAfter(handle);
                 _jobHandles.Add(handle);
             }
 
@@ -298,7 +295,6 @@ namespace KrasCore.Mosaic
             public ParallelList<PositionToRemove>.ThreadWriter PositionsToRemove;
 
             public int IntGridHash;
-            public CommandBuilder Builder;
             
             public void Execute(int index)
             {
@@ -343,18 +339,6 @@ namespace KrasCore.Mosaic
                         }
                     }
                     if (!passedCheck) continue;
-
-                    if (appliedRotation != 0)
-                    {
-                        Builder.PushDuration(1f);
-
-                        for (int i = 1; i <= appliedRotation; i++)
-                        {
-                            Builder.Line(((float2)posToRefresh).AsFloat3().xzy,
-                                ((float2)posToRefresh).AsFloat3().xzy + new float3(0, i, 0));
-                        }
-                        Builder.PopDuration();
-                    }
                     
                     if (rule.ResultType == RuleResultType.Entity)
                     {
