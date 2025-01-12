@@ -53,25 +53,25 @@ namespace KrasCore.Mosaic
 					_meshes.Add(intGridHash, mesh);
 				}
 				
-				// Specify the layout of each vertex. This should match the Vertex struct
-				mesh.SetVertexBufferParams(rendererLayer.Vertices.Length, _layout);
-				// To allow for more than ≈16k agents we need to use a 32 bit format for the mesh
-				mesh.SetIndexBufferParams(rendererLayer.Triangles.Length, IndexFormat.UInt32);
+				if (rendererLayer.IsDirty.Value)
+				{
+					mesh.SetVertexBufferParams(rendererLayer.Vertices.Length, _layout);
+					mesh.SetIndexBufferParams(rendererLayer.Triangles.Length, IndexFormat.UInt32);
 
-				// Set the vertex and index data
-				mesh.SetVertexBufferData(rendererLayer.Vertices.AsArray(), 0, 0, rendererLayer.Vertices.Length);
-				mesh.SetIndexBufferData(rendererLayer.Triangles.AsArray(), 0, 0, rendererLayer.Triangles.Length);
+					mesh.SetVertexBufferData(rendererLayer.Vertices.AsArray(), 0, 0, rendererLayer.Vertices.Length);
+					mesh.SetIndexBufferData(rendererLayer.Triangles.AsArray(), 0, 0, rendererLayer.Triangles.Length);
 
-				mesh.subMeshCount = 1;
-				mesh.SetSubMesh(0, new SubMeshDescriptor(0, rendererLayer.Triangles.Length, MeshTopology.Triangles),
-					MeshUpdateFlags.DontRecalculateBounds);
-				// SetSubMesh doesn't seem to update the bounds properly for some reason, so we do it manually instead
-				mesh.RecalculateBounds();
+					mesh.subMeshCount = 1;
+					mesh.SetSubMesh(0, new SubMeshDescriptor(0, rendererLayer.Triangles.Length, MeshTopology.Triangles),
+						MeshUpdateFlags.DontRecalculateBounds);
+					
+					mesh.RecalculateBounds();
+				}
 				
 				Graphics.RenderMesh(new RenderParams(tilemapData.Material)
 				{
 					worldBounds = new Bounds(Vector3.zero, Vector3.one * 999999),
-				}, mesh, 0, Matrix4x4.identity);
+				}, mesh, 0, dataLayer.Value.TilemapTransform.ToMatrix());
 			}
 		}
 	}

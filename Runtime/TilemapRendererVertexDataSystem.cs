@@ -18,16 +18,20 @@ namespace KrasCore.Mosaic
 			public NativeList<Vertex> Vertices;
 			public NativeList<int> Triangles;
 
+			public NativeReference<bool> IsDirty;
+
 			public IntGridLayer(int capacity, Allocator allocator)
 			{
 				Vertices = new NativeList<Vertex>(capacity, allocator);
 				Triangles = new NativeList<int>(capacity, allocator);
+				IsDirty = new NativeReference<bool>(allocator);
 			}
 
 			public void Dispose()
 			{
 				Vertices.Dispose();
 				Triangles.Dispose();
+				IsDirty.Dispose();
 			}
 		}
 		
@@ -51,6 +55,7 @@ namespace KrasCore.Mosaic
 	}
 	
 	[UpdateAfter(typeof(TilemapCommandBufferSystem))]
+	[UpdateInGroup(typeof(SimulationSystemGroup), OrderLast = true)]
     public partial struct TilemapRendererVertexDataSystem : ISystem
     {
 	    private static readonly quaternion RotY90 = quaternion.RotateY(90f * math.TORADIANS);
@@ -91,29 +96,33 @@ namespace KrasCore.Mosaic
             rendererSingleton.JobHandle = default;
             dataSingleton.JobHandle.Complete();
 
+            if (dataSingleton.PositionToRemove.Length == 0 && _commandsList.Length == 0) return;
+            
             foreach (var positionToRemove in dataSingleton.PositionToRemove)
             {
-                var layer = _intGridLayers[positionToRemove.IntGridHash];
+                var dataLayer = _intGridLayers[positionToRemove.IntGridHash];
+                var rendererLayer = GetOrAddRendererLayer(ref rendererSingleton, positionToRemove.IntGridHash);
                 
-                layer.RenderedSprites.Remove(positionToRemove.Position);
+                dataLayer.RenderedSprites.Remove(positionToRemove.Position);
+                rendererLayer.IsDirty.Value = true;
             }
             
             foreach (var command in _commandsList)
             {
-                var layer = _intGridLayers[command.IntGridHash];
+                var dataLayer = _intGridLayers[command.IntGridHash];
+                var rendererLayer = GetOrAddRendererLayer(ref rendererSingleton, command.IntGridHash);
                 
-                layer.RenderedSprites.Add(command.Position, command.SpriteMesh);
+                dataLayer.RenderedSprites.Add(command.Position, command.SpriteMesh);
+                rendererLayer.IsDirty.Value = true;
             }
             
             foreach (var layer in _intGridLayers)
             {
-	            if (!rendererSingleton.IntGridLayers.TryGetValue(layer.Key, out var rendererLayer))
-	            {
-		            rendererLayer = new TilemapRendererSingleton.IntGridLayer(256, Allocator.Persistent);
-		            rendererSingleton.IntGridLayers.Add(layer.Key, rendererLayer);
-	            }
+	            var rendererLayer = GetOrAddRendererLayer(ref rendererSingleton, layer.Key);
+	            if (!rendererLayer.IsDirty.Value) continue;
+	            
                 var keyValueArrays = layer.Value.RenderedSprites.GetKeyValueArrays(Allocator.TempJob);
-
+                
                 var meshesCount = keyValueArrays.Values.Length;
                 
                 var vertexCount = meshesCount * 4;
@@ -135,12 +144,11 @@ namespace KrasCore.Mosaic
 	            {
 		            Positions = keyValueArrays.Keys,
 		            SpriteMeshes = keyValueArrays.Values,
-		            verts = rendererLayer.Vertices.AsArray(),
-		            tris = rendererLayer.Triangles.AsArray(),
+		            Vertices = rendererLayer.Vertices.AsArray(),
+		            Triangles = rendererLayer.Triangles.AsArray(),
 		            GridCellSize = layer.Value.TilemapData.GridData.CellSize,
 		            Orientation = layer.Value.TilemapData.Orientation,
-		            Swizzle = layer.Value.TilemapData.GridData.CellSwizzle,
-		            TilemapTransform = layer.Value.TilemapTransform
+		            Swizzle = layer.Value.TilemapData.GridData.CellSwizzle
 	            }.ScheduleParallel(meshesCount, 32, dataSingleton.JobHandle);
 	            keyValueArrays.Dispose(handle);
 	            _jobHandles.Add(handle);
@@ -149,8 +157,18 @@ namespace KrasCore.Mosaic
 	        rendererSingleton.JobHandle = JobHandle.CombineDependencies(_jobHandles.AsArray());
 	        _jobHandles.Clear();
         }
-        
-		[BurstCompile]
+
+        private static TilemapRendererSingleton.IntGridLayer GetOrAddRendererLayer(ref TilemapRendererSingleton rendererSingleton, int intGridHash)
+        {
+	        if (!rendererSingleton.IntGridLayers.TryGetValue(intGridHash, out var rendererLayer))
+	        {
+		        rendererLayer = new TilemapRendererSingleton.IntGridLayer(256, Allocator.Persistent);
+		        rendererSingleton.IntGridLayers.Add(intGridHash, rendererLayer);
+	        }
+	        return rendererLayer;
+        }
+
+        [BurstCompile]
         private struct GenerateVertexDataJob : IJobFor
         {
 	        [ReadOnly]
@@ -159,32 +177,30 @@ namespace KrasCore.Mosaic
 	        public NativeArray<SpriteMesh> SpriteMeshes;
 
 	        [NativeDisableParallelForRestriction]
-			[WriteOnly] public NativeArray<Vertex> verts;
+			[WriteOnly] public NativeArray<Vertex> Vertices;
 	        [NativeDisableParallelForRestriction]
-        	[WriteOnly] public NativeArray<int> tris;
+        	[WriteOnly] public NativeArray<int> Triangles;
 
         	public Swizzle Swizzle;
 	        public float3 GridCellSize;
 	        public Orientation Orientation;
-
-	        public LocalTransform TilemapTransform;
 
         	public void Execute(int index)
 	        {
 		        var spriteMesh = SpriteMeshes[index];
 		        MosaicUtils.GetSpriteMeshTranslation(spriteMesh, out var meshTranslation);
 
-		        var rotatedPos = TilemapTransform.TransformPoint(MosaicUtils.ToWorldSpace(Positions[index], GridCellSize, Swizzle)
-		                                                            + MosaicUtils.ApplyOrientation(meshTranslation, Orientation));
+		        var rotatedPos = MosaicUtils.ToWorldSpace(Positions[index], GridCellSize, Swizzle)
+		                         + MosaicUtils.ApplyOrientation(meshTranslation, Orientation);
 
-		        var pivotPoint = TilemapTransform.TransformPoint(MosaicUtils.ApplyOrientation(spriteMesh.RectScale * spriteMesh.NormalizedPivot, Orientation));
+		        var pivotPoint = MosaicUtils.ApplyOrientation(spriteMesh.RectScale * spriteMesh.NormalizedPivot, Orientation);
 		        
 		        var rotatedSize = MosaicUtils.ApplyOrientation(spriteMesh.RectScale, Orientation);
 		        
-		        var normal = TilemapTransform.TransformDirection(MosaicUtils.ApplyOrientation(new float3(0, 0, 1), Orientation));
+		        var normal = MosaicUtils.ApplyOrientation(new float3(0, 0, 1), Orientation);
 		        
-		        var up = TilemapTransform.TransformDirection(MosaicUtils.ApplyOrientation(new float3(0, 1, 0), Orientation) * rotatedSize);
-		        var right = TilemapTransform.TransformDirection(MosaicUtils.ApplyOrientation(new float3(1, 0, 0), Orientation) * rotatedSize);
+		        var up = MosaicUtils.ApplyOrientation(new float3(0, 1, 0), Orientation) * rotatedSize;
+		        var right = MosaicUtils.ApplyOrientation(new float3(1, 0, 0), Orientation) * rotatedSize;
 
         		int vc = 4 * index;
         		int tc = 2 * 3 * index;
@@ -196,41 +212,41 @@ namespace KrasCore.Mosaic
 			        spriteMesh.Flip.x ? spriteMesh.MinUv.x : spriteMesh.MaxUv.x,
 			        spriteMesh.Flip.y ? spriteMesh.MinUv.y : spriteMesh.MaxUv.y);
 
-        		verts[vc + 0] = new Vertex
+        		Vertices[vc + 0] = new Vertex
         		{
         			position = rotatedPos + Rotate(up - pivotPoint, spriteMesh.Rotation) + pivotPoint,
 			        normal = normal,
         			uv = new float2(minUv.x, maxUv.y)
         		};
 
-        		verts[vc + 1] = new Vertex
+        		Vertices[vc + 1] = new Vertex
         		{
         			position = rotatedPos + Rotate(up + right - pivotPoint, spriteMesh.Rotation) + pivotPoint,
 			        normal = normal,
         			uv = new float2(maxUv.x, maxUv.y)
         		};
 
-        		verts[vc + 2] = new Vertex
+        		Vertices[vc + 2] = new Vertex
         		{
         			position = rotatedPos + Rotate(right - pivotPoint, spriteMesh.Rotation) + pivotPoint,
 			        normal = normal,
         			uv = new float2(maxUv.x, minUv.y)
         		};
 
-        		verts[vc + 3] = new Vertex
+        		Vertices[vc + 3] = new Vertex
         		{
         			position = rotatedPos + Rotate(-pivotPoint, spriteMesh.Rotation) + pivotPoint,
 			        normal = normal,
         			uv = new float2(minUv.x, minUv.y)
         		};
 
-        		tris[tc + 0] = (vc + 0);
-        		tris[tc + 1] = (vc + 1);
-        		tris[tc + 2] = (vc + 2);
+        		Triangles[tc + 0] = (vc + 0);
+        		Triangles[tc + 1] = (vc + 1);
+        		Triangles[tc + 2] = (vc + 2);
 
-        		tris[tc + 3] = (vc + 0);
-        		tris[tc + 4] = (vc + 2);
-        		tris[tc + 5] = (vc + 3);
+        		Triangles[tc + 3] = (vc + 0);
+        		Triangles[tc + 4] = (vc + 2);
+        		Triangles[tc + 5] = (vc + 3);
         	}
 	        
 	        private float3 Rotate(in float3 direction, in int rotation)

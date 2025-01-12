@@ -101,8 +101,9 @@ namespace KrasCore.Mosaic
         public int2 Position;
         public int IntGridHash;
     }
-    
+    // TODO: move add and remove commands into grid layers to parallelize them 
     [RequireMatchingQueriesForUpdate]
+    [UpdateInGroup(typeof(SimulationSystemGroup), OrderFirst = true)]
     public partial struct TilemapCommandBufferSystem : ISystem
     {
         private ParallelList<EntityCommand> _entityCommands;
