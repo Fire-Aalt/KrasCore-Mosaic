@@ -15,6 +15,8 @@ namespace KrasCore.Mosaic
 	{
 		public struct IntGridLayer : IDisposable
 		{
+			public NativeList<int2> Positions;
+			public NativeList<SpriteMesh> SpriteMeshes;
 			public NativeList<Vertex> Vertices;
 			public NativeList<int> Triangles;
 
@@ -22,6 +24,8 @@ namespace KrasCore.Mosaic
 
 			public IntGridLayer(int capacity, Allocator allocator)
 			{
+				Positions = new NativeList<int2>(capacity, allocator);
+				SpriteMeshes = new NativeList<SpriteMesh>(capacity, allocator);
 				Vertices = new NativeList<Vertex>(capacity, allocator);
 				Triangles = new NativeList<int>(capacity, allocator);
 				IsDirty = new NativeReference<bool>(allocator);
@@ -29,6 +33,8 @@ namespace KrasCore.Mosaic
 
 			public void Dispose()
 			{
+				Positions.Dispose();
+				SpriteMeshes.Dispose();
 				Vertices.Dispose();
 				Triangles.Dispose();
 				IsDirty.Dispose();
@@ -53,7 +59,7 @@ namespace KrasCore.Mosaic
 			IntGridLayers.Dispose();
 		}
 	}
-	
+
 	[UpdateAfter(typeof(TilemapCommandBufferSystem))]
 	[UpdateInGroup(typeof(SimulationSystemGroup), OrderLast = true)]
     public partial struct TilemapRendererVertexDataSystem : ISystem
@@ -83,6 +89,55 @@ namespace KrasCore.Mosaic
 	        SystemAPI.GetSingleton<TilemapRendererSingleton>().Dispose();
 	        _jobHandles.Dispose();
         }
+        
+        [BurstCompile]
+        private struct PrepareVertexDataJob : IJob
+        {
+	        public NativeParallelHashMap<int2, SpriteMesh> RenderedSprites;
+	        
+	        [ReadOnly]
+	        public NativeList<SpriteCommand> SpriteCommands;
+	        [ReadOnly]
+	        public NativeList<PositionToRemove> PositionsToRemove;
+	        
+	        public NativeList<int2> Positions;
+	        public NativeList<SpriteMesh> SpriteMeshes;
+	        
+	        public NativeList<Vertex> Vertices;
+	        public NativeList<int> Triangles;
+	        
+	        public void Execute()
+	        {
+		        foreach (var positionToRemove in PositionsToRemove)
+		        {
+			        RenderedSprites.Remove(positionToRemove.Position);
+		        }
+            
+		        foreach (var command in SpriteCommands)
+		        {
+			        RenderedSprites.Add(command.Position, command.SpriteMesh);
+		        }
+	            
+		        RenderedSprites.ToNativeLists(ref Positions, ref SpriteMeshes);
+		        
+		        var meshesCount = Positions.Length;
+                
+		        var vertexCount = meshesCount * 4;
+		        var indexCount = meshesCount * 6;
+
+		        Vertices.Clear();
+		        Triangles.Clear();
+                
+		        if (Vertices.Capacity < vertexCount)
+		        {
+			        Vertices.Capacity = vertexCount;
+			        Triangles.Capacity = indexCount;
+		        }
+
+		        Vertices.SetLengthNoClear(vertexCount);
+		        Triangles.SetLengthNoClear(indexCount);
+	        }
+        }
 
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
@@ -100,47 +155,28 @@ namespace KrasCore.Mosaic
 	            rendererLayer.IsDirty.Value = false;
 	            if (dataLayer.PositionToRemove.List.Length == 0 && dataLayer.SpriteCommands.List.Length == 0) continue;
 	            rendererLayer.IsDirty.Value = true;
+
+	            var handle = new PrepareVertexDataJob
+	            {
+		            RenderedSprites = dataLayer.RenderedSprites,
+		            PositionsToRemove = dataLayer.PositionToRemove.List,
+		            SpriteCommands = dataLayer.SpriteCommands.List,
+		            Positions = rendererLayer.Positions,
+		            SpriteMeshes = rendererLayer.SpriteMeshes,
+		            Vertices = rendererLayer.Vertices,
+		            Triangles = rendererLayer.Triangles,
+	            }.Schedule(dataSingleton.JobHandle);
 	            
-	            foreach (var positionToRemove in dataLayer.PositionToRemove.List)
+	            handle = new GenerateVertexDataJob
 	            {
-		            dataLayer.RenderedSprites.Remove(positionToRemove.Position);
-	            }
-            
-	            foreach (var command in dataLayer.SpriteCommands.List)
-	            {
-		            dataLayer.RenderedSprites.Add(command.Position, command.SpriteMesh);
-	            }
-	            
-	            var keyValueArrays = dataLayer.RenderedSprites.GetKeyValueArrays(Allocator.TempJob);
-                
-	            var meshesCount = keyValueArrays.Values.Length;
-                
-	            var vertexCount = meshesCount * 4;
-	            var indexCount = meshesCount * 6;
-
-	            rendererLayer.Vertices.Clear();
-	            rendererLayer.Triangles.Clear();
-                
-	            if (rendererLayer.Vertices.Capacity < vertexCount)
-	            {
-		            rendererLayer.Vertices.Capacity = vertexCount;
-		            rendererLayer.Triangles.Capacity = indexCount;
-	            }
-
-	            rendererLayer.Vertices.SetLengthNoClear(vertexCount);
-	            rendererLayer.Triangles.SetLengthNoClear(indexCount);
-
-	            var handle = new GenerateVertexDataJob
-	            {
-		            Positions = keyValueArrays.Keys,
-		            SpriteMeshes = keyValueArrays.Values,
-		            Vertices = rendererLayer.Vertices.AsArray(),
-		            Triangles = rendererLayer.Triangles.AsArray(),
+		            Positions = rendererLayer.Positions.AsDeferredJobArray(),
+		            SpriteMeshes = rendererLayer.SpriteMeshes.AsDeferredJobArray(),
+		            Vertices = rendererLayer.Vertices.AsDeferredJobArray(),
+		            Triangles = rendererLayer.Triangles.AsDeferredJobArray(),
 		            GridCellSize = dataLayer.TilemapData.GridData.CellSize,
 		            Orientation = dataLayer.TilemapData.Orientation,
 		            Swizzle = dataLayer.TilemapData.GridData.CellSwizzle
-	            }.ScheduleParallel(meshesCount, 32, dataSingleton.JobHandle);
-	            keyValueArrays.Dispose(handle);
+	            }.Schedule(rendererLayer.SpriteMeshes, 32, handle);
 	            _jobHandles.Add(handle);
             }
             
@@ -159,7 +195,7 @@ namespace KrasCore.Mosaic
         }
 
         [BurstCompile]
-        private struct GenerateVertexDataJob : IJobFor
+        private struct GenerateVertexDataJob : IJobParallelForDefer
         {
 	        [ReadOnly]
 	        public NativeArray<int2> Positions;
