@@ -66,8 +66,6 @@ namespace KrasCore.Mosaic
 	    private static readonly quaternion RotZ180 = quaternion.RotateZ(180f * math.TORADIANS);
 	    private static readonly quaternion RotZ270 = quaternion.RotateZ(270f * math.TORADIANS);
 	    
-        private NativeList<SpriteCommand> _commandsList;
-        private NativeHashMap<int, IntGridLayer> _intGridLayers;
         private NativeList<JobHandle> _jobHandles;
         
         [BurstCompile]
@@ -91,54 +89,46 @@ namespace KrasCore.Mosaic
         {
 	        ref var rendererSingleton = ref SystemAPI.GetSingletonRW<TilemapRendererSingleton>().ValueRW;
             var dataSingleton = SystemAPI.GetSingleton<TilemapDataSingleton>();
-            _commandsList = dataSingleton.SpriteCommands;
-            _intGridLayers = dataSingleton.IntGridLayers;
             rendererSingleton.JobHandle = default;
             dataSingleton.JobHandle.Complete();
-
-            if (dataSingleton.PositionToRemove.Length == 0 && _commandsList.Length == 0) return;
             
-            foreach (var positionToRemove in dataSingleton.PositionToRemove)
+            foreach (var kvp in dataSingleton.IntGridLayers)
             {
-                var dataLayer = _intGridLayers[positionToRemove.IntGridHash];
-                var rendererLayer = GetOrAddRendererLayer(ref rendererSingleton, positionToRemove.IntGridHash);
-                
-                dataLayer.RenderedSprites.Remove(positionToRemove.Position);
-                rendererLayer.IsDirty.Value = true;
-            }
-            
-            foreach (var command in _commandsList)
-            {
-                var dataLayer = _intGridLayers[command.IntGridHash];
-                var rendererLayer = GetOrAddRendererLayer(ref rendererSingleton, command.IntGridHash);
-                
-                dataLayer.RenderedSprites.Add(command.Position, command.SpriteMesh);
-                rendererLayer.IsDirty.Value = true;
-            }
-            
-            foreach (var layer in _intGridLayers)
-            {
-	            var rendererLayer = GetOrAddRendererLayer(ref rendererSingleton, layer.Key);
-	            if (!rendererLayer.IsDirty.Value) continue;
+	            var dataLayer = kvp.Value;
+	            var rendererLayer = GetOrAddRendererLayer(ref rendererSingleton, kvp.Key);
 	            
-                var keyValueArrays = layer.Value.RenderedSprites.GetKeyValueArrays(Allocator.TempJob);
+	            rendererLayer.IsDirty.Value = false;
+	            if (dataLayer.PositionToRemove.List.Length == 0 && dataLayer.SpriteCommands.List.Length == 0) continue;
+	            rendererLayer.IsDirty.Value = true;
+	            
+	            foreach (var positionToRemove in dataLayer.PositionToRemove.List)
+	            {
+		            dataLayer.RenderedSprites.Remove(positionToRemove.Position);
+	            }
+            
+	            foreach (var command in dataLayer.SpriteCommands.List)
+	            {
+		            dataLayer.RenderedSprites.Add(command.Position, command.SpriteMesh);
+	            }
+	            
+	            var keyValueArrays = dataLayer.RenderedSprites.GetKeyValueArrays(Allocator.TempJob);
                 
-                var meshesCount = keyValueArrays.Values.Length;
+	            var meshesCount = keyValueArrays.Values.Length;
                 
-                var vertexCount = meshesCount * 4;
-                var indexCount = meshesCount * 6;
+	            var vertexCount = meshesCount * 4;
+	            var indexCount = meshesCount * 6;
 
-                rendererLayer.Vertices.Clear();
-                rendererLayer.Triangles.Clear();
+	            rendererLayer.Vertices.Clear();
+	            rendererLayer.Triangles.Clear();
                 
-                if (rendererLayer.Vertices.Capacity < vertexCount)
-                {
+	            if (rendererLayer.Vertices.Capacity < vertexCount)
+	            {
 		            rendererLayer.Vertices.Capacity = vertexCount;
 		            rendererLayer.Triangles.Capacity = indexCount;
-                }
+	            }
 
-                rendererLayer.Vertices.SetLengthNoClear(vertexCount);
-                rendererLayer.Triangles.SetLengthNoClear(indexCount);
+	            rendererLayer.Vertices.SetLengthNoClear(vertexCount);
+	            rendererLayer.Triangles.SetLengthNoClear(indexCount);
 
 	            var handle = new GenerateVertexDataJob
 	            {
@@ -146,9 +136,9 @@ namespace KrasCore.Mosaic
 		            SpriteMeshes = keyValueArrays.Values,
 		            Vertices = rendererLayer.Vertices.AsArray(),
 		            Triangles = rendererLayer.Triangles.AsArray(),
-		            GridCellSize = layer.Value.TilemapData.GridData.CellSize,
-		            Orientation = layer.Value.TilemapData.Orientation,
-		            Swizzle = layer.Value.TilemapData.GridData.CellSwizzle
+		            GridCellSize = dataLayer.TilemapData.GridData.CellSize,
+		            Orientation = dataLayer.TilemapData.Orientation,
+		            Swizzle = dataLayer.TilemapData.GridData.CellSwizzle
 	            }.ScheduleParallel(meshesCount, 32, dataSingleton.JobHandle);
 	            keyValueArrays.Dispose(handle);
 	            _jobHandles.Add(handle);

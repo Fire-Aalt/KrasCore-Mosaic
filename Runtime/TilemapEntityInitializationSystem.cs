@@ -22,7 +22,7 @@ namespace KrasCore.Mosaic
         public void OnUpdate(ref SystemState state)
         {
             var singleton = SystemAPI.GetSingleton<TilemapDataSingleton>();
-            _commandsList = singleton.EntityCommands;
+            _commandsList = singleton.EntityCommands.List;
             _intGridLayers = singleton.IntGridLayers;
             
             if (_commandsList.Length == 0) return;

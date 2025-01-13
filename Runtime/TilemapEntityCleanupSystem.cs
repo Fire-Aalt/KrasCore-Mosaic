@@ -1,7 +1,5 @@
-using Drawing;
 using Unity.Burst;
 using Unity.Entities;
-using Unity.Mathematics;
 
 namespace KrasCore.Mosaic
 {
@@ -19,19 +17,19 @@ namespace KrasCore.Mosaic
         public void OnUpdate(ref SystemState state)
         {
             var singleton = SystemAPI.GetSingleton<TilemapDataSingleton>();
-            var list = singleton.PositionToRemove;
-            var layers = singleton.IntGridLayers;
-            
-            if (list.Length == 0) return;
 
-            foreach (var positionToRemove in list)
+            foreach (var kvp in singleton.IntGridLayers)
             {
-                var spawnedEntities = layers[positionToRemove.IntGridHash].SpawnedEntities;
+                var dataLayer = kvp.Value;
+                var spawnedEntities = dataLayer.SpawnedEntities;
 
-                if (spawnedEntities.TryGetValue(positionToRemove.Position, out var entity))
+                foreach (var positionToRemove in dataLayer.PositionToRemove.List)
                 {
-                    state.EntityManager.DestroyEntity(entity);
-                    spawnedEntities.Remove(positionToRemove.Position);
+                    if (spawnedEntities.TryGetValue(positionToRemove.Position, out var entity))
+                    {
+                        state.EntityManager.DestroyEntity(entity);
+                        spawnedEntities.Remove(positionToRemove.Position);
+                    }
                 }
             }
         }
