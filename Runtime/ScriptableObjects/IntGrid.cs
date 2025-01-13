@@ -20,7 +20,7 @@ namespace KrasCore.Mosaic
         [Button]
         private void CreateRuleGroup()
         {
-            var instance = AssetDatabaseUtils.CreateNewScriptableObjectAsset<RuleGroup>("RuleGroup", this);
+            var instance = AssetDatabaseUtils.CreateNewScriptableObjectAsset<RuleGroup>(name + "Group", this);
             instance.intGrid = this;
             ruleGroups.Add(instance);
         }
