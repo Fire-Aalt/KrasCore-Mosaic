@@ -71,8 +71,6 @@ namespace KrasCore.Mosaic
             [HideInInspector, SerializeField]
             public List<RuleResult<GameObject>> TileEntities = new();
             [HideInInspector, SerializeField]
-            public RuleResultType ResultType;
-            [HideInInspector, SerializeField]
             public IntGrid BoundIntGrid;
 
             public void OnBeforeSerialize()

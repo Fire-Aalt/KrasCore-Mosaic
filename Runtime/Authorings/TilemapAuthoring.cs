@@ -91,7 +91,6 @@ namespace KrasCore.Mosaic
             ref var root = ref builder.ConstructRoot<RuleBlob>();
 
             root.Chance = rule.ruleChance;
-            root.ResultType = rule.ResultType;
             
             var usedCellCount = 0;
             foreach (var intGridValue in rule.RuleMatrix)
@@ -138,7 +137,6 @@ namespace KrasCore.Mosaic
         private static void AddMirrorPattern(RuleGroup.Rule rule, BlobBuilderArray<RuleCell> cells,
             NativeHashSet<int2> refreshPositions, ref int cnt, bool2 mirror)
         {
-                var s = "";
             for (var index = 0; index < rule.RuleMatrix.Length; index++)
             {
                 var intGridValue = rule.RuleMatrix[index];
@@ -147,7 +145,6 @@ namespace KrasCore.Mosaic
 
                 var pos = RuleGroup.Rule.GetOffsetFromCenterMirrored(index, mirror);
                 refreshPositions.Add(pos);
-                s += "Pos: " + pos.ToString() + " val: " + intGridValue + " | ";
                 
                 cell = new RuleCell
                 {
@@ -156,7 +153,6 @@ namespace KrasCore.Mosaic
                 };
                 cnt++;
             }
-            Debug.Log(s + " at: " + rule.BoundIntGrid.name + " mirror: " + mirror);
         }
         
         private static void AddRotatedPattern(RuleGroup.Rule rule, BlobBuilderArray<RuleCell> cells,
@@ -164,7 +160,6 @@ namespace KrasCore.Mosaic
         {
             for (int rotation = 1; rotation < 4; rotation++)
             {
-                var s = "";
                 for (var index = 0; index < rule.RuleMatrix.Length; index++)
                 {
                     var intGridValue = rule.RuleMatrix[index];
@@ -172,7 +167,6 @@ namespace KrasCore.Mosaic
                     ref var cell = ref cells[cnt];
 
                     var pos = RuleGroup.Rule.GetOffsetFromCenterRotated(index, rotation);
-                    s += "Pos: " + pos.ToString() + " val: " + intGridValue + " | ";
                     refreshPositions.Add(pos);
                     
                     cell = new RuleCell
@@ -182,7 +176,6 @@ namespace KrasCore.Mosaic
                     };
                     cnt++;
                 }
-                Debug.Log(s + " at: " + rule.BoundIntGrid.name + " rot: " + rotation);
             }
         }
     }
@@ -214,9 +207,30 @@ namespace KrasCore.Mosaic
         public BlobArray<WeightedEntity> WeightedEntities;
         public BlobArray<WeightedSprite> WeightedSprites;
 
-        public RuleResultType ResultType;
         public float Chance;
         public RuleTransform RuleTransform;
+
+        public bool TryGetEntity(in DynamicBuffer<WeightedEntityElement> entityBuffer, out Entity entity)
+        {
+            if (WeightedEntities.Length > 0)
+            {
+                entity = entityBuffer[WeightedEntities[0].EntityBufferIndex].Value;
+                return true;
+            }
+            entity = default;
+            return false;
+        }
+        
+        public bool TryGetSpriteMesh(out SpriteMesh spriteMesh)
+        {
+            if (WeightedSprites.Length > 0)
+            {
+                spriteMesh = WeightedSprites[0].SpriteMesh;
+                return true;
+            }
+            spriteMesh = default;
+            return false;
+        }
     }
     
     public struct WeightedEntity
@@ -241,13 +255,6 @@ namespace KrasCore.Mosaic
         public UnityObjectRef<Material> Material;
         public Swizzle Swizzle => GridData.CellSwizzle;
     }
-
-    // public struct WeightedSprite
-    // {
-    //     public int Weight;
-    //     public SpriteProperties Properties;
-    // }
-    
 
     public struct RuleCell
     {

@@ -10,7 +10,7 @@ namespace KrasCore.Mosaic
     public partial struct TilemapEntityInitializationSystem : ISystem
     {
         private NativeList<EntityCommand> _commandsList;
-        private NativeHashMap<int, IntGridLayer> _intGridLayers;
+        private NativeHashMap<int, TilemapDataSingleton.IntGridLayer> _intGridLayers;
         
         [BurstCompile]
         public void OnCreate(ref SystemState state)
@@ -67,7 +67,7 @@ namespace KrasCore.Mosaic
                     Rotation = srcTransform.Rotation
                 });
                 
-                layer.SpawnedEntities.Add(position, instance);
+                layer.SpawnedEntities[position] = instance;
             }
         }
     }

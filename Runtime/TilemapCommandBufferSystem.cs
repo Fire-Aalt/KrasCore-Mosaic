@@ -1,5 +1,3 @@
-using System;
-using Drawing;
 using KrasCore.Mosaic;
 using KrasCore.NZCore;
 using Unity.Burst;
@@ -9,129 +7,20 @@ using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Transforms;
+using UnityEngine;
 
+[assembly: RegisterGenericJobType(typeof(ParallelList<RuleCommand>.UnsafeParallelListToArraySingleThreaded))]
 [assembly: RegisterGenericJobType(typeof(ParallelList<EntityCommand>.UnsafeParallelListToArraySingleThreaded))]
 [assembly: RegisterGenericJobType(typeof(ParallelList<SpriteCommand>.UnsafeParallelListToArraySingleThreaded))]
 [assembly: RegisterGenericJobType(typeof(ParallelList<PositionToRemove>.UnsafeParallelListToArraySingleThreaded))]
 
-
-
 namespace KrasCore.Mosaic
 {
-    public struct TilemapCommandBufferSingleton : IComponentData, IDisposable
-    {
-        public TilemapCommandBuffer Tcb;
-
-        public void Dispose()
-        {
-            Tcb.Dispose();
-        }
-    }
-
-    public struct TilemapDataSingleton : IComponentData, IDisposable
-    {
-        public NativeHashMap<int, IntGridLayer> IntGridLayers;
-
-        public ParallelToListMapper<EntityCommand> EntityCommands;
-        
-        public JobHandle JobHandle;
-        
-        public void Dispose()
-        {
-            foreach (var layer in IntGridLayers)
-            {
-                layer.Value.Dispose();
-            }
-            IntGridLayers.Dispose();
-            EntityCommands.Dispose();
-        }
-    }
-
-    public struct IntGridLayer : IDisposable
-    {
-        public NativeParallelHashMap<int2, int> IntGrid;
-        public NativeHashSet<int2> ChangedPositions;
-        public NativeHashSet<int2> PositionsToRefresh;
-        public NativeList<int2> PositionsToRefreshList;
-        
-        public NativeParallelHashMap<int2, Entity> SpawnedEntities;
-        public NativeParallelHashMap<int2, SpriteMesh> RenderedSprites;
-        
-        public ParallelToListMapper<SpriteCommand> SpriteCommands;
-        public ParallelToListMapper<PositionToRemove> PositionToRemove;
-        
-        public TilemapData TilemapData;
-        public LocalTransform TilemapTransform;
-        
-        public IntGridLayer(TilemapData tilemapData, int capacity, Allocator allocator)
-        {
-            IntGrid = new NativeParallelHashMap<int2, int>(capacity, allocator);
-            ChangedPositions = new NativeHashSet<int2>(capacity, allocator);
-            PositionsToRefresh = new NativeHashSet<int2>(capacity, allocator);
-            PositionsToRefreshList = new NativeList<int2>(capacity, allocator);
-            
-            SpawnedEntities = new NativeParallelHashMap<int2, Entity>(capacity, allocator);
-            RenderedSprites = new NativeParallelHashMap<int2, SpriteMesh>(capacity, allocator);
-
-            SpriteCommands = new ParallelToListMapper<SpriteCommand>(capacity, allocator);
-            PositionToRemove = new ParallelToListMapper<PositionToRemove>(capacity, allocator);
-            
-            TilemapData = tilemapData;
-            TilemapTransform = default;
-        }
-
-        public void Dispose()
-        {
-            IntGrid.Dispose();
-            ChangedPositions.Dispose();
-            PositionsToRefresh.Dispose();
-            PositionsToRefreshList.Dispose();
-            
-            SpawnedEntities.Dispose();
-            RenderedSprites.Dispose();
-            
-            SpriteCommands.Dispose();
-            PositionToRemove.Dispose();
-        }
-    }
-
     public struct PositionToRemove
     {
         public int2 Position;
     }
 
-    public struct ParallelToListMapper<T> : IDisposable where T : unmanaged
-    {
-        public ParallelList<T> ParallelList;
-        public NativeList<T> List;
-
-        public ParallelToListMapper(int capacity, Allocator allocator)
-        {
-            ParallelList = new ParallelList<T>(capacity, allocator);
-            List = new NativeList<T>(capacity, allocator);
-        }
-
-        public void Clear()
-        {
-            ParallelList.Clear();
-            List.Clear();
-        }
-
-        public JobHandle CopyParallelToList(JobHandle dependency)
-        {
-            return ParallelList.CopyToArraySingle(ref List, dependency);
-        }
-
-        public ParallelList<T>.ThreadWriter AsThreadWriter() => ParallelList.AsThreadWriter();
-        public ParallelList<T>.ThreadReader AsThreadReader() => ParallelList.AsThreadReader();
-        
-        public void Dispose()
-        {
-            ParallelList.Dispose();
-            List.Dispose();
-        }
-    }
-    
     public struct SpriteCommand
     {
         public SpriteMesh SpriteMesh;
@@ -155,7 +44,7 @@ namespace KrasCore.Mosaic
             });
             state.EntityManager.CreateSingleton(new TilemapDataSingleton
             {
-                IntGridLayers = new NativeHashMap<int, IntGridLayer>(8, Allocator.Persistent),
+                IntGridLayers = new NativeHashMap<int, TilemapDataSingleton.IntGridLayer>(8, Allocator.Persistent),
                 EntityCommands = new ParallelToListMapper<EntityCommand>(256, Allocator.Persistent)
             });
 
@@ -188,13 +77,14 @@ namespace KrasCore.Mosaic
 
                 if (!intGridLayers.ContainsKey(intGridHash))
                 {
-                    intGridLayers.Add(intGridHash, new IntGridLayer(tilemapDataRO.ValueRO, 64, Allocator.Persistent));
+                    intGridLayers.Add(intGridHash, new TilemapDataSingleton.IntGridLayer(tilemapDataRO.ValueRO, 64, Allocator.Persistent));
                 }
                 var layer = intGridLayers[intGridHash];
                 layer.TilemapTransform = transformRO.ValueRO;
                 intGridLayers[intGridHash] = layer;
 
                 // Clear last frame data
+                layer.RuleCommands.Clear();
                 layer.SpriteCommands.Clear();
                 layer.PositionToRemove.Clear();
                 
@@ -222,12 +112,12 @@ namespace KrasCore.Mosaic
                 jobDependency = new ProcessRulesJob
                 {
                     IntGrid = layer.IntGrid,
+                    RuleGrid = layer.RuleGrid,
                     PositionsToRefresh = layer.PositionsToRefreshList.AsDeferredJobArray(),
-                    EntityBuffer = entityBuffer.AsNativeArray(),
-                    RulesBuffer = rulesBuffer.AsNativeArray(),
-                    SpawnedEntities = layer.SpawnedEntities,
-                    RenderedSprites = layer.RenderedSprites,
+                    EntityBuffer = entityBuffer,
+                    RulesBuffer = rulesBuffer,
                     EntityCommands = singleton.EntityCommands.AsThreadWriter(),
+                    RuleCommands = layer.RuleCommands.AsThreadWriter(),
                     SpriteCommands = layer.SpriteCommands.AsThreadWriter(),
                     PositionsToRemove = layer.PositionToRemove.AsThreadWriter(),
                     IntGridHash = intGridHash
@@ -235,7 +125,17 @@ namespace KrasCore.Mosaic
                 
                 var handle1 = layer.SpriteCommands.CopyParallelToList(jobDependency);
                 var handle2 = layer.PositionToRemove.CopyParallelToList(jobDependency);
-                _jobHandles.Add(JobHandle.CombineDependencies(handle1, handle2));
+                var handle3 = layer.RuleCommands.CopyParallelToList(jobDependency);
+
+                var finalHandle = JobHandle.CombineDependencies(handle1, handle2, handle3);
+
+                finalHandle = new UpdateRuleGridJob
+                {
+                    RuleGrid = layer.RuleGrid,
+                    RuleCommands = layer.RuleCommands.List.AsDeferredJobArray(),
+                    PositionsToRemove = layer.PositionToRemove.List.AsDeferredJobArray()
+                }.Schedule(finalHandle);
+                _jobHandles.Add(finalHandle);
             }
 
             if (_jobHandles.Length == 0) return;
@@ -247,6 +147,30 @@ namespace KrasCore.Mosaic
             _jobHandles.Clear();
         }
 
+        [BurstCompile]
+        private struct UpdateRuleGridJob : IJob
+        {
+            public NativeParallelHashMap<int2, int> RuleGrid;
+            
+            [ReadOnly]
+            public NativeArray<PositionToRemove> PositionsToRemove;
+            [ReadOnly]
+            public NativeArray<RuleCommand> RuleCommands;
+            
+            public void Execute()
+            {
+                foreach (var positionToRemove in PositionsToRemove)
+                {
+                    RuleGrid.Remove(positionToRemove.Position);
+                }
+            
+                foreach (var command in RuleCommands)
+                {
+                    RuleGrid[command.Position] = command.AppliedRuleHash;
+                }
+            }
+        }
+        
         [BurstCompile]
         private struct ProcessCommandsJob : IJob
         {
@@ -291,26 +215,40 @@ namespace KrasCore.Mosaic
             }
         }
 
+        public struct RuleResult
+        {
+            public int Hash;
+            public Result Result;
+        }
+        
+        public enum Result
+        {
+            None,
+            Sprite,
+            Entity
+        }
+        
         [BurstCompile]
         private struct ProcessRulesJob : IJobParallelForDefer
         {
             [ReadOnly]
             public NativeParallelHashMap<int2, int> IntGrid;
             [ReadOnly]
+            public NativeParallelHashMap<int2, int> RuleGrid;
+            [ReadOnly]
             public NativeArray<int2> PositionsToRefresh;
-            [ReadOnly]
-            public NativeArray<RuleBlobReferenceElement> RulesBuffer;
-            [ReadOnly]
-            public NativeArray<WeightedEntityElement> EntityBuffer;
             
             [ReadOnly]
-            public NativeParallelHashMap<int2, Entity> SpawnedEntities;
+            [NativeDisableContainerSafetyRestriction]
+            public DynamicBuffer<RuleBlobReferenceElement> RulesBuffer;
             [ReadOnly]
-            public NativeParallelHashMap<int2, SpriteMesh> RenderedSprites;
+            [NativeDisableContainerSafetyRestriction]
+            public DynamicBuffer<WeightedEntityElement> EntityBuffer;
 
             [NativeDisableContainerSafetyRestriction]
             public ParallelList<EntityCommand>.ThreadWriter EntityCommands;
             
+            public ParallelList<RuleCommand>.ThreadWriter RuleCommands;
             public ParallelList<SpriteCommand>.ThreadWriter SpriteCommands;
             public ParallelList<PositionToRemove>.ThreadWriter PositionsToRemove;
 
@@ -319,19 +257,21 @@ namespace KrasCore.Mosaic
             public void Execute(int index)
             {
                 var posToRefresh = PositionsToRefresh[index];
+                RuleCommands.Begin();
                 EntityCommands.Begin();
                 SpriteCommands.Begin();
                 PositionsToRemove.Begin();
-                
-                foreach (var ruleElement in RulesBuffer)
+
+                for (var ruleIndex = 0; ruleIndex < RulesBuffer.Length; ruleIndex++)
                 {
+                    var ruleElement = RulesBuffer[ruleIndex];
                     if (!ruleElement.Enabled) continue;
                     ref var rule = ref ruleElement.Value.Value;
 
                     var appliedRotation = 0;
                     var appliedMirror = new bool2(false, false);
                     var passedCheck = ExecuteRule(ref rule, posToRefresh, 0);
-                    
+
                     if (rule.RuleTransform != RuleTransform.None)
                     {
                         if (!passedCheck && rule.RuleTransform.IsMirroredX())
@@ -339,16 +279,19 @@ namespace KrasCore.Mosaic
                             appliedMirror = new bool2(true, false);
                             passedCheck = ExecuteRule(ref rule, posToRefresh, 1);
                         }
+
                         if (!passedCheck && rule.RuleTransform.IsMirroredY())
                         {
                             appliedMirror = new bool2(false, true);
                             passedCheck = ExecuteRule(ref rule, posToRefresh, 2);
                         }
+
                         if (!passedCheck && rule.RuleTransform == RuleTransform.MirrorXY)
                         {
                             appliedMirror = new bool2(true, true);
                             passedCheck = ExecuteRule(ref rule, posToRefresh, 3);
                         }
+
                         if (!passedCheck && rule.RuleTransform == RuleTransform.Rotated)
                         {
                             for (appliedRotation = 1; appliedRotation < 4; appliedRotation++)
@@ -359,48 +302,53 @@ namespace KrasCore.Mosaic
                         }
                     }
                     if (!passedCheck) continue;
-                    
-                    if (rule.ResultType == RuleResultType.Entity)
-                    {
-                        var newEntity = EntityBuffer[rule.WeightedEntities[0].EntityBufferIndex].Value;
 
-                        var posOccupied = SpawnedEntities.TryGetValue(posToRefresh, out var presentEntity);
-                        if (posOccupied && newEntity == presentEntity) return;
-                        if (posOccupied) QueueRemovePos(posToRefresh);
-                            
+                    var ruleExists = RuleGrid.ContainsKey(posToRefresh);
+                    var currentRuleHash = ruleExists
+                        ? RuleGrid[posToRefresh]
+                        : -1;
+                    
+                    var newRuleHash = Hash(ruleIndex, appliedMirror, appliedRotation);
+                    if (currentRuleHash == newRuleHash) return;
+
+                    if (ruleExists) QueueRemovePos(posToRefresh);
+                    
+                    RuleCommands.Write(new RuleCommand
+                    {
+                        Position = posToRefresh,
+                        AppliedRuleHash = newRuleHash
+                    });
+                    
+                    // TODO: add a check if the newSrcEntity == oldSrcEntity to remove redundant memcpy
+                    if (rule.TryGetEntity(EntityBuffer, out var newEntity))
+                    {
                         EntityCommands.Write(new EntityCommand
                         {
                             SrcEntity = newEntity,
                             Position = posToRefresh,
                             IntGridHash = IntGridHash
                         });
-                        return;
                     }
-                    else
+                    if (rule.TryGetSpriteMesh(out var newSprite))
                     {
-                        var newSprite = rule.WeightedSprites[0].SpriteMesh;
                         newSprite.Flip = appliedMirror;
                         newSprite.Rotation = appliedRotation;
                         
-                        var posOccupied = RenderedSprites.TryGetValue(posToRefresh, out var presentSprite);
-                        if (posOccupied && newSprite.Equals(presentSprite)) return;
-                        if (posOccupied) QueueRemovePos(posToRefresh);
-                            
                         SpriteCommands.Write(new SpriteCommand
                         {
                             SpriteMesh = newSprite,
                             Position = posToRefresh
                         });
-                        return;
                     }
+                    return;
                 }
-                
-                if (SpawnedEntities.ContainsKey(posToRefresh) || RenderedSprites.ContainsKey(posToRefresh))
+
+                if (RuleGrid.ContainsKey(posToRefresh))
                 {
                     QueueRemovePos(posToRefresh);
                 }
             }
-
+            
             private bool ExecuteRule(ref RuleBlob rule, in int2 posToRefresh, int patternOffset)
             {
                 var offset = patternOffset * rule.CellsToCheckCount;
@@ -422,7 +370,7 @@ namespace KrasCore.Mosaic
                 return passedCheck;
             }
 
-            private void QueueRemovePos(int2 posToRefresh)
+            private void QueueRemovePos(in int2 posToRefresh)
             {
                 PositionsToRemove.Write(new PositionToRemove
                 {
@@ -430,6 +378,15 @@ namespace KrasCore.Mosaic
                 });
             }
 
+            private static int Hash(int ruleIndex, in bool2 mirror, int rotation)
+            {
+                var mirrorHash = (mirror.x ? 1 : 0) | ((mirror.y ? 1 : 0) << 1);
+                var hash = ruleIndex;
+                hash = (hash * 431) + mirrorHash;
+                hash = (hash * 701) + rotation;
+                return hash;
+            }
+            
             private static bool CanPlace(in RuleCell cell, int value)
             {
                 if (cell.IntGridValue == -RuleGroup.Rule.AnyIntGridValue) 

@@ -15,39 +15,29 @@ namespace KrasCore.Mosaic
         [CustomValueDrawer("IntGridValueDrawer")]
         [SerializeField] private int _selectedIntGridValue;
         
-        [HorizontalGroup("Split", width: 0.5f)]
+        [HorizontalGroup("Split", width: 0.4f)]
         [TableMatrix(DrawElementMethod = "DrawMatrixCell", ResizableColumns = false, SquareCells = true, HideColumnIndices = true, HideRowIndices = true, IsReadOnly = true)]
         [SerializeField] private int[,] _matrix = new int[RuleGroup.Rule.MatrixSize, RuleGroup.Rule.MatrixSize];
         
         
-        [HorizontalGroup("Split", width: 0.3f)]
-        [VerticalGroup("Split/Right")]
-        [EnumToggleButtons, HideLabel]
-        [SerializeField] private RuleResultType _ruleResultType;
-        
-        [HorizontalGroup("Split", width: 0.3f)]
-        [VerticalGroup("Split/Right")]
-        [ShowIf("_ruleResultType", RuleResultType.Sprite)]
+        [HorizontalGroup("Split", width: 0.2f)]
+        [VerticalGroup("Split/Sprites")]
         [SerializeField] private List<RuleResult<Sprite>> _tileSprites;
         
-        [HorizontalGroup("Split", width: 0.3f)]
-        [VerticalGroup("Split/Right")]
-        [ShowIf("_ruleResultType", RuleResultType.Entity)]
-        [SerializeField] private List<RuleResult<GameObject>> _tileEntities;
-        
-        [HorizontalGroup("Split", width: 0.3f)]
-        [VerticalGroup("Split/Right")]
-        [ShowIf("_ruleResultType", RuleResultType.Sprite)]
+        [HorizontalGroup("Split", width: 0.2f)]
+        [VerticalGroup("Split/Sprites")]
         [SerializeField] private List<Sprite> _convertSprites = new();
         
-        [HorizontalGroup("Split", width: 0.3f)]
-        [VerticalGroup("Split/Right")]
-        [ShowIf("_ruleResultType", RuleResultType.Entity)]
+        [HorizontalGroup("Split", width: 0.2f)]
+        [VerticalGroup("Split/Entities")]
+        [SerializeField] private List<RuleResult<GameObject>> _tileEntities;
+        
+        [HorizontalGroup("Split", width: 0.2f)]
+        [VerticalGroup("Split/Entities")]
         [AssetsOnly]
-        [SerializeField] private List<GameObject> _convertGameObjects = new();
+        [SerializeField] private List<GameObject> _convertPrefabs = new();
         
         private IntGrid _intGrid;
-        private RuleGroup.Rule _target;
         
         public static void OpenWindow(RuleGroup.Rule target)
         {
@@ -71,29 +61,26 @@ namespace KrasCore.Mosaic
                 result.Validate(RuleResultType.Sprite);
             }
 
-            if (_convertGameObjects.Count > 0)
+            if (_convertPrefabs.Count > 0)
             {
-                foreach (var toConvert in _convertGameObjects)
+                foreach (var toConvert in _convertPrefabs)
                 {
                     _tileEntities.Add(new RuleResult<GameObject>(1, entityResult: toConvert));
                 }
-                _convertGameObjects.Clear();
+                _convertPrefabs.Clear();
             }
             foreach (var result in _tileEntities)
             {
                 result.Validate(RuleResultType.Entity);
             }
-            _target.ResultType = _ruleResultType;
         }
 
         private void Init(RuleGroup.Rule target)
         {
-            _target = target;
             _intGrid = target.BoundIntGrid;
             _matrix = target.Matrix;
             _tileEntities = target.TileEntities;
             _tileSprites = target.TileSprites;
-            _ruleResultType = target.ResultType;
             _selectedIntGridValue = 1;
         }
 

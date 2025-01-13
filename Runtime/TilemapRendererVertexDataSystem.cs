@@ -1,65 +1,11 @@
-using System;
-using Drawing;
-using Game;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
-using Unity.Transforms;
-using UnityEngine;
 
 namespace KrasCore.Mosaic
 {
-	public struct TilemapRendererSingleton : IComponentData, IDisposable
-	{
-		public struct IntGridLayer : IDisposable
-		{
-			public NativeList<int2> Positions;
-			public NativeList<SpriteMesh> SpriteMeshes;
-			public NativeList<Vertex> Vertices;
-			public NativeList<int> Triangles;
-
-			public NativeReference<bool> IsDirty;
-
-			public IntGridLayer(int capacity, Allocator allocator)
-			{
-				Positions = new NativeList<int2>(capacity, allocator);
-				SpriteMeshes = new NativeList<SpriteMesh>(capacity, allocator);
-				Vertices = new NativeList<Vertex>(capacity, allocator);
-				Triangles = new NativeList<int>(capacity, allocator);
-				IsDirty = new NativeReference<bool>(allocator);
-			}
-
-			public void Dispose()
-			{
-				Positions.Dispose();
-				SpriteMeshes.Dispose();
-				Vertices.Dispose();
-				Triangles.Dispose();
-				IsDirty.Dispose();
-			}
-		}
-		
-		public NativeHashMap<int, IntGridLayer> IntGridLayers;
-		public JobHandle JobHandle;
-		
-		public TilemapRendererSingleton(int capacity, Allocator allocator)
-		{
-			IntGridLayers = new NativeHashMap<int, IntGridLayer>(capacity, allocator);
-			JobHandle = default;
-		}
-
-		public void Dispose()
-		{
-			foreach (var layer in IntGridLayers)
-			{
-				layer.Value.Dispose();
-			}
-			IntGridLayers.Dispose();
-		}
-	}
-
 	[UpdateAfter(typeof(TilemapCommandBufferSystem))]
 	[UpdateInGroup(typeof(SimulationSystemGroup), OrderLast = true)]
     public partial struct TilemapRendererVertexDataSystem : ISystem
@@ -78,8 +24,8 @@ namespace KrasCore.Mosaic
         public void OnCreate(ref SystemState state)
         {
 	        state.RequireForUpdate<TilemapRendererSingleton>();
-	        state.EntityManager.CreateSingleton(new TilemapRendererSingleton(8, Allocator.Persistent));
             state.RequireForUpdate<TilemapDataSingleton>();
+	        state.EntityManager.CreateSingleton(new TilemapRendererSingleton(8, Allocator.Persistent));
             _jobHandles = new NativeList<JobHandle>(8, Allocator.Persistent);
         }
         
@@ -88,55 +34,6 @@ namespace KrasCore.Mosaic
         {
 	        SystemAPI.GetSingleton<TilemapRendererSingleton>().Dispose();
 	        _jobHandles.Dispose();
-        }
-        
-        [BurstCompile]
-        private struct PrepareVertexDataJob : IJob
-        {
-	        public NativeParallelHashMap<int2, SpriteMesh> RenderedSprites;
-	        
-	        [ReadOnly]
-	        public NativeList<SpriteCommand> SpriteCommands;
-	        [ReadOnly]
-	        public NativeList<PositionToRemove> PositionsToRemove;
-	        
-	        public NativeList<int2> Positions;
-	        public NativeList<SpriteMesh> SpriteMeshes;
-	        
-	        public NativeList<Vertex> Vertices;
-	        public NativeList<int> Triangles;
-	        
-	        public void Execute()
-	        {
-		        foreach (var positionToRemove in PositionsToRemove)
-		        {
-			        RenderedSprites.Remove(positionToRemove.Position);
-		        }
-            
-		        foreach (var command in SpriteCommands)
-		        {
-			        RenderedSprites.Add(command.Position, command.SpriteMesh);
-		        }
-	            
-		        RenderedSprites.ToNativeLists(ref Positions, ref SpriteMeshes);
-		        
-		        var meshesCount = Positions.Length;
-                
-		        var vertexCount = meshesCount * 4;
-		        var indexCount = meshesCount * 6;
-
-		        Vertices.Clear();
-		        Triangles.Clear();
-                
-		        if (Vertices.Capacity < vertexCount)
-		        {
-			        Vertices.Capacity = vertexCount;
-			        Triangles.Capacity = indexCount;
-		        }
-
-		        Vertices.SetLengthNoClear(vertexCount);
-		        Triangles.SetLengthNoClear(indexCount);
-	        }
         }
 
         [BurstCompile]
@@ -150,7 +47,11 @@ namespace KrasCore.Mosaic
             foreach (var kvp in dataSingleton.IntGridLayers)
             {
 	            var dataLayer = kvp.Value;
-	            var rendererLayer = GetOrAddRendererLayer(ref rendererSingleton, kvp.Key);
+	            if (!rendererSingleton.IntGridLayers.TryGetValue(kvp.Key, out var rendererLayer))
+	            {
+		            rendererLayer = new TilemapRendererSingleton.IntGridLayer(256, Allocator.Persistent);
+		            rendererSingleton.IntGridLayers.Add(kvp.Key, rendererLayer);
+	            }
 	            
 	            rendererLayer.IsDirty.Value = false;
 	            if (dataLayer.PositionToRemove.List.Length == 0 && dataLayer.SpriteCommands.List.Length == 0) continue;
@@ -184,16 +85,55 @@ namespace KrasCore.Mosaic
 	        _jobHandles.Clear();
         }
 
-        private static TilemapRendererSingleton.IntGridLayer GetOrAddRendererLayer(ref TilemapRendererSingleton rendererSingleton, int intGridHash)
+        [BurstCompile]
+        private struct PrepareVertexDataJob : IJob
         {
-	        if (!rendererSingleton.IntGridLayers.TryGetValue(intGridHash, out var rendererLayer))
+	        public NativeParallelHashMap<int2, SpriteMesh> RenderedSprites;
+	        
+	        [ReadOnly]
+	        public NativeList<SpriteCommand> SpriteCommands;
+	        [ReadOnly]
+	        public NativeList<PositionToRemove> PositionsToRemove;
+	        
+	        public NativeList<int2> Positions;
+	        public NativeList<SpriteMesh> SpriteMeshes;
+	        
+	        public NativeList<Vertex> Vertices;
+	        public NativeList<int> Triangles;
+	        
+	        public void Execute()
 	        {
-		        rendererLayer = new TilemapRendererSingleton.IntGridLayer(256, Allocator.Persistent);
-		        rendererSingleton.IntGridLayers.Add(intGridHash, rendererLayer);
-	        }
-	        return rendererLayer;
-        }
+		        foreach (var positionToRemove in PositionsToRemove)
+		        {
+			        RenderedSprites.Remove(positionToRemove.Position);
+		        }
+            
+		        foreach (var command in SpriteCommands)
+		        {
+			        RenderedSprites[command.Position] = command.SpriteMesh;
+		        }
+	            
+		        RenderedSprites.ToNativeLists(ref Positions, ref SpriteMeshes);
+		        
+		        var meshesCount = Positions.Length;
+                
+		        var vertexCount = meshesCount * 4;
+		        var indexCount = meshesCount * 6;
 
+		        Vertices.Clear();
+		        Triangles.Clear();
+                
+		        if (Vertices.Capacity < vertexCount)
+		        {
+			        Vertices.Capacity = vertexCount;
+			        Triangles.Capacity = indexCount;
+		        }
+
+		        Vertices.SetLengthNoClear(vertexCount);
+		        Triangles.SetLengthNoClear(indexCount);
+	        }
+        }
+        
         [BurstCompile]
         private struct GenerateVertexDataJob : IJobParallelForDefer
         {
