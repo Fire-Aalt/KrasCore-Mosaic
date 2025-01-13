@@ -9,6 +9,7 @@ namespace KrasCore.Mosaic
     public struct TilemapCommandBuffer : IDisposable
     {
         public NativeHashMap<int, NativeQueue<SetCommand>> Layers;
+        public NativeReference<uint> GlobalSeed;
 
         private readonly Allocator _allocator;
         
@@ -16,26 +17,32 @@ namespace KrasCore.Mosaic
         {
             _allocator = allocator;
             Layers = new NativeHashMap<int, NativeQueue<SetCommand>>(capacity, allocator);
+            GlobalSeed = new NativeReference<uint>(allocator);
         }
         
-        public void Set(IntGrid intGrid, int2 position, int intGridValue)
+        public void SetIntGridValue(IntGrid intGrid, int2 position, int intGridValue)
         {
-            Set(intGrid.GetHashCode(), position, intGridValue);
+            SetIntGridValue(intGrid.GetHashCode(), position, intGridValue);
         }
         
-        public void Set(UnityObjectRef<IntGrid> intGrid, int2 position, int intGridValue)
+        public void SetIntGridValue(UnityObjectRef<IntGrid> intGrid, int2 position, int intGridValue)
         {
-            Set(intGrid.GetHashCode(), position, intGridValue);
+            SetIntGridValue(intGrid.GetHashCode(), position, intGridValue);
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Set(int intGridHash, int2 position, int intGridValue)
+        public void SetIntGridValue(int intGridHash, int2 position, int intGridValue)
         {
             if (!Layers.ContainsKey(intGridHash))
             {
                 Layers[intGridHash] = new NativeQueue<SetCommand>(_allocator);
             }
             Layers[intGridHash].Enqueue(new SetCommand { Position = position, IntGridValue = intGridValue });
+        }
+
+        public void SetGlobalSeed(uint seed)
+        {
+            GlobalSeed.Value = seed;
         }
             
         public struct SetCommand
@@ -51,6 +58,7 @@ namespace KrasCore.Mosaic
                 layer.Value.Dispose();
             }
             Layers.Dispose();
+            GlobalSeed.Dispose();
         }
     }
 }

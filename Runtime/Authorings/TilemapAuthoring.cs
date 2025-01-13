@@ -37,7 +37,7 @@ namespace KrasCore.Mosaic
                 {
                     foreach (var rule in group.rules)
                     {
-                        var blob = Create(rule, entityCount, refreshPositions);
+                        var blob = RuleBlobCreator.Create(rule, entityCount, refreshPositions);
                         AddBlobAsset(ref blob, out _);
 
                         ruleBlobBuffer.Add(new RuleBlobReferenceElement
@@ -46,33 +46,7 @@ namespace KrasCore.Mosaic
                             Value = blob
                         });
                         
-                        for (var i = 0; i < rule.TileEntities.Count; i++)
-                        {
-                            var go = rule.TileEntities[i].entityResult;
-                            
-                            var target = go;
-                            if (go.TryGetComponent(out HybridPrefab hybridPrefab))
-                            {
-                                target = hybridPrefab.BakingPrefabReference.editorAsset as GameObject;
-                            }
-                            
-                            weightedEntityBuffer.Add(new WeightedEntityElement
-                            {
-                                Value = GetEntity(target, TransformUsageFlags.None)
-                            });
-                        }
-
-                        for (int i = 0; i < rule.TileSprites.Count; i++)
-                        {
-                            var spriteTexture = rule.TileSprites[i].spriteResult.texture;
-
-                            if (refTexture == null)
-                                refTexture = spriteTexture;
-                            else if (refTexture != spriteTexture)
-                            {
-                                throw new Exception("Different textures in one tilemap. This is not supported yet");
-                            }
-                        }
+                        refTexture = AddResults(rule, weightedEntityBuffer, refTexture);
 
                         entityCount += rule.TileEntities.Count;
                     }
@@ -90,110 +64,41 @@ namespace KrasCore.Mosaic
                 var refreshPositionsBuffer = AddBuffer<RefreshPositionElement>(entity);
                 refreshPositionsBuffer.AddRange(refreshPositions.ToNativeArray(Allocator.Temp).Reinterpret<RefreshPositionElement>());
             }
-        }
-        
-        private static BlobAssetReference<RuleBlob> Create(RuleGroup.Rule rule, int entityCount, NativeHashSet<int2> refreshPositions)
-        {
-            using var builder = new BlobBuilder(Allocator.Temp);
-            ref var root = ref builder.ConstructRoot<RuleBlob>();
 
-            root.Chance = rule.ruleChance;
-            
-            var usedCellCount = 0;
-            foreach (var intGridValue in rule.RuleMatrix)
+            private Texture2D AddResults(RuleGroup.Rule rule, DynamicBuffer<WeightedEntityElement> weightedEntityBuffer, Texture2D refTexture)
             {
-                usedCellCount += intGridValue == 0 ? 0 : 1;
-            }
-
-            root.RuleTransform = rule.ruleTransform;
-            
-            var combinedMirroredCellCount = usedCellCount * MosaicUtils.GetCellsToCheckBucketsCount(rule.ruleTransform);
-            var cells = builder.Allocate(ref root.Cells, combinedMirroredCellCount);
-
-            var cnt = 0;
-            AddMirrorPattern(rule, cells, refreshPositions, ref cnt, default);
-            root.CellsToCheckCount = cnt;
-            
-            if (rule.ruleTransform.IsMirroredX()) AddMirrorPattern(rule, cells, refreshPositions, ref cnt, new bool2(true, false));
-            if (rule.ruleTransform.IsMirroredY()) AddMirrorPattern(rule, cells, refreshPositions, ref cnt, new bool2(false, true));
-            if (rule.ruleTransform == RuleTransform.MirrorXY) AddMirrorPattern(rule, cells, refreshPositions, ref cnt, new bool2(true, true));
-            if (rule.ruleTransform == RuleTransform.Rotated) AddRotatedPattern(rule, cells, refreshPositions, ref cnt);
-
-            var entitiesWeights = builder.Allocate(ref root.EntitiesWeights, rule.TileEntities.Count);
-            var entitiesPointers = builder.Allocate(ref root.EntitiesPointers, rule.TileEntities.Count);
-
-            var sum = 0;
-            for (int i = 0; i < entitiesPointers.Length; i++)
-            {
-                entitiesWeights[i] = rule.TileEntities[i].weight;
-                entitiesPointers[i] = entityCount + i;
-                sum += entitiesWeights[i];
-            }
-            root.EntitiesWeightSum = sum;
-            
-            var spritesWeights = builder.Allocate(ref root.SpritesWeights, rule.TileSprites.Count);
-            var spriteMeshes = builder.Allocate(ref root.SpriteMeshes, rule.TileSprites.Count);
-            
-            sum = 0;
-            for (int i = 0; i < spriteMeshes.Length; i++)
-            {
-                spritesWeights[i] = rule.TileSprites[i].weight;
-                spriteMeshes[i] = new SpriteMesh(rule.TileSprites[i].spriteResult);
-                sum += spritesWeights[i];
-            }
-            root.SpritesWeightSum = sum;
-
-            return builder.CreateBlobAssetReference<RuleBlob>(Allocator.Persistent);
-        }
-
-        private static void AddMirrorPattern(RuleGroup.Rule rule, BlobBuilderArray<RuleCell> cells,
-            NativeHashSet<int2> refreshPositions, ref int cnt, bool2 mirror)
-        {
-            for (var index = 0; index < rule.RuleMatrix.Length; index++)
-            {
-                var intGridValue = rule.RuleMatrix[index];
-                if (intGridValue == 0) continue;
-                ref var cell = ref cells[cnt];
-                
-                var pos = RuleGroup.Rule.GetOffsetFromCenterMirrored(index, mirror);
-                refreshPositions.Add(pos);
-                
-                cell = new RuleCell
+                for (var i = 0; i < rule.TileEntities.Count; i++)
                 {
-                    IntGridValue = intGridValue,
-                    Offset = pos
-                };
-                cnt++;
-            }
-        }
-        
-        private static void AddRotatedPattern(RuleGroup.Rule rule, BlobBuilderArray<RuleCell> cells,
-            NativeHashSet<int2> refreshPositions, ref int cnt)
-        {
-            for (int rotation = 1; rotation < 4; rotation++)
-            {
-                for (var index = 0; index < rule.RuleMatrix.Length; index++)
-                {
-                    var intGridValue = rule.RuleMatrix[index];
-                    if (intGridValue == 0) continue;
-                    ref var cell = ref cells[cnt];
-
-                    var pos = RuleGroup.Rule.GetOffsetFromCenterRotated(index, rotation);
-                    refreshPositions.Add(pos);
-                    
-                    cell = new RuleCell
+                    var go = rule.TileEntities[i].entityResult;
+                            
+                    var target = go;
+                    if (go.TryGetComponent(out HybridPrefab hybridPrefab))
                     {
-                        IntGridValue = intGridValue,
-                        Offset = pos
-                    };
-                    cnt++;
+                        target = hybridPrefab.BakingPrefabReference.editorAsset as GameObject;
+                    }
+                            
+                    weightedEntityBuffer.Add(new WeightedEntityElement
+                    {
+                        Value = GetEntity(target, TransformUsageFlags.None)
+                    });
                 }
+
+                for (int i = 0; i < rule.TileSprites.Count; i++)
+                {
+                    var spriteTexture = rule.TileSprites[i].spriteResult.texture;
+
+                    if (refTexture == null)
+                        refTexture = spriteTexture;
+                    else if (refTexture != spriteTexture)
+                    {
+                        throw new Exception("Different textures in one tilemap. This is not supported yet");
+                    }
+                }
+
+                return refTexture;
             }
         }
     }
-
-
-    
 
     public struct RuleBlobReferenceElement : IBufferElementData
     {

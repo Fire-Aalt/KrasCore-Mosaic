@@ -121,8 +121,7 @@ namespace KrasCore.Mosaic
                     SpriteCommands = layer.SpriteCommands.AsThreadWriter(),
                     PositionsToRemove = layer.PositionToRemove.AsThreadWriter(),
                     IntGridHash = intGridHash,
-                    Seed = 1
-                    //TODO: add global seed or smth
+                    Seed = tcb.GlobalSeed.Value
                 }.Schedule(layer.PositionsToRefreshList, 16, jobDependency);
                 
                 var handle1 = layer.SpriteCommands.CopyParallelToList(jobDependency);
