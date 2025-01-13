@@ -30,6 +30,7 @@ namespace KrasCore.Mosaic
             public ParallelToListMapper<SpriteCommand> SpriteCommands;
             public ParallelToListMapper<PositionToRemove> PositionToRemove;
         
+            // Store data locally to simplify lookups
             public TilemapData TilemapData;
             public LocalTransform TilemapTransform;
         

@@ -68,6 +68,8 @@ namespace KrasCore.Mosaic
 				Graphics.RenderMesh(new RenderParams(tilemapData.Material)
 				{
 					worldBounds = new Bounds(Vector3.zero, Vector3.one * 999999),
+					receiveShadows = tilemapData.ReceiveShadows,
+					shadowCastingMode = tilemapData.ShadowCastingMode,
 				}, mesh, 0, dataLayer.TilemapTransform.ToMatrix());
 			}
 		}

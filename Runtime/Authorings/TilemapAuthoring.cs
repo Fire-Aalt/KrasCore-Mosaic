@@ -4,14 +4,18 @@ using Unity.Collections;
 using UnityEngine;
 using Unity.Entities;
 using Unity.Mathematics;
+using UnityEngine.Rendering;
 
 namespace KrasCore.Mosaic
 {
     public class TilemapAuthoring : MonoBehaviour
     {
         [SerializeField] private IntGrid _intGrid;
-        [SerializeField] private Material _material;
         [SerializeField] private Orientation _orientation;
+        
+        [SerializeField] private Material _material;
+        [SerializeField] private ShadowCastingMode _shadowCastingMode = ShadowCastingMode.TwoSided;
+        [SerializeField] private bool _receiveShadows = true;
 
         public IntGrid IntGrid => _intGrid;
         
@@ -77,7 +81,9 @@ namespace KrasCore.Mosaic
                 {
                     IntGridReference = authoring._intGrid,
                     Orientation = authoring._orientation,
-                    Material = refTexture != null ? MaterialAssetsStorage.GetOrCreateMaterialAsset(authoring._material, refTexture) : null
+                    Material = refTexture != null ? MaterialAssetsStorage.GetOrCreateMaterialAsset(authoring._material, refTexture) : null,
+                    ShadowCastingMode = authoring._shadowCastingMode,
+                    ReceiveShadows = authoring._receiveShadows
                 });
 
                 var refreshPositionsBuffer = AddBuffer<RefreshPositionElement>(entity);
@@ -250,9 +256,13 @@ namespace KrasCore.Mosaic
         public UnityObjectRef<IntGrid> IntGridReference;
         public Orientation Orientation;
         
+        // Store data locally to simplify lookups
         public GridData GridData;
-
+        
         public UnityObjectRef<Material> Material;
+        public ShadowCastingMode ShadowCastingMode;
+        public bool ReceiveShadows;
+        
         public Swizzle Swizzle => GridData.CellSwizzle;
     }
 

@@ -81,6 +81,7 @@ namespace KrasCore.Mosaic
                 }
                 var layer = intGridLayers[intGridHash];
                 layer.TilemapTransform = transformRO.ValueRO;
+                layer.TilemapData = tilemapDataRO.ValueRO;
                 intGridLayers[intGridHash] = layer;
 
                 // Clear last frame data
@@ -213,19 +214,6 @@ namespace KrasCore.Mosaic
                 PositionsToRefresh.Clear();
                 ChangedPositions.Clear();
             }
-        }
-
-        public struct RuleResult
-        {
-            public int Hash;
-            public Result Result;
-        }
-        
-        public enum Result
-        {
-            None,
-            Sprite,
-            Entity
         }
         
         [BurstCompile]
