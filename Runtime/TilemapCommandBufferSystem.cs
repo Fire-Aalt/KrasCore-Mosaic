@@ -88,15 +88,31 @@ namespace KrasCore.Mosaic
                 layer.SpriteCommands.Clear();
                 layer.PositionToRemove.Clear();
                 
-                var commandsQueue = tcb.Layers[intGridHash];
-                if (commandsQueue.IsEmpty()) continue;
+                var bufferLayer = tcb.Layers[intGridHash];
+                if (bufferLayer.ClearCommand.Value)
+                {
+                    bufferLayer.ClearCommand.Value = false;
+
+                    foreach (var kvp in layer.IntGrid)
+                    {
+                        foreach (var refreshOffset in refreshPositionsBuffer)
+                        {
+                            var pos = kvp.Key + refreshOffset.Position;
+                            layer.PositionToRemove.List.Add(new PositionToRemove { Position = pos });
+                        }
+                    }
+                    layer.IntGrid.Clear();
+                    layer.RuleGrid.Clear();
+                    continue;
+                }
+                if (bufferLayer.SetQueue.IsEmpty()) continue;
                 
                 // ProcessCommandsJob
                 var jobDependency = new ProcessCommandsJob
                 {
                     IntGrid = layer.IntGrid,
                     ChangedPositions = layer.ChangedPositions,
-                    SetCommandsQueue = tcb.Layers[intGridHash]
+                    SetCommandsQueue = bufferLayer.SetQueue
                 }.Schedule(state.Dependency);
                 
                 // Find and filter refresh positions

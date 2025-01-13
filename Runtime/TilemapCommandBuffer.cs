@@ -8,7 +8,31 @@ namespace KrasCore.Mosaic
 {
     public struct TilemapCommandBuffer : IDisposable
     {
-        public NativeHashMap<int, NativeQueue<SetCommand>> Layers;
+        public struct IntGridLayer : IDisposable
+        {
+            public NativeQueue<SetCommand> SetQueue;
+            public NativeReference<bool> ClearCommand;
+
+            public IntGridLayer(int capacity, Allocator allocator)
+            {
+                SetQueue = new NativeQueue<SetCommand>(allocator);
+                ClearCommand = new NativeReference<bool>(allocator);
+            }
+
+            public void Dispose()
+            {
+                SetQueue.Dispose();
+                ClearCommand.Dispose();
+            }
+        }
+        
+        public struct SetCommand
+        {
+            public int2 Position;
+            public int IntGridValue;
+        }
+        
+        public NativeHashMap<int, IntGridLayer> Layers;
         public NativeReference<uint> GlobalSeed;
 
         private readonly Allocator _allocator;
@@ -16,7 +40,7 @@ namespace KrasCore.Mosaic
         public TilemapCommandBuffer(int capacity, Allocator allocator)
         {
             _allocator = allocator;
-            Layers = new NativeHashMap<int, NativeQueue<SetCommand>>(capacity, allocator);
+            Layers = new NativeHashMap<int, IntGridLayer>(capacity, allocator);
             GlobalSeed = new NativeReference<uint>(allocator);
         }
         
@@ -33,22 +57,48 @@ namespace KrasCore.Mosaic
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetIntGridValue(int intGridHash, int2 position, int intGridValue)
         {
-            if (!Layers.ContainsKey(intGridHash))
+            var layer = GetOrAddLayer(intGridHash);
+            layer.SetQueue.Enqueue(new SetCommand { Position = position, IntGridValue = intGridValue });
+        }
+
+        public void ClearAll()
+        {
+            foreach (var kvp in Layers)
             {
-                Layers[intGridHash] = new NativeQueue<SetCommand>(_allocator);
+                Clear(kvp.Key);
             }
-            Layers[intGridHash].Enqueue(new SetCommand { Position = position, IntGridValue = intGridValue });
+        }
+        
+        public void Clear(IntGrid intGrid)
+        {
+            Clear(intGrid.GetHashCode());
+        }
+        
+        public void Clear(UnityObjectRef<IntGrid> intGrid)
+        {
+            Clear(intGrid.GetHashCode());
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Clear(int intGridHash)
+        {
+            var layer = GetOrAddLayer(intGridHash);
+            layer.ClearCommand.Value = true;
         }
 
         public void SetGlobalSeed(uint seed)
         {
             GlobalSeed.Value = seed;
         }
-            
-        public struct SetCommand
+        
+        private IntGridLayer GetOrAddLayer(int intGridHash)
         {
-            public int2 Position;
-            public int IntGridValue;
+            if (!Layers.TryGetValue(intGridHash, out var layer))
+            {
+                layer = new IntGridLayer(256, _allocator);
+                Layers[intGridHash] = layer;
+            }
+            return layer;
         }
 
         public void Dispose()
