@@ -19,6 +19,10 @@ namespace KrasCore.Mosaic
         [TableMatrix(DrawElementMethod = "DrawMatrixCell", ResizableColumns = false, SquareCells = true, HideColumnIndices = true, HideRowIndices = true, IsReadOnly = true)]
         [SerializeField] private int[,] _matrix = new int[RuleGroup.Rule.MatrixSize, RuleGroup.Rule.MatrixSize];
         
+        //TODO: add random behavior (UI problems)
+        // [HorizontalGroup("Split", width: 0.2f)]
+        // [HideLabel, EnumToggleButtons]
+        // [SerializeField] private RandomBehavior _randomBehavior;
         
         [HorizontalGroup("Split", width: 0.2f)]
         [VerticalGroup("Split/Sprites")]

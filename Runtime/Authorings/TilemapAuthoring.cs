@@ -5,6 +5,7 @@ using UnityEngine;
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine.Rendering;
+using Random = Unity.Mathematics.Random;
 
 namespace KrasCore.Mosaic
 {
@@ -118,24 +119,29 @@ namespace KrasCore.Mosaic
             if (rule.ruleTransform == RuleTransform.MirrorXY) AddMirrorPattern(rule, cells, refreshPositions, ref cnt, new bool2(true, true));
             if (rule.ruleTransform == RuleTransform.Rotated) AddRotatedPattern(rule, cells, refreshPositions, ref cnt);
 
-            var weightedEntities = builder.Allocate(ref root.WeightedEntities, rule.TileEntities.Count);
+            var entitiesWeights = builder.Allocate(ref root.EntitiesWeights, rule.TileEntities.Count);
+            var entitiesPointers = builder.Allocate(ref root.EntitiesPointers, rule.TileEntities.Count);
 
-            for (int i = 0; i < weightedEntities.Length; i++)
+            var sum = 0;
+            for (int i = 0; i < entitiesPointers.Length; i++)
             {
-                ref var weightedEntity = ref weightedEntities[i];
-
-                weightedEntity.Weight = rule.TileEntities[i].weight;
-                weightedEntity.EntityBufferIndex = entityCount + i;
+                entitiesWeights[i] = rule.TileEntities[i].weight;
+                entitiesPointers[i] = entityCount + i;
+                sum += entitiesWeights[i];
             }
+            root.EntitiesWeightSum = sum;
             
-            var weightedSprites = builder.Allocate(ref root.WeightedSprites, rule.TileSprites.Count);
-            for (int i = 0; i < weightedSprites.Length; i++)
+            var spritesWeights = builder.Allocate(ref root.SpritesWeights, rule.TileSprites.Count);
+            var spriteMeshes = builder.Allocate(ref root.SpriteMeshes, rule.TileSprites.Count);
+            
+            sum = 0;
+            for (int i = 0; i < spriteMeshes.Length; i++)
             {
-                ref var weightedEntity = ref weightedSprites[i];
-
-                weightedEntity.Weight = rule.TileSprites[i].weight;
-                weightedEntity.SpriteMesh = new SpriteMesh(rule.TileSprites[i].spriteResult);
+                spritesWeights[i] = rule.TileSprites[i].weight;
+                spriteMeshes[i] = new SpriteMesh(rule.TileSprites[i].spriteResult);
+                sum += spritesWeights[i];
             }
+            root.SpritesWeightSum = sum;
 
             return builder.CreateBlobAssetReference<RuleBlob>(Allocator.Persistent);
         }
@@ -148,7 +154,7 @@ namespace KrasCore.Mosaic
                 var intGridValue = rule.RuleMatrix[index];
                 if (intGridValue == 0) continue;
                 ref var cell = ref cells[cnt];
-
+                
                 var pos = RuleGroup.Rule.GetOffsetFromCenterMirrored(index, mirror);
                 refreshPositions.Add(pos);
                 
@@ -210,45 +216,40 @@ namespace KrasCore.Mosaic
         public BlobArray<RuleCell> Cells;
         public int CellsToCheckCount;
 
-        public BlobArray<WeightedEntity> WeightedEntities;
-        public BlobArray<WeightedSprite> WeightedSprites;
+        public BlobArray<int> EntitiesWeights;
+        public BlobArray<int> EntitiesPointers;
+        public int EntitiesWeightSum;
+        
+        public BlobArray<int> SpritesWeights;
+        public BlobArray<SpriteMesh> SpriteMeshes;
+        public int SpritesWeightSum;
 
         public float Chance;
         public RuleTransform RuleTransform;
 
-        public bool TryGetEntity(in DynamicBuffer<WeightedEntityElement> entityBuffer, out Entity entity)
+        public bool TryGetEntity(ref Random random, in DynamicBuffer<WeightedEntityElement> entityBuffer, out Entity entity)
         {
-            if (WeightedEntities.Length > 0)
+            if (EntitiesPointers.Length > 0)
             {
-                entity = entityBuffer[WeightedEntities[0].EntityBufferIndex].Value;
+                var variant = RandomUtils.NextVariant(ref random, ref EntitiesWeights, EntitiesWeightSum);
+                entity = entityBuffer[EntitiesPointers[variant]].Value;
                 return true;
             }
             entity = default;
             return false;
         }
         
-        public bool TryGetSpriteMesh(out SpriteMesh spriteMesh)
+        public bool TryGetSpriteMesh(ref Random random, out SpriteMesh spriteMesh)
         {
-            if (WeightedSprites.Length > 0)
+            if (SpriteMeshes.Length > 0)
             {
-                spriteMesh = WeightedSprites[0].SpriteMesh;
+                var variant = RandomUtils.NextVariant(ref random, ref SpritesWeights, SpritesWeightSum);
+                spriteMesh = SpriteMeshes[variant];
                 return true;
             }
             spriteMesh = default;
             return false;
         }
-    }
-    
-    public struct WeightedEntity
-    {
-        public int Weight;
-        public int EntityBufferIndex;
-    }
-    
-    public struct WeightedSprite
-    {
-        public int Weight;
-        public SpriteMesh SpriteMesh;
     }
 
     public struct TilemapData : IComponentData

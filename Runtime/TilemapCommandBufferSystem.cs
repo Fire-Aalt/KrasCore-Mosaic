@@ -7,7 +7,6 @@ using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Transforms;
-using UnityEngine;
 
 [assembly: RegisterGenericJobType(typeof(ParallelList<RuleCommand>.UnsafeParallelListToArraySingleThreaded))]
 [assembly: RegisterGenericJobType(typeof(ParallelList<EntityCommand>.UnsafeParallelListToArraySingleThreaded))]
@@ -121,7 +120,9 @@ namespace KrasCore.Mosaic
                     RuleCommands = layer.RuleCommands.AsThreadWriter(),
                     SpriteCommands = layer.SpriteCommands.AsThreadWriter(),
                     PositionsToRemove = layer.PositionToRemove.AsThreadWriter(),
-                    IntGridHash = intGridHash
+                    IntGridHash = intGridHash,
+                    Seed = 1
+                    //TODO: add global seed or smth
                 }.Schedule(layer.PositionsToRefreshList, 16, jobDependency);
                 
                 var handle1 = layer.SpriteCommands.CopyParallelToList(jobDependency);
@@ -241,6 +242,7 @@ namespace KrasCore.Mosaic
             public ParallelList<PositionToRemove>.ThreadWriter PositionsToRemove;
 
             public int IntGridHash;
+            public uint Seed;
             
             public void Execute(int index)
             {
@@ -255,6 +257,9 @@ namespace KrasCore.Mosaic
                     var ruleElement = RulesBuffer[ruleIndex];
                     if (!ruleElement.Enabled) continue;
                     ref var rule = ref ruleElement.Value.Value;
+                    
+                    var random = new Random(MosaicUtils.Hash(Seed, posToRefresh));
+                    if (random.NextFloat() * 100f > rule.Chance) continue;
 
                     var appliedRotation = 0;
                     var appliedMirror = new bool2(false, false);
@@ -308,7 +313,7 @@ namespace KrasCore.Mosaic
                     });
                     
                     // TODO: add a check if the newSrcEntity == oldSrcEntity to remove redundant memcpy
-                    if (rule.TryGetEntity(EntityBuffer, out var newEntity))
+                    if (rule.TryGetEntity(ref random, EntityBuffer, out var newEntity))
                     {
                         EntityCommands.Write(new EntityCommand
                         {
@@ -317,7 +322,7 @@ namespace KrasCore.Mosaic
                             IntGridHash = IntGridHash
                         });
                     }
-                    if (rule.TryGetSpriteMesh(out var newSprite))
+                    if (rule.TryGetSpriteMesh(ref random, out var newSprite))
                     {
                         newSprite.Flip = appliedMirror;
                         newSprite.Rotation = appliedRotation;
