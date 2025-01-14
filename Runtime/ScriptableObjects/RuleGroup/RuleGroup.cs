@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
 using Sirenix.OdinInspector;
-using Sirenix.Utilities.Editor;
 using Unity.Mathematics;
 using UnityEngine;
+
+#if UNITY_EDITOR
+using Sirenix.Utilities.Editor;
+#endif
 
 namespace KrasCore.Mosaic
 {

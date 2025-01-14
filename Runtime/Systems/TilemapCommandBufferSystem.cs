@@ -82,6 +82,8 @@ namespace KrasCore.Mosaic
                 layer.TilemapTransform = transformRO.ValueRO;
                 layer.TilemapData = tilemapDataRO.ValueRO;
                 intGridLayers[intGridHash] = layer;
+                
+                if (!tcb.Layers.ContainsKey(intGridHash)) continue;
 
                 // Clear last frame data
                 layer.RuleCommands.Clear();

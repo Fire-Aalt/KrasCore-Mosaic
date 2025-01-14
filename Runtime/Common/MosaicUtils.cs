@@ -1,7 +1,6 @@
 using System;
-using Game;
+using KrasCore.HybridECS;
 using Unity.Mathematics;
-using Unity.Transforms;
 using UnityEngine;
 
 namespace KrasCore.Mosaic

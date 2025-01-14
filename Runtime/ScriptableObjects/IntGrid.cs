@@ -17,6 +17,7 @@ namespace KrasCore.Mosaic
         [SerializeField, HideInInspector]
         private int _counter = 1;
 
+#if UNITY_EDITOR
         [Button]
         private void CreateRuleGroup()
         {
@@ -24,6 +25,7 @@ namespace KrasCore.Mosaic
             instance.intGrid = this;
             ruleGroups.Add(instance);
         }
+#endif
         
         private void OnValidate()
         {
