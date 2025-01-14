@@ -1,6 +1,5 @@
 using System;
 using KrasCore.HybridECS;
-using Sirenix.OdinInspector;
 using Unity.Collections;
 using UnityEngine;
 using Unity.Entities;
@@ -21,37 +20,7 @@ namespace KrasCore.Mosaic
 
         public IntGrid IntGrid => _intGrid;
 
-        public Material _renderMatTemp;
-
 #if UNITY_EDITOR
-        [Button]
-        public void CreateTempMat()
-        {
-            Texture2D refTexture = null;
-                
-            foreach (var group in _intGrid.ruleGroups)
-            {
-                foreach (var rule in group.rules)
-                {
-                    for (int i = 0; i < rule.TileSprites.Count; i++)
-                    {
-                        var spriteTexture = rule.TileSprites[i].spriteResult.texture;
-
-                        if (refTexture == null)
-                            refTexture = spriteTexture;
-                        else if (refTexture != spriteTexture)
-                        {
-                            throw new Exception("Different textures in one tilemap. This is not supported yet");
-                        }
-                    }
-                }
-            }
-            
-            _renderMatTemp = refTexture != null
-                ? MaterialAssetsStorage.GetOrCreateMaterialAsset(_material, refTexture)
-                : null;
-        }
-        
         public class Baker : Baker<TilemapAuthoring>
         {
             public override void Bake(TilemapAuthoring authoring)
@@ -88,10 +57,10 @@ namespace KrasCore.Mosaic
                 {
                     IntGridReference = authoring._intGrid,
                     Orientation = authoring._orientation,
-                    Material = authoring._renderMatTemp,
                     ShadowCastingMode = authoring._shadowCastingMode,
                     ReceiveShadows = authoring._receiveShadows
                 });
+                AddComponent(entity, new RuntimeMaterial(authoring._material, refTexture));
 
                 var refreshPositionsBuffer = AddBuffer<RefreshPositionElement>(entity);
                 refreshPositionsBuffer.AddRange(refreshPositions.ToNativeArray(Allocator.Temp).Reinterpret<RefreshPositionElement>());
@@ -198,7 +167,6 @@ namespace KrasCore.Mosaic
         // Store data locally to simplify lookups
         public GridData GridData;
         
-        public UnityObjectRef<Material> Material;
         public ShadowCastingMode ShadowCastingMode;
         public bool ReceiveShadows;
         

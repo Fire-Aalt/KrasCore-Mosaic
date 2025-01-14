@@ -36,13 +36,12 @@ namespace KrasCore.Mosaic
 			var rendererSingleton = SystemAPI.GetSingleton<TilemapRendererSingleton>();
 			rendererSingleton.JobHandle.Complete();
 
-			foreach (var kvp in dataSingleton.IntGridLayers)
+			foreach (var (tilemapDataRO, runtimeMaterialRO) in SystemAPI.Query<RefRO<TilemapData>, RefRO<RuntimeMaterial>>())
 			{
-				var intGridHash = kvp.Key;
-				var dataLayer = kvp.Value;
+				var tilemapData = tilemapDataRO.ValueRO;
+				var intGridHash = tilemapData.IntGridReference.GetHashCode();
+				var dataLayer = dataSingleton.IntGridLayers[intGridHash];
 				var rendererLayer = rendererSingleton.IntGridLayers[intGridHash];
-
-				var tilemapData = dataLayer.TilemapData;
 				
 				if (!_meshes.TryGetValue(intGridHash, out var mesh))
 				{
@@ -65,7 +64,7 @@ namespace KrasCore.Mosaic
 					mesh.RecalculateBounds();
 				}
 				
-				Graphics.RenderMesh(new RenderParams(tilemapData.Material)
+				Graphics.RenderMesh(new RenderParams(runtimeMaterialRO.ValueRO.Value)
 				{
 					worldBounds = new Bounds(Vector3.zero, Vector3.one * 999999),
 					receiveShadows = tilemapData.ReceiveShadows,
