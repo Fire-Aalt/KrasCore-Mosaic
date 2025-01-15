@@ -60,7 +60,8 @@ namespace KrasCore.Mosaic
                     ShadowCastingMode = authoring._shadowCastingMode,
                     ReceiveShadows = authoring._receiveShadows
                 });
-                AddComponent(entity, new RuntimeMaterial(authoring._material, refTexture));
+                AddComponent(entity, new RuntimeMaterialLookup(authoring._material, refTexture));
+                AddComponent<RuntimeMaterial>(entity);
 
                 var refreshPositionsBuffer = AddBuffer<RefreshPositionElement>(entity);
                 refreshPositionsBuffer.AddRange(refreshPositions.ToNativeArray(Allocator.Temp).Reinterpret<RefreshPositionElement>());
