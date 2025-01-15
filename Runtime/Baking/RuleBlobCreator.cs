@@ -62,7 +62,7 @@ namespace KrasCore.Mosaic
             for (int i = 0; i < spriteMeshes.Length; i++)
             {
                 spritesWeights[i] = rule.TileSprites[i].weight;
-                spriteMeshes[i] = new SpriteMesh(rule.TileSprites[i].spriteResult);
+                spriteMeshes[i] = new SpriteMesh(rule.TileSprites[i].result);
                 sum += spritesWeights[i];
             }
             root.SpritesWeightSum = sum;

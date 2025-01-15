@@ -11,6 +11,8 @@ namespace KrasCore.Mosaic
     {
         public List<IntGridValue> intGridValues = new();
 
+        public readonly Dictionary<int, IntGridValue> IntGridValuesDict = new();
+
         //[ReadOnly]
         public List<RuleGroup> ruleGroups = new();
         
@@ -26,6 +28,11 @@ namespace KrasCore.Mosaic
             ruleGroups.Add(instance);
         }
 #endif
+
+        private void OnEnable()
+        {
+            ValidateDict();
+        }
         
         private void OnValidate()
         {
@@ -36,6 +43,15 @@ namespace KrasCore.Mosaic
                     intGridValue.value = _counter;
                     _counter++;
                 }
+            }
+            ValidateDict();
+        }
+        
+        private void ValidateDict()
+        {
+            foreach (var intGridValue in intGridValues)
+            {
+                IntGridValuesDict[intGridValue.value] = intGridValue;
             }
         }
     }

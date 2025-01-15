@@ -70,9 +70,9 @@ namespace KrasCore.Mosaic
             [HideInInspector, SerializeField]
             public int[] RuleMatrix = new int[MatrixSize * MatrixSize];
             [HideInInspector, SerializeField]
-            public List<RuleResult<Sprite>> TileSprites = new();
+            public List<SpriteResult> TileSprites = new();
             [HideInInspector, SerializeField]
-            public List<RuleResult<GameObject>> TileEntities = new();
+            public List<EntityResult> TileEntities = new();
             [HideInInspector, SerializeField]
             public IntGrid BoundIntGrid;
 
@@ -116,7 +116,7 @@ namespace KrasCore.Mosaic
                     RuleGroupMatrixWindow.OpenWindow(this);
                 }
 
-                RuleGroupEditorHelper.DrawMatrixCell(rect, value, BoundIntGrid.intGridValues, true);
+                RuleGroupEditorHelper.DrawMatrixCell(rect, value, BoundIntGrid, true);
                 return value;
             }
 #endif

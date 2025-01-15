@@ -71,7 +71,7 @@ namespace KrasCore.Mosaic
             {
                 for (var i = 0; i < rule.TileEntities.Count; i++)
                 {
-                    var go = rule.TileEntities[i].entityResult;
+                    var go = rule.TileEntities[i].result;
                             
                     var target = go;
                     if (go.TryGetComponent(out HybridPrefab hybridPrefab))
@@ -87,7 +87,7 @@ namespace KrasCore.Mosaic
 
                 for (int i = 0; i < rule.TileSprites.Count; i++)
                 {
-                    var spriteTexture = rule.TileSprites[i].spriteResult.texture;
+                    var spriteTexture = rule.TileSprites[i].result.texture;
 
                     if (refTexture == null)
                         refTexture = spriteTexture;

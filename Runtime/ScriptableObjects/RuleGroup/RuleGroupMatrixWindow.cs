@@ -26,7 +26,7 @@ namespace KrasCore.Mosaic
         
         [HorizontalGroup("Split", width: 0.2f)]
         [VerticalGroup("Split/Sprites")]
-        [SerializeField] private List<RuleResult<Sprite>> _tileSprites;
+        [SerializeField] private List<SpriteResult> _tileSprites;
         
         [HorizontalGroup("Split", width: 0.2f)]
         [VerticalGroup("Split/Sprites")]
@@ -34,7 +34,7 @@ namespace KrasCore.Mosaic
         
         [HorizontalGroup("Split", width: 0.2f)]
         [VerticalGroup("Split/Entities")]
-        [SerializeField] private List<RuleResult<GameObject>> _tileEntities;
+        [SerializeField] private List<EntityResult> _tileEntities;
         
         [HorizontalGroup("Split", width: 0.2f)]
         [VerticalGroup("Split/Entities")]
@@ -56,26 +56,18 @@ namespace KrasCore.Mosaic
             {
                 foreach (var toConvert in _convertSprites)
                 {
-                    _tileSprites.Add(new RuleResult<Sprite>(1, spriteResult: toConvert));
+                    _tileSprites.Add(new SpriteResult(1, toConvert));
                 }
                 _convertSprites.Clear();
-            }
-            foreach (var result in _tileSprites)
-            {
-                result.Validate(RuleResultType.Sprite);
             }
 
             if (_convertPrefabs.Count > 0)
             {
                 foreach (var toConvert in _convertPrefabs)
                 {
-                    _tileEntities.Add(new RuleResult<GameObject>(1, entityResult: toConvert));
+                    _tileEntities.Add(new EntityResult(1, toConvert));
                 }
                 _convertPrefabs.Clear();
-            }
-            foreach (var result in _tileEntities)
-            {
-                result.Validate(RuleResultType.Entity);
             }
         }
 
@@ -114,7 +106,7 @@ namespace KrasCore.Mosaic
                 GUI.changed = true;
             }
 
-            RuleGroupEditorHelper.DrawMatrixCell(rect, value, _intGrid.intGridValues, false);
+            RuleGroupEditorHelper.DrawMatrixCell(rect, value, _intGrid, false);
             return value;
         }
     }

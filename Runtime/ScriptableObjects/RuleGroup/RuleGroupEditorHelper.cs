@@ -94,9 +94,9 @@ namespace KrasCore.Mosaic
 
         
         
-        public static void DrawMatrixCell(Rect rect, int matrixValue, List<IntGridValue> intGridValues, bool isReadOnly)
+        public static void DrawMatrixCell(Rect rect, int matrixValue, IntGrid intGrid, bool isReadOnly)
         {
-            DrawIntGridValue(rect, matrixValue, intGridValues);
+            DrawIntGridValue(rect, matrixValue, intGrid);
             DrawNotTextureIfNeeded(rect, matrixValue);
             
             if (_cellCounter == RuleGroup.Rule.MatrixSize / 2 * RuleGroup.Rule.MatrixSize + RuleGroup.Rule.MatrixSize / 2)
@@ -116,7 +116,7 @@ namespace KrasCore.Mosaic
             }
         }
 
-        private static void DrawIntGridValue(Rect rect, int matrixValue, List<IntGridValue> intGridValues)
+        private static void DrawIntGridValue(Rect rect, int matrixValue, IntGrid intGrid)
         {
             if (Mathf.Abs(matrixValue) == AnyIntGridValue)
             {
@@ -131,15 +131,15 @@ namespace KrasCore.Mosaic
                 return;
             }
             
-            var intGrid = intGridValues[IntGridToIndex(matrixValue)];
-            if (intGrid.texture == null)
+            var intGridValue = IntGridToIndex(matrixValue, intGrid);
+            if (intGridValue.texture == null)
             {
-                EditorGUI.DrawRect(rect.Padding(1), intGrid.color);
+                EditorGUI.DrawRect(rect.Padding(1), intGridValue.color);
             }
             else
             {
                 EditorGUI.DrawRect(rect.Padding(1), BackgroundCellColor);
-                EditorGUI.DrawPreviewTexture(rect, intGrid.texture, TextureMat, ScaleMode.ScaleToFit);
+                EditorGUI.DrawPreviewTexture(rect, intGridValue.texture, TextureMat, ScaleMode.ScaleToFit);
             }
         }
         
@@ -160,9 +160,9 @@ namespace KrasCore.Mosaic
             EditorGUI.DrawPreviewTexture(rect, texture, TextureMat, ScaleMode.ScaleToFit);
         }
         
-        public static int IntGridToIndex(int intGridValue)
+        public static IntGridValue IntGridToIndex(int intGridValue, IntGrid intGrid)
         {
-            return intGridValue != 0 ? Mathf.Abs(intGridValue) - 1 : 0;
+            return intGridValue != 0 ? intGrid.IntGridValuesDict[Mathf.Abs(intGridValue)] : null;
         }
     }
 }
