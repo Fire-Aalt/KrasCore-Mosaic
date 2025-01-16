@@ -25,7 +25,7 @@ namespace KrasCore.Mosaic
         public void AddRule()
         {
             var rule = new Rule();
-            rule.Bind(intGrid);
+            rule.Bind(this);
             rules.Add(rule);
         }
 
@@ -33,7 +33,7 @@ namespace KrasCore.Mosaic
         {
             foreach (var rule in rules)
             {
-                rule.Bind(intGrid);
+                rule.Bind(this);
                 rule.Validate();
             }
         }
@@ -46,7 +46,7 @@ namespace KrasCore.Mosaic
         }
 
         [Serializable]
-        public class Rule : ISerializationCallbackReceiver
+        public class Rule
         {
             public const int MatrixSize = 9;
             public const int MatrixSizeHalf = MatrixSize / 2;
@@ -56,51 +56,24 @@ namespace KrasCore.Mosaic
             public Enabled enabled = Enabled.Enabled;
 
             [HorizontalGroup("Split", 0.2f)]
-            [ShowInInspector]
-            [TableMatrix(DrawElementMethod = "DrawMatrixCell", ResizableColumns = false, SquareCells = true,
-                HideColumnIndices = true, HideRowIndices = true, IsReadOnly = true)]
-            public int[,] Matrix = new int[MatrixSize, MatrixSize];
-
+            [Matrix(nameof(DrawMatrixCell), MatrixRectMethod = nameof(MatrixControlRect))]
+            public int[] ruleMatrix = new int[MatrixSize * MatrixSize];
+            
             [HorizontalGroup("Split", 0.3f)] [VerticalGroup("Split/Right")] [LabelText("", SdfIconType.Dice6Fill)]
             public float ruleChance = 100f;
 
             [HorizontalGroup("Split", 0.3f)] [VerticalGroup("Split/Right")] [EnumToggleButtons, HideLabel]
             public RuleTransform ruleTransform;
 
-            [HideInInspector, SerializeField]
-            public int[] RuleMatrix = new int[MatrixSize * MatrixSize];
-            [HideInInspector, SerializeField]
-            public List<SpriteResult> TileSprites = new();
-            [HideInInspector, SerializeField]
-            public List<EntityResult> TileEntities = new();
-            [HideInInspector, SerializeField]
-            public IntGrid BoundIntGrid;
+            [field: SerializeField, HideInInspector] public List<SpriteResult> TileSprites { get; set; }
+            [field: SerializeField, HideInInspector] public List<EntityResult> TileEntities { get; set; }
+            [field: SerializeField, HideInInspector] public IntGrid BoundIntGrid { get; private set; }
+            [field: SerializeField, HideInInspector] public RuleGroup RuleGroup { get; private set; }
 
-            public void OnBeforeSerialize()
+            public void Bind(RuleGroup ruleGroup)
             {
-                for (int x = 0; x < MatrixSize; x++)
-                {
-                    for (int y = 0; y < MatrixSize; y++)
-                    {
-                        RuleMatrix[y * MatrixSize + x] = Matrix[x, y];
-                    }
-                }
-            }
-
-            public void OnAfterDeserialize()
-            {
-                for (int x = 0; x < MatrixSize; x++)
-                {
-                    for (int y = 0; y < MatrixSize; y++)
-                    {
-                        Matrix[x, y] = RuleMatrix[y * MatrixSize + x];
-                    }
-                }
-            }
-
-            public void Bind(IntGrid intGrid)
-            {
-                BoundIntGrid = intGrid;
+                BoundIntGrid = ruleGroup.intGrid;
+                RuleGroup = ruleGroup;
             }
 
             public void Validate()
@@ -109,14 +82,17 @@ namespace KrasCore.Mosaic
             }
 
 #if UNITY_EDITOR
-            private int DrawMatrixCell(Rect rect, int value)
+            private void MatrixControlRect(Rect rect)
             {
                 if (Event.current.OnMouseDown(rect, 0))
                 {
                     RuleGroupMatrixWindow.OpenWindow(this);
                 }
-
-                RuleGroupEditorHelper.DrawMatrixCell(rect, value, BoundIntGrid, true);
+            }
+            
+            private int DrawMatrixCell(Rect rect, int index, int value)
+            {
+                RuleGroupEditorHelper.DrawMatrixCell(rect, index, value, BoundIntGrid, true);
                 return value;
             }
 #endif

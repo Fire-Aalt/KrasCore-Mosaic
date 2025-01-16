@@ -1,17 +1,16 @@
 using System;
 using Sirenix.OdinInspector;
 using UnityEngine;
-using Object = UnityEngine.Object;
 
 namespace KrasCore.Mosaic
 {
     [Serializable]
-    public class EntityResult
+    public struct EntityResult
     {
         public int weight;
         
-        [LabelText("Entity")]
         [AssetsOnly]
+        [LabelText("Entity")]
         public GameObject result;
         
         public EntityResult(int weight, GameObject result)
@@ -27,7 +26,7 @@ namespace KrasCore.Mosaic
     }
     
     [Serializable]
-    public class SpriteResult
+    public struct SpriteResult
     {
         public int weight;
             
@@ -45,11 +44,5 @@ namespace KrasCore.Mosaic
         {
             weight = Mathf.Max(1, weight);
         }
-    }
-    
-    public enum RuleResultType
-    {
-        Sprite,
-        Entity
     }
 }

@@ -23,7 +23,7 @@ namespace KrasCore.Mosaic
         private static void AddPatterns(ref RuleBlob root, RuleGroup.Rule rule, NativeHashSet<int2> refreshPositions, BlobBuilder builder)
         {
             var usedCellCount = 0;
-            foreach (var intGridValue in rule.RuleMatrix)
+            foreach (var intGridValue in rule.ruleMatrix)
             {
                 usedCellCount += intGridValue == 0 ? 0 : 1;
             }
@@ -71,9 +71,9 @@ namespace KrasCore.Mosaic
         private static void AddMirrorPattern(RuleGroup.Rule rule, BlobBuilderArray<RuleCell> cells,
             NativeHashSet<int2> refreshPositions, ref int cnt, bool2 mirror)
         {
-            for (var index = 0; index < rule.RuleMatrix.Length; index++)
+            for (var index = 0; index < rule.ruleMatrix.Length; index++)
             {
-                var intGridValue = rule.RuleMatrix[index];
+                var intGridValue = rule.ruleMatrix[index];
                 if (intGridValue == 0) continue;
                 ref var cell = ref cells[cnt];
                 
@@ -94,9 +94,9 @@ namespace KrasCore.Mosaic
         {
             for (int rotation = 1; rotation < 4; rotation++)
             {
-                for (var index = 0; index < rule.RuleMatrix.Length; index++)
+                for (var index = 0; index < rule.ruleMatrix.Length; index++)
                 {
-                    var intGridValue = rule.RuleMatrix[index];
+                    var intGridValue = rule.ruleMatrix[index];
                     if (intGridValue == 0) continue;
                     ref var cell = ref cells[cnt];
 

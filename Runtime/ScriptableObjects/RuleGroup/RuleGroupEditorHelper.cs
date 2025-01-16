@@ -20,8 +20,6 @@ namespace KrasCore.Mosaic
         public static readonly Texture AnyTexture;
         public static readonly Texture MatrixCenterTexture;
         
-        private static int _cellCounter;
-        
         static RuleGroupEditorHelper()
         {
             TextureMat = Resources.Load("default") as Material;
@@ -94,20 +92,14 @@ namespace KrasCore.Mosaic
 
         
         
-        public static void DrawMatrixCell(Rect rect, int matrixValue, IntGrid intGrid, bool isReadOnly)
+        public static void DrawMatrixCell(Rect rect, int index, int matrixValue, IntGrid intGrid, bool isReadOnly)
         {
             DrawIntGridValue(rect, matrixValue, intGrid);
             DrawNotTextureIfNeeded(rect, matrixValue);
             
-            if (_cellCounter == RuleGroup.Rule.MatrixSize / 2 * RuleGroup.Rule.MatrixSize + RuleGroup.Rule.MatrixSize / 2)
+            if (index == RuleGroup.Rule.MatrixSize / 2 * RuleGroup.Rule.MatrixSize + RuleGroup.Rule.MatrixSize / 2)
             {
                 EditorGUI.DrawPreviewTexture(rect, MatrixCenterTexture, TextureMat, ScaleMode.ScaleToFit);
-            }
-            
-            _cellCounter++;
-            if (_cellCounter == RuleGroup.Rule.MatrixSize * RuleGroup.Rule.MatrixSize)
-            {
-                _cellCounter = 0;
             }
             
             if (isReadOnly)

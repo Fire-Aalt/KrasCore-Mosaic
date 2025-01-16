@@ -1,8 +1,10 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
+using System.Linq;
 using Sirenix.OdinInspector;
 using Sirenix.OdinInspector.Editor;
 using Sirenix.Utilities.Editor;
+using UnityEditor;
 using UnityEngine;
 
 namespace KrasCore.Mosaic
@@ -16,22 +18,27 @@ namespace KrasCore.Mosaic
         [SerializeField] private int _selectedIntGridValue;
         
         [HorizontalGroup("Split", width: 0.4f)]
-        [TableMatrix(DrawElementMethod = "DrawMatrixCell", ResizableColumns = false, SquareCells = true, HideColumnIndices = true, HideRowIndices = true, IsReadOnly = true)]
-        [SerializeField] private int[,] _matrix = new int[RuleGroup.Rule.MatrixSize, RuleGroup.Rule.MatrixSize];
+        [Matrix(nameof(DrawMatrixCell))]
+        [SerializeField] private int[] _matrix;
         
+
         //TODO: add random behavior (UI problems)
         // [HorizontalGroup("Split", width: 0.2f)]
         // [HideLabel, EnumToggleButtons]
         // [SerializeField] private RandomBehavior _randomBehavior;
         
+        [ListDrawerSettings(HideAddButton = true,  NumberOfItemsPerPage = 5)]
         [HorizontalGroup("Split", width: 0.2f)]
         [VerticalGroup("Split/Sprites")]
+        [LabelText("List")]
+        [Title("Sprites")]
         [SerializeField] private List<SpriteResult> _tileSprites;
         
         [HorizontalGroup("Split", width: 0.2f)]
         [VerticalGroup("Split/Sprites")]
         [SerializeField] private List<Sprite> _convertSprites = new();
-        
+
+        [ListDrawerSettings(HideAddButton = true, NumberOfItemsPerPage = 5)]
         [HorizontalGroup("Split", width: 0.2f)]
         [VerticalGroup("Split/Entities")]
         [SerializeField] private List<EntityResult> _tileEntities;
@@ -42,6 +49,7 @@ namespace KrasCore.Mosaic
         [SerializeField] private List<GameObject> _convertPrefabs = new();
         
         private IntGrid _intGrid;
+        private RuleGroup.Rule _target;
         
         public static void OpenWindow(RuleGroup.Rule target)
         {
@@ -73,11 +81,32 @@ namespace KrasCore.Mosaic
 
         private void Init(RuleGroup.Rule target)
         {
-            _intGrid = target.BoundIntGrid;
-            _matrix = target.Matrix;
+            SaveChanges();
+            
+            _matrix = target.ruleMatrix;
             _tileEntities = target.TileEntities;
             _tileSprites = target.TileSprites;
+            
+            _intGrid = target.BoundIntGrid;
+            _target = target;
             _selectedIntGridValue = 1;
+        }
+
+        protected override void OnDisable()
+        {
+            base.OnDisable();
+            
+            SaveChanges();
+        }
+
+        public override void SaveChanges()
+        {
+            base.SaveChanges();
+            
+            if (_target != null)
+            {
+                EditorUtility.SetDirty(_target.RuleGroup);
+            }
         }
 
         private void OnInspectorUpdate()
@@ -91,7 +120,7 @@ namespace KrasCore.Mosaic
             return RuleGroupEditorHelper.IntGridValueDrawer(intGridValue, _intGrid.intGridValues);
         }
         
-        private int DrawMatrixCell(Rect rect, int value)
+        private int DrawMatrixCell(Rect rect, int index, int value)
         {
             if (Event.current.OnMouseDown(rect, 0))
             {
@@ -106,7 +135,7 @@ namespace KrasCore.Mosaic
                 GUI.changed = true;
             }
 
-            RuleGroupEditorHelper.DrawMatrixCell(rect, value, _intGrid, false);
+            RuleGroupEditorHelper.DrawMatrixCell(rect, index, value, _intGrid, false);
             return value;
         }
     }

@@ -36,6 +36,8 @@ namespace KrasCore.Mosaic
                 var entityCount = 0;
                 foreach (var group in authoring._intGrid.ruleGroups)
                 {
+                    DependsOn(group);
+                    
                     foreach (var rule in group.rules)
                     {
                         var blob = RuleBlobCreator.Create(rule, entityCount, refreshPositions);
