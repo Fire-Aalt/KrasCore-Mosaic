@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Sirenix.OdinInspector;
 using Unity.Mathematics;
+using UnityEditor;
 using UnityEngine;
 
 #if UNITY_EDITOR
@@ -14,7 +15,7 @@ namespace KrasCore.Mosaic
     [CreateAssetMenu(menuName = "Mosaic/RuleGroup")]
     public class RuleGroup : ScriptableObject
     {
-        //[ReadOnly]
+        [ReadOnly]
         [Title("Bound IntGrid")]
         public IntGrid intGrid;
         
@@ -27,6 +28,7 @@ namespace KrasCore.Mosaic
             var rule = new Rule();
             rule.Bind(this);
             rules.Add(rule);
+            EditorUtility.SetDirty(this);
         }
 
         private void OnValidate()

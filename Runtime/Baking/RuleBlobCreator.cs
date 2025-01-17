@@ -43,29 +43,35 @@ namespace KrasCore.Mosaic
 
         private static void AddResults(ref RuleBlob root, RuleGroup.Rule rule, int entityCount, BlobBuilder builder)
         {
-            var entitiesWeights = builder.Allocate(ref root.EntitiesWeights, rule.TileEntities.Count);
-            var entitiesPointers = builder.Allocate(ref root.EntitiesPointers, rule.TileEntities.Count);
+            if (rule.TileSprites != null)
+            {
+                var spritesWeights = builder.Allocate(ref root.SpritesWeights, rule.TileSprites.Count);
+                var spriteMeshes = builder.Allocate(ref root.SpriteMeshes, rule.TileSprites.Count);
+                
+                var sum = 0;
+                for (int i = 0; i < spriteMeshes.Length; i++)
+                {
+                    spritesWeights[i] = rule.TileSprites[i].weight;
+                    spriteMeshes[i] = new SpriteMesh(rule.TileSprites[i].result);
+                    sum += spritesWeights[i];
+                }
+                root.SpritesWeightSum = sum;
+            }
+            
+            if (rule.TileEntities != null)
+            {
+                var entitiesWeights = builder.Allocate(ref root.EntitiesWeights, rule.TileEntities.Count);
+                var entitiesPointers = builder.Allocate(ref root.EntitiesPointers, rule.TileEntities.Count);
 
-            var sum = 0;
-            for (int i = 0; i < entitiesPointers.Length; i++)
-            {
-                entitiesWeights[i] = rule.TileEntities[i].weight;
-                entitiesPointers[i] = entityCount + i;
-                sum += entitiesWeights[i];
+                var sum = 0;
+                for (int i = 0; i < entitiesPointers.Length; i++)
+                {
+                    entitiesWeights[i] = rule.TileEntities[i].weight;
+                    entitiesPointers[i] = entityCount + i;
+                    sum += entitiesWeights[i];
+                }
+                root.EntitiesWeightSum = sum;
             }
-            root.EntitiesWeightSum = sum;
-            
-            var spritesWeights = builder.Allocate(ref root.SpritesWeights, rule.TileSprites.Count);
-            var spriteMeshes = builder.Allocate(ref root.SpriteMeshes, rule.TileSprites.Count);
-            
-            sum = 0;
-            for (int i = 0; i < spriteMeshes.Length; i++)
-            {
-                spritesWeights[i] = rule.TileSprites[i].weight;
-                spriteMeshes[i] = new SpriteMesh(rule.TileSprites[i].result);
-                sum += spritesWeights[i];
-            }
-            root.SpritesWeightSum = sum;
         }
         
         private static void AddMirrorPattern(RuleGroup.Rule rule, BlobBuilderArray<RuleCell> cells,

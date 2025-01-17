@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using KrasCore.Editor;
 using Sirenix.OdinInspector;
+using UnityEditor;
 using UnityEngine;
 
 namespace KrasCore.Mosaic
@@ -26,6 +27,8 @@ namespace KrasCore.Mosaic
             var instance = AssetDatabaseUtils.CreateNewScriptableObjectAsset<RuleGroup>(name + "Group", this);
             instance.intGrid = this;
             ruleGroups.Add(instance);
+            EditorUtility.SetDirty(this);
+            EditorUtility.SetDirty(instance);
         }
 #endif
 

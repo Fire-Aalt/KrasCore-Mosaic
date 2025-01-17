@@ -5,12 +5,13 @@ using UnityEngine;
 namespace KrasCore.Mosaic
 {
     [Serializable]
-    public struct EntityResult
+    public class EntityResult
     {
+        [TableColumnWidth(50, false)]
         public int weight;
         
         [AssetsOnly]
-        [LabelText("Entity")]
+        [HideLabel]
         public GameObject result;
         
         public EntityResult(int weight, GameObject result)
@@ -26,12 +27,15 @@ namespace KrasCore.Mosaic
     }
     
     [Serializable]
-    public struct SpriteResult
+    public class SpriteResult
     {
+        [TableColumnWidth(50, false)]
         public int weight;
             
-        [PreviewField]
-        [LabelText("Sprite")]
+        [PreviewField()]
+        [AssetsOnly]
+        [LabelText("@result.name")]
+        [LabelWidth(width: 200)]
         public Sprite result;
 
         public SpriteResult(int weight, Sprite result)

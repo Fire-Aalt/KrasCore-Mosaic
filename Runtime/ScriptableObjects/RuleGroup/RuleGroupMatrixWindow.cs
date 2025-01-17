@@ -27,20 +27,19 @@ namespace KrasCore.Mosaic
         // [HideLabel, EnumToggleButtons]
         // [SerializeField] private RandomBehavior _randomBehavior;
         
-        [ListDrawerSettings(HideAddButton = true,  NumberOfItemsPerPage = 5)]
         [HorizontalGroup("Split", width: 0.2f)]
         [VerticalGroup("Split/Sprites")]
-        [LabelText("List")]
-        [Title("Sprites")]
+        [Title("Sprites"), TableList(HideToolbar = true)]
         [SerializeField] private List<SpriteResult> _tileSprites;
         
         [HorizontalGroup("Split", width: 0.2f)]
         [VerticalGroup("Split/Sprites")]
+        [AssetsOnly]
         [SerializeField] private List<Sprite> _convertSprites = new();
 
-        [ListDrawerSettings(HideAddButton = true, NumberOfItemsPerPage = 5)]
         [HorizontalGroup("Split", width: 0.2f)]
         [VerticalGroup("Split/Entities")]
+        [Title("Entities"), TableList(HideToolbar = true)]
         [SerializeField] private List<EntityResult> _tileEntities;
         
         [HorizontalGroup("Split", width: 0.2f)]
@@ -69,6 +68,12 @@ namespace KrasCore.Mosaic
                 _convertSprites.Clear();
             }
 
+            _tileSprites.RemoveAll((s) => s.result == null);
+            foreach (var result in _tileSprites)
+            {
+                result.Validate();
+            }
+
             if (_convertPrefabs.Count > 0)
             {
                 foreach (var toConvert in _convertPrefabs)
@@ -77,12 +82,17 @@ namespace KrasCore.Mosaic
                 }
                 _convertPrefabs.Clear();
             }
+            
+            _tileEntities.RemoveAll((s) => s.result == null);
+            foreach (var result in _tileEntities)
+            {
+                result.Validate();
+            }
+            
         }
 
         private void Init(RuleGroup.Rule target)
         {
-            SaveChanges();
-            
             _matrix = target.ruleMatrix;
             _tileEntities = target.TileEntities;
             _tileSprites = target.TileSprites;
@@ -91,14 +101,7 @@ namespace KrasCore.Mosaic
             _target = target;
             _selectedIntGridValue = 1;
         }
-
-        protected override void OnDisable()
-        {
-            base.OnDisable();
-            
-            SaveChanges();
-        }
-
+        
         public override void SaveChanges()
         {
             base.SaveChanges();
@@ -111,6 +114,7 @@ namespace KrasCore.Mosaic
 
         private void OnInspectorUpdate()
         {
+            SaveChanges();
             if (NumberOfActiveInspectorWindows == 0)
                 Close();
         }
