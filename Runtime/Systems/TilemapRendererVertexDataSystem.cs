@@ -150,13 +150,15 @@ namespace KrasCore.Mosaic
         	public Swizzle Swizzle;
 	        public float3 GridCellSize;
 	        public Orientation Orientation;
-
+	        
         	public void Execute(int index)
 	        {
 		        var spriteMesh = SpriteMeshes[index];
+		        var pos = Positions[index];
+		        
 		        MosaicUtils.GetSpriteMeshTranslation(spriteMesh, out var meshTranslation);
 
-		        var rotatedPos = MosaicUtils.ToWorldSpace(Positions[index], GridCellSize, Swizzle)
+		        var rotatedPos = MosaicUtils.ToWorldSpace(pos, GridCellSize, Swizzle)
 		                         + MosaicUtils.ApplyOrientation(meshTranslation, Orientation);
 
 		        var pivotPoint = MosaicUtils.ApplyOrientation(spriteMesh.RectScale * spriteMesh.NormalizedPivot, Orientation);

@@ -54,18 +54,30 @@ namespace KrasCore.Mosaic
             public const int MatrixSizeHalf = MatrixSize / 2;
             public const int AnyIntGridValue = 999;
 
-            [HorizontalGroup("Split", 0.2f)] [EnumToggleButtons, HideLabel]
+            [HorizontalGroup("Split", 0.1f)] [EnumToggleButtons, HideLabel]
             public Enabled enabled = Enabled.Enabled;
 
             [HorizontalGroup("Split", 0.2f)]
             [Matrix(nameof(DrawMatrixCell), MatrixRectMethod = nameof(MatrixControlRect))]
             public int[] ruleMatrix = new int[MatrixSize * MatrixSize];
             
-            [HorizontalGroup("Split", 0.3f)] [VerticalGroup("Split/Right")] [LabelText("", SdfIconType.Dice6Fill)]
+            [HorizontalGroup("Split", 0.35f), BoxGroup("Split/Rule", centerLabel: true)] 
+            [LabelText("", SdfIconType.Dice6Fill)]
             public float ruleChance = 100f;
 
-            [HorizontalGroup("Split", 0.3f)] [VerticalGroup("Split/Right")] [EnumToggleButtons, HideLabel]
+            [Header("Transformation")]
+            [HorizontalGroup("Split", 0.35f), BoxGroup("Split/Rule")] 
+            [EnumToggleButtons, HideLabel]
             public RuleTransform ruleTransform;
+            
+            // [HorizontalGroup("Split", 0.35f), BoxGroup("Split/Result", centerLabel: true)]
+            // [EnumToggleButtons, HideLabel]
+            // public RandomBehavior randomBehavior;
+            
+            [Header("Transformation")]
+            [HorizontalGroup("Split", 0.35f), BoxGroup("Split/Result", centerLabel: true)] 
+            [EnumToggleButtons, HideLabel]
+            public ResultTransform resultTransform;
 
             [field: SerializeField, HideInInspector] public List<SpriteResult> TileSprites { get; set; }
             [field: SerializeField, HideInInspector] public List<EntityResult> TileEntities { get; set; }

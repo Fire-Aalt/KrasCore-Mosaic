@@ -13,6 +13,8 @@ namespace KrasCore.Mosaic
 
             root.Chance = rule.ruleChance;
             root.RuleTransform = rule.ruleTransform;
+            root.ResultTransform = rule.resultTransform;
+            root.RandomBehavior = root.RandomBehavior;
             
             AddPatterns(ref root, rule, refreshPositions, builder);
             AddResults(ref root, rule, entityCount, builder);

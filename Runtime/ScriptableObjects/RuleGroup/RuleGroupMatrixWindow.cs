@@ -14,18 +14,13 @@ namespace KrasCore.Mosaic
         public static int NumberOfActiveInspectorWindows;
         
         [HorizontalGroup("Split", width: 0.2f)]
+        [BoxGroup("Split/Select", centerLabel: true, LabelText = "Select IntGrid Value")]
         [CustomValueDrawer("IntGridValueDrawer")]
         [SerializeField] private int _selectedIntGridValue;
         
         [HorizontalGroup("Split", width: 0.4f)]
         [Matrix(nameof(DrawMatrixCell))]
         [SerializeField] private int[] _matrix;
-        
-
-        //TODO: add random behavior (UI problems)
-        // [HorizontalGroup("Split", width: 0.2f)]
-        // [HideLabel, EnumToggleButtons]
-        // [SerializeField] private RandomBehavior _randomBehavior;
         
         [HorizontalGroup("Split", width: 0.2f)]
         [VerticalGroup("Split/Sprites")]
@@ -88,7 +83,7 @@ namespace KrasCore.Mosaic
             {
                 result.Validate();
             }
-            
+          
         }
 
         private void Init(RuleGroup.Rule target)

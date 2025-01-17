@@ -329,7 +329,7 @@ namespace KrasCore.Mosaic
                         AppliedRuleHash = newRuleHash
                     });
                     
-                    // TODO: add a check if the newSrcEntity == oldSrcEntity to remove redundant memcpy
+                    // TODO OPTIMIZATION: add a check if the newSrcEntity == oldSrcEntity to remove redundant memcpy
                     if (rule.TryGetEntity(ref random, EntityBuffer, out var newEntity))
                     {
                         EntityCommands.Write(new EntityCommand
@@ -341,8 +341,25 @@ namespace KrasCore.Mosaic
                     }
                     if (rule.TryGetSpriteMesh(ref random, out var newSprite))
                     {
-                        newSprite.Flip = appliedMirror;
-                        newSprite.Rotation = appliedRotation;
+                        var resultFlip = new bool2();
+                        var resultRotation = 0;
+                        if (rule.ResultTransform.HasFlagBurst(ResultTransform.MirrorX))
+                        {
+                            resultFlip.x = random.NextBool();
+                        }
+                        if (rule.ResultTransform.HasFlagBurst(ResultTransform.MirrorY))
+                        {
+                            resultFlip.y = random.NextBool();
+                        }
+                        if (rule.ResultTransform.HasFlagBurst(ResultTransform.Rotated))
+                        {
+                            resultRotation = random.NextInt(0, 4);
+                        }
+                        
+                        newSprite.Flip = appliedMirror ^ resultFlip;
+                        newSprite.Rotation = appliedRotation + resultRotation;
+                        if (newSprite.Rotation > 3)
+                            newSprite.Rotation -= 4;
                         
                         SpriteCommands.Write(new SpriteCommand
                         {
