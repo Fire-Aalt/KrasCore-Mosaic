@@ -1,11 +1,14 @@
 using System;
-using KrasCore.HybridECS;
 using Unity.Collections;
 using UnityEngine;
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine.Rendering;
 using Random = Unity.Mathematics.Random;
+
+#if HYBRID_ECS
+using KrasCore.HybridECS;
+#endif
 
 namespace KrasCore.Mosaic
 {
@@ -73,16 +76,15 @@ namespace KrasCore.Mosaic
                 for (var i = 0; i < rule.TileEntities.Count; i++)
                 {
                     var go = rule.TileEntities[i].result;
-                            
-                    var target = go;
+#if HYBRID_ECS
                     if (go.TryGetComponent(out HybridPrefab hybridPrefab))
                     {
-                        target = hybridPrefab.BakingPrefabReference.editorAsset as GameObject;
+                        go = hybridPrefab.BakingPrefabReference.editorAsset as GameObject;
                     }
-                            
+#endif
                     weightedEntityBuffer.Add(new WeightedEntityElement
                     {
-                        Value = GetEntity(target, TransformUsageFlags.None)
+                        Value = GetEntity(go, TransformUsageFlags.None)
                     });
                 }
 
