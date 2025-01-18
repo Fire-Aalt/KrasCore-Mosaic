@@ -1,10 +1,12 @@
 using System.Collections.Generic;
 using Unity.Entities;
+using Unity.Transforms;
 using UnityEngine;
 using UnityEngine.Rendering;
 
 namespace KrasCore.Mosaic
 {
+	[RequireMatchingQueriesForUpdate]
 	[UpdateInGroup(typeof(PresentationSystemGroup))]
 	public partial class TilemapRendererSystem : SystemBase
 	{
@@ -32,15 +34,13 @@ namespace KrasCore.Mosaic
  
 		protected override void OnUpdate()
 		{
-			var dataSingleton = SystemAPI.GetSingleton<TilemapDataSingleton>();
+			EntityManager.CompleteDependencyBeforeRO<TilemapRendererSingleton>();
 			var rendererSingleton = SystemAPI.GetSingleton<TilemapRendererSingleton>();
-			rendererSingleton.JobHandle.Complete();
 
-			foreach (var (tilemapDataRO, runtimeMaterialRO) in SystemAPI.Query<RefRO<TilemapData>, RefRO<RuntimeMaterial>>())
+			foreach (var (tilemapDataRO, localToWorldRO, runtimeMaterialRO) in SystemAPI.Query<RefRO<TilemapData>, RefRO<LocalToWorld>, RefRO<RuntimeMaterial>>())
 			{
 				var tilemapData = tilemapDataRO.ValueRO;
 				var intGridHash = tilemapData.IntGridReference.GetHashCode();
-				var dataLayer = dataSingleton.IntGridLayers[intGridHash];
 				var rendererLayer = rendererSingleton.IntGridLayers[intGridHash];
 				
 				if (!_meshes.TryGetValue(intGridHash, out var mesh))
@@ -69,7 +69,7 @@ namespace KrasCore.Mosaic
 					worldBounds = new Bounds(Vector3.zero, Vector3.one * 999999),
 					receiveShadows = tilemapData.ReceiveShadows,
 					shadowCastingMode = tilemapData.ShadowCastingMode,
-				}, mesh, 0, dataLayer.TilemapTransform.ToMatrix());
+				}, mesh, 0, localToWorldRO.ValueRO.Value);
 			}
 		}
 	}

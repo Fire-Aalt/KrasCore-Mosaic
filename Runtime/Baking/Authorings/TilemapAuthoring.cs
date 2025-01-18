@@ -30,7 +30,6 @@ namespace KrasCore.Mosaic
                 var weightedEntityBuffer = AddBuffer<WeightedEntityElement>(entity);
 
                 var refreshPositions = new NativeHashSet<int2>(64, Allocator.Temp);
-
                 Texture2D refTexture = null;
                 
                 var entityCount = 0;
@@ -98,7 +97,6 @@ namespace KrasCore.Mosaic
                         throw new Exception("Different textures in one tilemap. This is not supported yet");
                     }
                 }
-
                 return refTexture;
             }
         }
@@ -118,7 +116,7 @@ namespace KrasCore.Mosaic
     
     public struct RefreshPositionElement : IBufferElementData
     {
-        public int2 Position;
+        public int2 Value;
     }
     
     public struct RuleBlob
@@ -135,9 +133,8 @@ namespace KrasCore.Mosaic
         public int SpritesWeightSum;
 
         public float Chance;
-        public RandomBehavior RandomBehavior;
-        public ResultTransform ResultTransform;
         public RuleTransform RuleTransform;
+        public ResultTransform ResultTransform;
 
         public bool TryGetEntity(ref Random random, in DynamicBuffer<WeightedEntityElement> entityBuffer, out Entity entity)
         {

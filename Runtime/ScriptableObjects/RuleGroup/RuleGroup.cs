@@ -61,12 +61,12 @@ namespace KrasCore.Mosaic
             [Matrix(nameof(DrawMatrixCell), MatrixRectMethod = nameof(MatrixControlRect))]
             public int[] ruleMatrix = new int[MatrixSize * MatrixSize];
             
-            [HorizontalGroup("Split", 0.35f), BoxGroup("Split/Rule", centerLabel: true)] 
+            [HorizontalGroup("Split", 0.33f), BoxGroup("Split/Rule", centerLabel: true)] 
             [LabelText("", SdfIconType.Dice6Fill)]
             public float ruleChance = 100f;
 
             [Header("Transformation")]
-            [HorizontalGroup("Split", 0.35f), BoxGroup("Split/Rule")] 
+            [HorizontalGroup("Split", 0.33f), BoxGroup("Split/Rule")] 
             [EnumToggleButtons, HideLabel]
             public RuleTransform ruleTransform;
             
@@ -75,7 +75,7 @@ namespace KrasCore.Mosaic
             // public RandomBehavior randomBehavior;
             
             [Header("Transformation")]
-            [HorizontalGroup("Split", 0.35f), BoxGroup("Split/Result", centerLabel: true)] 
+            [HorizontalGroup("Split", 0.33f), BoxGroup("Split/Result", centerLabel: true)] 
             [EnumToggleButtons, HideLabel]
             public ResultTransform resultTransform;
 

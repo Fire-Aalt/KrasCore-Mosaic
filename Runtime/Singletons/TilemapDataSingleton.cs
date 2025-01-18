@@ -1,18 +1,15 @@
 using System;
+using KrasCore.Mosaic;
+using KrasCore.NZCore;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Transforms;
 
+
 namespace KrasCore.Mosaic
 {
-    public struct RuleCommand
-    {
-        public int2 Position;
-        public int AppliedRuleHash;
-    }
-    
     public struct TilemapDataSingleton : IComponentData, IDisposable
     {
         public struct IntGridLayer : IDisposable
@@ -28,11 +25,10 @@ namespace KrasCore.Mosaic
         
             public ParallelToListMapper<RuleCommand> RuleCommands;
             public ParallelToListMapper<SpriteCommand> SpriteCommands;
-            public ParallelToListMapper<PositionToRemove> PositionToRemove;
+            public ParallelToListMapper<RemoveCommand> PositionToRemove;
         
             // Store data locally to simplify lookups
             public TilemapData TilemapData;
-            public LocalTransform TilemapTransform;
         
             public IntGridLayer(TilemapData tilemapData, int capacity, Allocator allocator)
             {
@@ -48,10 +44,9 @@ namespace KrasCore.Mosaic
 
                 RuleCommands = new ParallelToListMapper<RuleCommand>(capacity, allocator);
                 SpriteCommands = new ParallelToListMapper<SpriteCommand>(capacity, allocator);
-                PositionToRemove = new ParallelToListMapper<PositionToRemove>(capacity, allocator);
+                PositionToRemove = new ParallelToListMapper<RemoveCommand>(capacity, allocator);
             
                 TilemapData = tilemapData;
-                TilemapTransform = default;
             }
 
             public void Dispose()
@@ -74,9 +69,8 @@ namespace KrasCore.Mosaic
         
         public NativeHashMap<int, IntGridLayer> IntGridLayers;
 
+        // Store entity commands on a singleton to sort it later and instantiate using batch API
         public ParallelToListMapper<EntityCommand> EntityCommands;
-        
-        public JobHandle JobHandle;
         
         public void Dispose()
         {

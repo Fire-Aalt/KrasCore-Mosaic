@@ -23,8 +23,8 @@ namespace KrasCore.Mosaic
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
-	        state.RequireForUpdate<TilemapRendererSingleton>();
             state.RequireForUpdate<TilemapDataSingleton>();
+	        state.RequireForUpdate<TilemapRendererSingleton>();
 	        state.EntityManager.CreateSingleton(new TilemapRendererSingleton(8, Allocator.Persistent));
             _jobHandles = new NativeList<JobHandle>(8, Allocator.Persistent);
         }
@@ -39,10 +39,9 @@ namespace KrasCore.Mosaic
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-	        ref var rendererSingleton = ref SystemAPI.GetSingletonRW<TilemapRendererSingleton>().ValueRW;
+	        state.EntityManager.CompleteDependencyBeforeRO<TilemapDataSingleton>();
             var dataSingleton = SystemAPI.GetSingleton<TilemapDataSingleton>();
-            rendererSingleton.JobHandle = default;
-            dataSingleton.JobHandle.Complete();
+	        ref var rendererSingleton = ref SystemAPI.GetSingletonRW<TilemapRendererSingleton>().ValueRW;
             
             foreach (var kvp in dataSingleton.IntGridLayers)
             {
@@ -66,7 +65,7 @@ namespace KrasCore.Mosaic
 		            SpriteMeshes = rendererLayer.SpriteMeshes,
 		            Vertices = rendererLayer.Vertices,
 		            Triangles = rendererLayer.Triangles,
-	            }.Schedule(dataSingleton.JobHandle);
+	            }.Schedule(state.Dependency);
 	            
 	            handle = new GenerateVertexDataJob
 	            {
@@ -81,7 +80,7 @@ namespace KrasCore.Mosaic
 	            _jobHandles.Add(handle);
             }
             
-	        rendererSingleton.JobHandle = JobHandle.CombineDependencies(_jobHandles.AsArray());
+	        state.Dependency = JobHandle.CombineDependencies(_jobHandles.AsArray());
 	        _jobHandles.Clear();
         }
 
@@ -93,7 +92,7 @@ namespace KrasCore.Mosaic
 	        [ReadOnly]
 	        public NativeList<SpriteCommand> SpriteCommands;
 	        [ReadOnly]
-	        public NativeList<PositionToRemove> PositionsToRemove;
+	        public NativeList<RemoveCommand> PositionsToRemove;
 	        
 	        public NativeList<int2> Positions;
 	        public NativeList<SpriteMesh> SpriteMeshes;
