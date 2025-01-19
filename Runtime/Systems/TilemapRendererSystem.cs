@@ -3,6 +3,7 @@ using Unity.Entities;
 using Unity.Transforms;
 using UnityEngine;
 using UnityEngine.Rendering;
+using Hash128 = Unity.Entities.Hash128;
 
 namespace KrasCore.Mosaic
 {
@@ -10,7 +11,7 @@ namespace KrasCore.Mosaic
 	[UpdateInGroup(typeof(PresentationSystemGroup))]
 	public partial class TilemapRendererSystem : SystemBase
 	{
-		private readonly Dictionary<int, Mesh> _meshes = new();
+		private readonly Dictionary<Hash128, Mesh> _meshes = new();
 		
 		private VertexAttributeDescriptor[] _layout;
 		
@@ -40,7 +41,7 @@ namespace KrasCore.Mosaic
 			foreach (var (tilemapDataRO, localToWorldRO, runtimeMaterialRO) in SystemAPI.Query<RefRO<TilemapData>, RefRO<LocalToWorld>, RefRO<RuntimeMaterial>>())
 			{
 				var tilemapData = tilemapDataRO.ValueRO;
-				var intGridHash = tilemapData.IntGridReference.GetHashCode();
+				var intGridHash = tilemapData.IntGridHash;
 				var rendererLayer = rendererSingleton.IntGridLayers[intGridHash];
 				
 				if (!_meshes.TryGetValue(intGridHash, out var mesh))

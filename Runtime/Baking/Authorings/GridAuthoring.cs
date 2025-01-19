@@ -1,6 +1,7 @@
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
+using Hash128 = Unity.Entities.Hash128;
 
 namespace KrasCore.Mosaic
 {
@@ -29,7 +30,7 @@ namespace KrasCore.Mosaic
                 var tilemaps = authoring.GetComponentsInChildren<TilemapAuthoring>();
                 foreach (var tilemap in tilemaps)
                 {
-                    buffer.Add(new GridBakingData { ToLink = tilemap.IntGrid });
+                    buffer.Add(new GridBakingData { IntGridHash = tilemap.IntGrid.intGridHash });
                 }
             }
         }
@@ -38,7 +39,7 @@ namespace KrasCore.Mosaic
     [BakingType]
     public struct GridBakingData : IBufferElementData
     {
-        public UnityObjectRef<IntGrid> ToLink;
+        public Hash128 IntGridHash;
     }
     
     public struct GridData : IComponentData

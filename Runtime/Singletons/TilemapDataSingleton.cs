@@ -67,7 +67,7 @@ namespace KrasCore.Mosaic
             }
         }
         
-        public NativeHashMap<int, IntGridLayer> IntGridLayers;
+        public NativeHashMap<Hash128, IntGridLayer> IntGridLayers;
 
         // Store entity commands on a singleton to sort it later and instantiate using batch API
         public ParallelToListMapper<EntityCommand> EntityCommands;

@@ -21,7 +21,8 @@ namespace KrasCore.Mosaic
         
         [Title("Tile Rules")]
         public List<Rule> rules = new();
-        
+
+#if UNITY_EDITOR
         [Button(ButtonSizes.Large)]
         public void AddRule()
         {
@@ -39,6 +40,7 @@ namespace KrasCore.Mosaic
                 rule.Validate();
             }
         }
+#endif
 
         [Flags]
         public enum Enabled
@@ -58,7 +60,7 @@ namespace KrasCore.Mosaic
             public Enabled enabled = Enabled.Enabled;
 
             [HorizontalGroup("Split", 0.2f)]
-            [Matrix(nameof(DrawMatrixCell), MatrixRectMethod = nameof(MatrixControlRect))]
+            [Matrix("DrawMatrixCell", MatrixRectMethod = "MatrixControlRect")]
             public int[] ruleMatrix = new int[MatrixSize * MatrixSize];
             
             [HorizontalGroup("Split", 0.33f), BoxGroup("Split/Rule", centerLabel: true)] 
@@ -70,10 +72,6 @@ namespace KrasCore.Mosaic
             [EnumToggleButtons, HideLabel]
             public RuleTransform ruleTransform;
             
-            // [HorizontalGroup("Split", 0.35f), BoxGroup("Split/Result", centerLabel: true)]
-            // [EnumToggleButtons, HideLabel]
-            // public RandomBehavior randomBehavior;
-            
             [Header("Transformation")]
             [HorizontalGroup("Split", 0.33f), BoxGroup("Split/Result", centerLabel: true)] 
             [EnumToggleButtons, HideLabel]
@@ -84,6 +82,7 @@ namespace KrasCore.Mosaic
             [field: SerializeField, HideInInspector] public IntGrid BoundIntGrid { get; private set; }
             [field: SerializeField, HideInInspector] public RuleGroup RuleGroup { get; private set; }
 
+#if UNITY_EDITOR
             public void Bind(RuleGroup ruleGroup)
             {
                 BoundIntGrid = ruleGroup.intGrid;
@@ -92,10 +91,11 @@ namespace KrasCore.Mosaic
 
             public void Validate()
             {
+                TileSprites ??= new List<SpriteResult>();
+                TileEntities ??= new List<EntityResult>();
                 ruleChance = Mathf.Clamp(ruleChance, 0f, 100f);
             }
 
-#if UNITY_EDITOR
             private void MatrixControlRect(Rect rect)
             {
                 if (Event.current.OnMouseDown(rect, 0))
@@ -110,6 +110,7 @@ namespace KrasCore.Mosaic
                 return value;
             }
 #endif
+            
             public static int2 GetOffsetFromCenterMirrored(int index, bool2 mirror)
             {
                 var x = index % MatrixSize;

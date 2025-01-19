@@ -32,7 +32,7 @@ namespace KrasCore.Mosaic
             public int IntGridValue;
         }
         
-        public NativeHashMap<int, IntGridLayer> Layers;
+        public NativeHashMap<Hash128, IntGridLayer> Layers;
         public NativeReference<uint> GlobalSeed;
 
         private readonly Allocator _allocator;
@@ -40,22 +40,17 @@ namespace KrasCore.Mosaic
         public TilemapCommandBuffer(int capacity, Allocator allocator)
         {
             _allocator = allocator;
-            Layers = new NativeHashMap<int, IntGridLayer>(capacity, allocator);
+            Layers = new NativeHashMap<Hash128, IntGridLayer>(capacity, allocator);
             GlobalSeed = new NativeReference<uint>(allocator);
         }
         
         public void SetIntGridValue(IntGrid intGrid, int2 position, int intGridValue)
         {
-            SetIntGridValue(intGrid.GetHashCode(), position, intGridValue);
-        }
-        
-        public void SetIntGridValue(UnityObjectRef<IntGrid> intGrid, int2 position, int intGridValue)
-        {
-            SetIntGridValue(intGrid.GetHashCode(), position, intGridValue);
+            SetIntGridValue(intGrid.intGridHash, position, intGridValue);
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SetIntGridValue(int intGridHash, int2 position, int intGridValue)
+        public void SetIntGridValue(in Hash128 intGridHash, in int2 position, int intGridValue)
         {
             var layer = GetOrAddLayer(intGridHash);
             layer.SetQueue.Enqueue(new SetCommand { Position = position, IntGridValue = intGridValue });
@@ -71,16 +66,11 @@ namespace KrasCore.Mosaic
         
         public void Clear(IntGrid intGrid)
         {
-            Clear(intGrid.GetHashCode());
-        }
-        
-        public void Clear(UnityObjectRef<IntGrid> intGrid)
-        {
-            Clear(intGrid.GetHashCode());
+            Clear(intGrid.intGridHash);
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Clear(int intGridHash)
+        public void Clear(Hash128 intGridHash)
         {
             var layer = GetOrAddLayer(intGridHash);
             layer.ClearCommand.Value = true;
@@ -91,7 +81,7 @@ namespace KrasCore.Mosaic
             GlobalSeed.Value = seed;
         }
         
-        private IntGridLayer GetOrAddLayer(int intGridHash)
+        private IntGridLayer GetOrAddLayer(Hash128 intGridHash)
         {
             if (!Layers.TryGetValue(intGridHash, out var layer))
             {

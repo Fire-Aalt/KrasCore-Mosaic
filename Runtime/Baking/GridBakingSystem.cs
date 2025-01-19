@@ -16,7 +16,7 @@ namespace KrasCore.Mosaic
                 {
                     foreach (var gridBakingData in buffer)
                     {
-                        if (tilemapData.ValueRO.IntGridReference == gridBakingData.ToLink)
+                        if (tilemapData.ValueRO.IntGridHash == gridBakingData.IntGridHash)
                         {
                             tilemapData.ValueRW.GridData = gridDataRO.ValueRO;
                         }

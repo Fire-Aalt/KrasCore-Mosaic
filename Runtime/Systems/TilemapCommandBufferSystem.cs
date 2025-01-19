@@ -5,6 +5,9 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
+using UnityEngine;
+using Hash128 = Unity.Entities.Hash128;
+using Random = Unity.Mathematics.Random;
 
 namespace KrasCore.Mosaic
 {
@@ -26,7 +29,7 @@ namespace KrasCore.Mosaic
             });
             state.EntityManager.CreateSingleton(new TilemapDataSingleton
             {
-                IntGridLayers = new NativeHashMap<int, TilemapDataSingleton.IntGridLayer>(8, Allocator.Persistent),
+                IntGridLayers = new NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer>(8, Allocator.Persistent),
                 EntityCommands = new ParallelToListMapper<EntityCommand>(256, Allocator.Persistent)
             });
 
@@ -53,7 +56,7 @@ namespace KrasCore.Mosaic
             
             foreach (var (tilemapDataRO, rulesBuffer, refreshPositionsBuffer, entityBuffer) in SystemAPI.Query<RefRO<TilemapData>, DynamicBuffer<RuleBlobReferenceElement>, DynamicBuffer<RefreshPositionElement>, DynamicBuffer<WeightedEntityElement>>())
             {
-                var intGridHash = tilemapDataRO.ValueRO.IntGridReference.GetHashCode();
+                var intGridHash = tilemapDataRO.ValueRO.IntGridHash;
 
                 if (!intGridLayers.ContainsKey(intGridHash))
                 {
@@ -64,7 +67,7 @@ namespace KrasCore.Mosaic
                 intGridLayers[intGridHash] = layer;
                 
                 if (!tcb.Layers.ContainsKey(intGridHash)) continue;
-
+                
                 // Clear last frame data
                 layer.RuleCommands.Clear();
                 layer.SpriteCommands.Clear();
@@ -236,7 +239,7 @@ namespace KrasCore.Mosaic
             public ParallelList<SpriteCommand>.ThreadWriter SpriteCommands;
             public ParallelList<RemoveCommand>.ThreadWriter PositionsToRemove;
 
-            public int IntGridHash;
+            public Hash128 IntGridHash;
             public uint Seed;
             
             public void Execute(int index)

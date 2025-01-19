@@ -10,7 +10,7 @@ namespace KrasCore.Mosaic
     public partial struct TilemapEntityInitializationSystem : ISystem
     {
         private NativeList<EntityCommand> _commandsList;
-        private NativeHashMap<int, TilemapDataSingleton.IntGridLayer> _intGridLayers;
+        private NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer> _intGridLayers;
         
         [BurstCompile]
         public void OnCreate(ref SystemState state)

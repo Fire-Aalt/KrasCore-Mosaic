@@ -32,10 +32,10 @@ namespace KrasCore.Mosaic
         [TableColumnWidth(50, false)]
         public int weight;
             
-        [PreviewField()]
+        [PreviewField]
         [AssetsOnly]
         [LabelText("@result.name")]
-        [LabelWidth(width: 200)]
+        [LabelWidth(width: 100)]
         public Sprite result;
 
         public SpriteResult(int weight, Sprite result)

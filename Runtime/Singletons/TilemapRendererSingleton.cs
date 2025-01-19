@@ -36,11 +36,11 @@ namespace KrasCore.Mosaic
             }
         }
 		
-        public NativeHashMap<int, IntGridLayer> IntGridLayers;
+        public NativeHashMap<Hash128, IntGridLayer> IntGridLayers;
 		
         public TilemapRendererSingleton(int capacity, Allocator allocator)
         {
-            IntGridLayers = new NativeHashMap<int, IntGridLayer>(capacity, allocator);
+            IntGridLayers = new NativeHashMap<Hash128, IntGridLayer>(capacity, allocator);
         }
 
         public void Dispose()

@@ -4,6 +4,7 @@ using UnityEngine;
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine.Rendering;
+using Hash128 = Unity.Entities.Hash128;
 using Random = Unity.Mathematics.Random;
 
 #if HYBRID_ECS
@@ -59,7 +60,7 @@ namespace KrasCore.Mosaic
                 
                 AddComponent(entity, new TilemapData
                 {
-                    IntGridReference = authoring._intGrid,
+                    IntGridHash = authoring._intGrid.intGridHash,
                     Orientation = authoring._orientation,
                     ShadowCastingMode = authoring._shadowCastingMode,
                     ReceiveShadows = authoring._receiveShadows
@@ -165,7 +166,7 @@ namespace KrasCore.Mosaic
 
     public struct TilemapData : IComponentData
     {
-        public UnityObjectRef<IntGrid> IntGridReference;
+        public Hash128 IntGridHash;
         public Orientation Orientation;
         
         // Store data locally to simplify lookups

@@ -4,6 +4,7 @@ using KrasCore.Editor;
 using Sirenix.OdinInspector;
 using UnityEditor;
 using UnityEngine;
+using Hash128 = Unity.Entities.Hash128;
 
 namespace KrasCore.Mosaic
 {
@@ -20,6 +21,9 @@ namespace KrasCore.Mosaic
         [SerializeField, HideInInspector]
         private int _counter = 1;
 
+        [HideInInspector]
+        public Hash128 intGridHash;
+        
 #if UNITY_EDITOR
         [Button]
         private void CreateRuleGroup()
@@ -30,7 +34,6 @@ namespace KrasCore.Mosaic
             EditorUtility.SetDirty(this);
             EditorUtility.SetDirty(instance);
         }
-#endif
 
         private void OnEnable()
         {
@@ -39,6 +42,7 @@ namespace KrasCore.Mosaic
         
         private void OnValidate()
         {
+            intGridHash = AssetDatabaseUtils.ToGuidHash(this);
             foreach (var intGridValue in intGridValues)
             {
                 if (intGridValue.value == -1)
@@ -57,6 +61,7 @@ namespace KrasCore.Mosaic
                 IntGridValuesDict[intGridValue.value] = intGridValue;
             }
         }
+#endif
     }
     
     [Serializable]

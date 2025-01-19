@@ -24,7 +24,8 @@ namespace KrasCore.Mosaic
         
         [HorizontalGroup("Split", width: 0.2f)]
         [VerticalGroup("Split/Sprites")]
-        [Title("Sprites"), TableList(HideToolbar = true)]
+        [Title("Sprites")]
+        //[TableList(HideToolbar = true)]
         [SerializeField] private List<SpriteResult> _tileSprites;
         
         [HorizontalGroup("Split", width: 0.2f)]
@@ -34,7 +35,8 @@ namespace KrasCore.Mosaic
 
         [HorizontalGroup("Split", width: 0.2f)]
         [VerticalGroup("Split/Entities")]
-        [Title("Entities"), TableList(HideToolbar = true)]
+        [Title("Entities")]
+        //[TableList(HideToolbar = true)]
         [SerializeField] private List<EntityResult> _tileEntities;
         
         [HorizontalGroup("Split", width: 0.2f)]

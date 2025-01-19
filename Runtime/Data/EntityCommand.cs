@@ -8,7 +8,7 @@ namespace KrasCore.Mosaic
     {
         public Entity SrcEntity;
         public int2 Position;
-        public int IntGridHash;
+        public Hash128 IntGridHash;
     }
     
     public struct DeferredCommandComparer : IComparer<EntityCommand>
