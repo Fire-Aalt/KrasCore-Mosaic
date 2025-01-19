@@ -61,6 +61,9 @@ Controls and what they do are as follows:
 3. Double right click removes the cell from cells to search (any IntGridValue is valid)
 4. Any Value/No Value do the same as any other IntGridValues, but apply as a yes or no filter to the cells IntGridValue (if IntGridValue = 1, and the cell is marked No Value, then the rule will not pass)
 
+## Limitations
+Currently only supports Rectangular grids
+
 ## Contribution
 If you are interested in using this solution I will be greatly appreciated. Write any bugs, feature requests or enhancements to Issues tab
 
