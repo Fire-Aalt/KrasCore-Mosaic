@@ -1,5 +1,5 @@
 # Mosaic
-Unity ECS rule based tilemap solution
+Mosaic is a Next Gen Runtime Unity Tilemap solution, heavily inspired by LDtk, built using Entity Component System stack and Odin Inspector 
 
 ![Mosaic](Documentation~/Images/Mosaic.png)
 
