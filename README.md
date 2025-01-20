@@ -3,18 +3,26 @@ Mosaic is a Next Gen Runtime Unity Tilemap solution, heavily inspired by LDtk, b
 
 ![Mosaic](Documentation~/Images/Mosaic.png)
 
-![Notes](Documentation~/Images/Notes.png)
-
-Requires my [KrasCore](https://github.com/Fire-Aalt/KrasCore) library
+| Feature       | Unity.Tilemap                                                                 | Mosaic                                                                                                                                                      |
+|---------------|-------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Rule engine   | RuleTile: very shallow support, requires custom code to achieve basic results | IntGrid: inspired by LDtk, one of the most powerful and feature rich rule engines                                                                           |
+| GUI           | Poor GUI experience with RuleTile custom editor                               | Custom GUI made with [Odin Inspector](https://assetstore.unity.com/packages/tools/utilities/odin-inspector-and-serializer-89041?srsltid=AfmBOop97OyTTYiuIIGN0oQkSMLd0P3xSmw8NEuDFQQLFEFcz3blWS6p), with a separate EditorWindow to make GUI even more clear and concise. Custom rule pattern matrix controls and rendering |
+| Performance   | Main thread only, really inefficient when using complex rule patterns         | 99% 'bursted' and 'jobified'. Main thread only submits meshes to render                                                                                     | 
+| Allocations   | Huge GC spikes when using RuleTile                                            | 0 GC and Native allocations                                                                                                                               |
+| Random        | No option to set a seed                                                       | `SetGlobalSeed()` and 100% deterministic                                                                                                                    |
+| World editing | Tilemap saves changes in the editor                                           | IntGridAuthoring does not save editor data for now. However, adding such feature is trivial as all the data is stored in a `int[]`                       |
+| Grid types    | Rectangular, hexagonal and isometric                                          | Only rectangular                                                                                                                                            |
+| Rendering     | Internal `SpriteRenderer` based rendering path                                | `Graphics.RenderMesh()` based rendering with every `IntGridAuthoring` being a separate mesh (1 SRP batch if the same material variant). Utilizing `RuntimeMaterial` to create materials at runtime with different main textures as needed |
+| Object rule result  | Instantiates GameObjects, which is really expensive. A lot of GC allocations | Instantiates Entities, which is really cheap. No GC allocations |                  
 
 ## Installation
 Add these packages in this order using git urls in a package manager:
-1. KrasCore: `https://github.com/Fire-Aalt/KrasCore.git`
+1. [KrasCore](https://github.com/Fire-Aalt/KrasCore): `https://github.com/Fire-Aalt/KrasCore.git`
 2. KrasCore.Mosaic: `https://github.com/Fire-Aalt/KrasCore-Mosaic.git`
 
 ## Workflow
 ### Editor
-To start we need 2 things: IntGrid and RuleGroup ScriptableObjects
+To start, we need 2 things: `IntGrid` and `RuleGroup` ScriptableObjects
 
 Create IntGrid using "Create/Mosaic/IntGrid". This is how we can configure it:
 
@@ -27,7 +35,7 @@ Open RuleGroup ScriptableObject and add some rules to it like this:
 
 To edit the rule pattern, click on the matrix of the rule matrix preview of the rule. This window will pop up:
 ![Rule1](Documentation~/Images/Rule1.png)
-Here you can modify rule matrix pattern and add or remove results. All of the results are weighted were more weight means more chance to be selected. You can have both sprite and entity to be rendered/spawned.
+Here you can modify rule matrix pattern and add or remove results. All the results are weighted, where more weight means more chance to be selected. You can have both sprite and entity to be rendered/spawned.
 
 Next add `GridAuthoring` component to a GameObject in a SubScene and add a `TilemapAuthoring` as a child to Grid. Configure them as needed
 
@@ -64,13 +72,10 @@ Controls and what they do are as follows:
 1. Left click or "solid" color means that this cell must contain this exact IntGridValue
 2. Right click or "canceled" color means that this cell can be anything but not this IntGridValue
 3. Double right click removes the cell from cells to search (any IntGridValue is valid)
-4. Any Value/No Value do the same as any other IntGridValues, but apply as a yes or no filter to the cells IntGridValue (if IntGridValue = 1, and the cell is marked No Value, then the rule will not pass)
-
-## Limitations
-Currently only supports Rectangular grids
+4. Any Value/No Value do the same as any other IntGridValues, but apply as a yes or no filter to the cell's IntGridValue (if IntGridValue = 1, and the cell is marked No Value, then the rule will not pass)
 
 ## Contribution
-If you are interested in using this solution I will be greatly appreciated. Write any bugs, feature requests or enhancements to Issues tab
+If you are interested in using this solution, I will be greatly appreciated. Write any bugs, feature requests or enhancements to Issues tab
 
 ### Special Thanks to:
 
