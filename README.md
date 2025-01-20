@@ -7,6 +7,11 @@ Mosaic is a Next Gen Runtime Unity Tilemap solution, heavily inspired by LDtk, b
 
 Requires my [KrasCore](https://github.com/Fire-Aalt/KrasCore) library
 
+## Installation
+Add these packages in this order using git urls in a package manager:
+1. KrasCore: `https://github.com/Fire-Aalt/KrasCore.git`
+2. KrasCore.Mosaic: `https://github.com/Fire-Aalt/KrasCore-Mosaic.git`
+
 ## Workflow
 ### Editor
 To start we need 2 things: IntGrid and RuleGroup ScriptableObjects
