@@ -12,8 +12,9 @@ Mosaic is a Next Gen Runtime Unity Tilemap solution, heavily inspired by LDtk, b
 | Random        | No option to set a seed                                                       | `SetGlobalSeed()` and 100% deterministic                                                                                                                    |
 | World editing | Tilemap saves changes in the editor                                           | IntGridAuthoring does not save editor data for now. However, adding such feature is trivial as all the data is stored in a `int[]`                       |
 | Grid types    | Rectangular, hexagonal and isometric                                          | Only rectangular                                                                                                                                            |
-| Rendering     | Internal `SpriteRenderer` based rendering path                                | `Graphics.RenderMesh()` based rendering with every `IntGridAuthoring` being a separate mesh (1 SRP batch if the same material variant). Utilizing `RuntimeMaterial` to create materials at runtime with different main textures as needed |
 | Object rule result  | Instantiates GameObjects, which is really expensive. A lot of GC allocations | Instantiates Entities, which is really cheap. No GC allocations |                  
+| Rendering Pipeline | Internal `SpriteRenderer` based rendering path                                | `Graphics.RenderMesh()` based rendering with every `IntGridAuthoring` being a separate mesh (1 SRP batch if the same material variant). Utilizing `RuntimeMaterial` to create materials at runtime with different main textures as needed |
+| 2D Rendering     | Supports both 3D and 2D rendering with SortingLayers   | Because `SpriteRenderer` rendering path is internal, Mosaic only works with 3D based rendering |
 
 ## Installation
 Add these packages in this order using git urls in a package manager:
