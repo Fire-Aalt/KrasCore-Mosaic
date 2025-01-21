@@ -310,7 +310,6 @@ namespace KrasCore.Mosaic
                         AppliedRuleHash = newRuleHash
                     });
                     
-                    // TODO OPTIMIZATION: add a check if the newSrcEntity == oldSrcEntity to remove redundant memcpy
                     if (rule.TryGetEntity(ref random, EntityBuffer, out var newEntity))
                     {
                         EntityCommands.Write(new EntityCommand

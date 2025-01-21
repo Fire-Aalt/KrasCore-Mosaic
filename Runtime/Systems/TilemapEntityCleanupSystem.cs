@@ -4,7 +4,6 @@ using Unity.Entities;
 namespace KrasCore.Mosaic
 {
     [UpdateInGroup(typeof(InitializationSystemGroup))]
-    [UpdateBefore(typeof(TilemapEntityInitializationSystem))]
     public partial struct TilemapEntityCleanupSystem : ISystem
     {
         [BurstCompile]

@@ -1,12 +1,12 @@
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
-using Unity.Mathematics;
 using Unity.Transforms;
 
 namespace KrasCore.Mosaic
 {
     [UpdateInGroup(typeof(InitializationSystemGroup))]
+    [UpdateAfter(typeof(TilemapEntityCleanupSystem))]
     public partial struct TilemapEntityInitializationSystem : ISystem
     {
         private NativeList<EntityCommand> _commandsList;
@@ -38,12 +38,12 @@ namespace KrasCore.Mosaic
                 UploadBatch(ref state, beginBatchIndex, i, currentCommand.SrcEntity);
                 beginBatchIndex = i + 1;
             }
-            UploadBatch(ref state, beginBatchIndex, _commandsList.Length, _commandsList[^1].SrcEntity);
+            UploadBatch(ref state, beginBatchIndex, _commandsList.Length - 1, _commandsList[^1].SrcEntity);
         }
         
         private void UploadBatch(ref SystemState state, int beginIndex, int endIndex, in Entity srcEntity)
         {
-            var length = endIndex - beginIndex;
+            var length = endIndex - beginIndex + 1;
             if (length <= 0) return;
             
             var srcTransform = state.EntityManager.GetComponentData<LocalTransform>(srcEntity);
