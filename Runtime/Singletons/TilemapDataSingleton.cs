@@ -22,6 +22,7 @@ namespace KrasCore.Mosaic
         
             public NativeParallelHashMap<int2, Entity> SpawnedEntities;
             public NativeParallelHashMap<int2, SpriteMesh> RenderedSprites;
+            public NativeReference<int> RenderedSpritesCount;
         
             public ParallelToListMapper<RuleCommand> RuleCommands;
             public ParallelToListMapper<SpriteCommand> SpriteCommands;
@@ -41,6 +42,7 @@ namespace KrasCore.Mosaic
             
                 SpawnedEntities = new NativeParallelHashMap<int2, Entity>(capacity, allocator);
                 RenderedSprites = new NativeParallelHashMap<int2, SpriteMesh>(capacity, allocator);
+                RenderedSpritesCount = new NativeReference<int>(allocator);
 
                 RuleCommands = new ParallelToListMapper<RuleCommand>(capacity, allocator);
                 SpriteCommands = new ParallelToListMapper<SpriteCommand>(capacity, allocator);
@@ -61,6 +63,7 @@ namespace KrasCore.Mosaic
                 RuleCommands.Dispose();
                 SpawnedEntities.Dispose();
                 RenderedSprites.Dispose();
+                RenderedSpritesCount.Dispose();
             
                 SpriteCommands.Dispose();
                 PositionToRemove.Dispose();

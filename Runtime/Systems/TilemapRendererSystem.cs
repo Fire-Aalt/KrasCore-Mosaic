@@ -2,68 +2,48 @@ using System.Collections.Generic;
 using Unity.Entities;
 using Unity.Transforms;
 using UnityEngine;
-using UnityEngine.Rendering;
 using Hash128 = Unity.Entities.Hash128;
 
 namespace KrasCore.Mosaic
 {
+	public class TilemapMeshesSingleton : IComponentData
+	{
+		public readonly Dictionary<Hash128, Mesh> Meshes = new();
+		public readonly List<Mesh> MeshesToUpdate = new();
+	}
+	
 	[RequireMatchingQueriesForUpdate]
 	[UpdateInGroup(typeof(PresentationSystemGroup))]
 	public partial class TilemapRendererSystem : SystemBase
 	{
-		private readonly Dictionary<Hash128, Mesh> _meshes = new();
-		
-		private VertexAttributeDescriptor[] _layout;
-		
 		protected override void OnCreate()
 		{
-			_layout = new[]
-			{
-				new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float32, 3),
-				new VertexAttributeDescriptor(VertexAttribute.Normal, VertexAttributeFormat.Float32, 3),
-				new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 2),
-			};
+			EntityManager.CreateSingleton(new TilemapMeshesSingleton());
 		}
 
 		protected override void OnDestroy()
 		{
-			foreach (var mesh in _meshes)
+			var singleton = SystemAPI.ManagedAPI.GetSingleton<TilemapMeshesSingleton>();
+			foreach (var kvp in singleton.Meshes)
 			{
-				Object.Destroy(mesh.Value);
+				Object.Destroy(kvp.Value);
 			}
 		}
  
 		protected override void OnUpdate()
 		{
-			EntityManager.CompleteDependencyBeforeRO<TilemapRendererSingleton>();
-			var rendererSingleton = SystemAPI.GetSingleton<TilemapRendererSingleton>();
+			EntityManager.CompleteDependencyBeforeRW<TilemapMeshDataSingleton>();
+			
+			var meshDataSingleton = SystemAPI.GetSingleton<TilemapMeshDataSingleton>();
+			var meshesSingleton = SystemAPI.ManagedAPI.GetSingleton<TilemapMeshesSingleton>();
 
+			if (meshDataSingleton.IsDirty)
+				Mesh.ApplyAndDisposeWritableMeshData(meshDataSingleton.MeshDataArray, meshesSingleton.MeshesToUpdate);
+					
 			foreach (var (tilemapDataRO, localToWorldRO, runtimeMaterialRO) in SystemAPI.Query<RefRO<TilemapData>, RefRO<LocalToWorld>, RefRO<RuntimeMaterial>>())
 			{
 				var tilemapData = tilemapDataRO.ValueRO;
-				var intGridHash = tilemapData.IntGridHash;
-				var rendererLayer = rendererSingleton.IntGridLayers[intGridHash];
-				
-				if (!_meshes.TryGetValue(intGridHash, out var mesh))
-				{
-					mesh = new Mesh { name = "Mosaic.TilemapMesh" };
-					_meshes.Add(intGridHash, mesh);
-				}
-				
-				if (rendererLayer.IsDirty.Value)
-				{
-					mesh.SetVertexBufferParams(rendererLayer.Vertices.Length, _layout);
-					mesh.SetIndexBufferParams(rendererLayer.Triangles.Length, IndexFormat.UInt32);
-
-					mesh.SetVertexBufferData(rendererLayer.Vertices.AsArray(), 0, 0, rendererLayer.Vertices.Length);
-					mesh.SetIndexBufferData(rendererLayer.Triangles.AsArray(), 0, 0, rendererLayer.Triangles.Length);
-
-					mesh.subMeshCount = 1;
-					mesh.SetSubMesh(0, new SubMeshDescriptor(0, rendererLayer.Triangles.Length, MeshTopology.Triangles),
-						MeshUpdateFlags.DontRecalculateBounds);
-					
-					mesh.RecalculateBounds();
-				}
+				var mesh = meshesSingleton.Meshes[tilemapData.IntGridHash];
 				
 				Graphics.RenderMesh(new RenderParams(runtimeMaterialRO.ValueRO.Value)
 				{
@@ -72,6 +52,9 @@ namespace KrasCore.Mosaic
 					shadowCastingMode = tilemapData.ShadowCastingMode,
 				}, mesh, 0, localToWorldRO.ValueRO.Value);
 			}
+			
+			meshDataSingleton.IntGridHashesToUpdate.Clear();
+			meshesSingleton.MeshesToUpdate.Clear();
 		}
 	}
 }

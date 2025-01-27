@@ -1,12 +1,16 @@
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
+using UnityEngine;
+using UnityEngine.Rendering;
+using Hash128 = Unity.Entities.Hash128;
 
 namespace KrasCore.Mosaic
 {
-	[UpdateAfter(typeof(TilemapCommandBufferSystem))]
+	[UpdateAfter(typeof(TilemapAllocateMeshDataSystem))]
 	[UpdateInGroup(typeof(SimulationSystemGroup), OrderLast = true)]
     public partial struct TilemapRendererVertexDataSystem : ISystem
     {
@@ -18,22 +22,27 @@ namespace KrasCore.Mosaic
 	    private static readonly quaternion RotZ180 = quaternion.RotateZ(180f * math.TORADIANS);
 	    private static readonly quaternion RotZ270 = quaternion.RotateZ(270f * math.TORADIANS);
 	    
-        private NativeList<JobHandle> _jobHandles;
+        private NativeArray<VertexAttributeDescriptor> _layout;
         
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
-            state.RequireForUpdate<TilemapDataSingleton>();
+	        state.RequireForUpdate<TilemapMeshDataSingleton>();
+	        state.RequireForUpdate<TilemapDataSingleton>();
 	        state.RequireForUpdate<TilemapRendererSingleton>();
 	        state.EntityManager.CreateSingleton(new TilemapRendererSingleton(8, Allocator.Persistent));
-            _jobHandles = new NativeList<JobHandle>(8, Allocator.Persistent);
+
+            _layout = new NativeArray<VertexAttributeDescriptor>(3, Allocator.Persistent);
+            _layout[0] = new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float32, 3);
+            _layout[1] = new VertexAttributeDescriptor(VertexAttribute.Normal, VertexAttributeFormat.Float32, 3);
+            _layout[2] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 2);
         }
         
         [BurstCompile]
         public void OnDestroy(ref SystemState state)
         {
 	        SystemAPI.GetSingleton<TilemapRendererSingleton>().Dispose();
-	        _jobHandles.Dispose();
+	        _layout.Dispose();
         }
 
         [BurstCompile]
@@ -41,98 +50,266 @@ namespace KrasCore.Mosaic
         {
 	        state.EntityManager.CompleteDependencyBeforeRO<TilemapDataSingleton>();
             var dataSingleton = SystemAPI.GetSingleton<TilemapDataSingleton>();
-	        ref var rendererSingleton = ref SystemAPI.GetSingletonRW<TilemapRendererSingleton>().ValueRW;
+            var meshDataSingleton = SystemAPI.GetSingleton<TilemapMeshDataSingleton>();
+	        var rendererSingleton = SystemAPI.GetSingleton<TilemapRendererSingleton>();
             
-            foreach (var kvp in dataSingleton.IntGridLayers)
+	        if (!meshDataSingleton.IsDirty) return;
+	        
+	        rendererSingleton.DirtyIntGridLayers.Clear();
+	        rendererSingleton.DirtyTilemapsRendererData.Clear();
+	        rendererSingleton.DirtyOffsetCounts.Clear();
+	        
+            foreach (var hash in meshDataSingleton.IntGridHashesToUpdate)
             {
-	            var dataLayer = kvp.Value;
-	            if (!rendererSingleton.IntGridLayers.TryGetValue(kvp.Key, out var rendererLayer))
-	            {
-		            rendererLayer = new TilemapRendererSingleton.IntGridLayer(256, Allocator.Persistent);
-		            rendererSingleton.IntGridLayers.Add(kvp.Key, rendererLayer);
-	            }
+	            var dataLayer = dataSingleton.IntGridLayers[hash];
 	            
-	            rendererLayer.IsDirty.Value = false;
-	            if (dataLayer.PositionToRemove.List.Length == 0 && dataLayer.SpriteCommands.List.Length == 0) continue;
-	            rendererLayer.IsDirty.Value = true;
-
-	            var handle = new PrepareVertexDataJob
-	            {
-		            RenderedSprites = dataLayer.RenderedSprites,
-		            PositionsToRemove = dataLayer.PositionToRemove.List,
-		            SpriteCommands = dataLayer.SpriteCommands.List,
-		            Positions = rendererLayer.Positions,
-		            SpriteMeshes = rendererLayer.SpriteMeshes,
-		            Vertices = rendererLayer.Vertices,
-		            Triangles = rendererLayer.Triangles,
-	            }.Schedule(state.Dependency);
-	            
-	            handle = new GenerateVertexDataJob
-	            {
-		            Positions = rendererLayer.Positions.AsDeferredJobArray(),
-		            SpriteMeshes = rendererLayer.SpriteMeshes.AsDeferredJobArray(),
-		            Vertices = rendererLayer.Vertices.AsDeferredJobArray(),
-		            Triangles = rendererLayer.Triangles.AsDeferredJobArray(),
-		            GridCellSize = dataLayer.TilemapData.GridData.CellSize,
-		            Orientation = dataLayer.TilemapData.Orientation,
-		            Swizzle = dataLayer.TilemapData.GridData.CellSwizzle
-	            }.Schedule(rendererLayer.SpriteMeshes, 32, handle);
-	            _jobHandles.Add(handle);
+	            rendererSingleton.DirtyIntGridLayers.Add(dataLayer);
+	            rendererSingleton.DirtyTilemapsRendererData.Add(new TilemapRendererData(dataLayer.TilemapData));
+	            rendererSingleton.DirtyOffsetCounts.Add(default);
             }
             
-	        state.Dependency = JobHandle.CombineDependencies(_jobHandles.AsArray());
-	        _jobHandles.Clear();
+            var verts = new NativeArray<NativeArray<Vertex>>(rendererSingleton.DirtyIntGridLayers.Length, Allocator.TempJob);
+            var trigs = new NativeArray<NativeArray<int>>(rendererSingleton.DirtyIntGridLayers.Length, Allocator.TempJob);
+            
+            var handle = new UpdateRenderedSpritesJob
+            {
+	            IntGridLayers = rendererSingleton.DirtyIntGridLayers.AsArray()
+            }.ScheduleParallel(rendererSingleton.DirtyIntGridLayers.Length, 1, state.Dependency);
+            
+            handle = new ResizeLargeListsJob
+            {
+	            IntGridLayers = rendererSingleton.DirtyIntGridLayers.AsArray(),
+	            Positions = rendererSingleton.Positions,
+	            SpriteMeshes = rendererSingleton.SpriteMeshes,
+	            Vertices = rendererSingleton.Vertices,
+	            Indices = rendererSingleton.Indices,
+	            LayerPointers = rendererSingleton.LayerPointers,
+	            Offsets = rendererSingleton.DirtyOffsetCounts
+            }.Schedule(handle);
+            
+            handle = new PrepareSpriteMeshDataJob
+            {
+	            IntGridLayers = rendererSingleton.DirtyIntGridLayers.AsArray(),
+	            Positions = rendererSingleton.Positions.AsDeferredJobArray(),
+	            SpriteMeshes = rendererSingleton.SpriteMeshes.AsDeferredJobArray(),
+	            LayerPointers = rendererSingleton.LayerPointers.AsDeferredJobArray(),
+	            Offsets = rendererSingleton.DirtyOffsetCounts.AsDeferredJobArray()
+            }.ScheduleParallel(rendererSingleton.DirtyIntGridLayers.Length, 1, handle);
+            
+            handle = new GenerateVertexDataJob
+            {
+	            Positions = rendererSingleton.Positions.AsDeferredJobArray(),
+	            SpriteMeshes = rendererSingleton.SpriteMeshes.AsDeferredJobArray(),
+	            Vertices = rendererSingleton.Vertices.AsDeferredJobArray(),
+	            Triangles = rendererSingleton.Indices.AsDeferredJobArray(),
+	            LayerPointer = rendererSingleton.LayerPointers.AsDeferredJobArray(),
+	            OffsetCount = rendererSingleton.DirtyOffsetCounts.AsDeferredJobArray(),
+	            LayerData = rendererSingleton.DirtyTilemapsRendererData.AsArray()
+            }.Schedule(rendererSingleton.SpriteMeshes, 32, handle);
+            
+            
+            handle = new CopyToMeshDataJob
+            {
+	            Layout = _layout,
+	            Offsets = rendererSingleton.DirtyOffsetCounts.AsDeferredJobArray(),
+	            Vertices = rendererSingleton.Vertices.AsDeferredJobArray(),
+	            Indices = rendererSingleton.Indices.AsDeferredJobArray(),
+	            Verts = verts,
+	            Trigs = trigs,
+	            MeshDataArray = meshDataSingleton.MeshDataArray
+            }.ScheduleParallel(rendererSingleton.DirtyIntGridLayers.Length, 1, handle);
+
+			
+            handle = new CopyToMeshDataTestJob
+            {
+	            Layout = _layout,
+	            VerticesPtr = verts,
+	            IndicesPtr = trigs,
+	            Offsets = rendererSingleton.DirtyOffsetCounts.AsDeferredJobArray(),
+	            Vertices = rendererSingleton.Vertices.AsDeferredJobArray(),
+	            Indices = rendererSingleton.Indices.AsDeferredJobArray(),
+	            MeshDataArray = meshDataSingleton.MeshDataArray
+            }.ScheduleParallel(rendererSingleton.DirtyIntGridLayers.Length, 1, handle);
+            
+            state.Dependency = handle;
         }
 
         [BurstCompile]
-        private struct PrepareVertexDataJob : IJob
+        private struct UpdateRenderedSpritesJob : IJobFor
         {
-	        public NativeParallelHashMap<int2, SpriteMesh> RenderedSprites;
+	        [NativeDisableContainerSafetyRestriction]
+	        public NativeArray<TilemapDataSingleton.IntGridLayer> IntGridLayers;
 	        
-	        [ReadOnly]
-	        public NativeList<SpriteCommand> SpriteCommands;
-	        [ReadOnly]
-	        public NativeList<RemoveCommand> PositionsToRemove;
-	        
-	        public NativeList<int2> Positions;
-	        public NativeList<SpriteMesh> SpriteMeshes;
-	        
-	        public NativeList<Vertex> Vertices;
-	        public NativeList<int> Triangles;
-	        
-	        public void Execute()
+	        public void Execute(int index)
 	        {
-		        foreach (var positionToRemove in PositionsToRemove)
+		        var data = IntGridLayers[index];
+
+		        foreach (var positionToRemove in data.PositionToRemove.List)
 		        {
-			        RenderedSprites.Remove(positionToRemove.Position);
+			        data.RenderedSprites.Remove(positionToRemove.Position);
 		        }
             
-		        foreach (var command in SpriteCommands)
+		        foreach (var command in data.SpriteCommands.List)
 		        {
-			        RenderedSprites[command.Position] = command.SpriteMesh;
-		        }
-	            
-		        RenderedSprites.ToNativeLists(ref Positions, ref SpriteMeshes);
-		        
-		        var meshesCount = Positions.Length;
-                
-		        var vertexCount = meshesCount * 4;
-		        var indexCount = meshesCount * 6;
-
-		        Vertices.Clear();
-		        Triangles.Clear();
-                
-		        if (Vertices.Capacity < vertexCount)
-		        {
-			        Vertices.Capacity = vertexCount;
-			        Triangles.Capacity = indexCount;
+			        data.RenderedSprites[command.Position] = command.SpriteMesh;
 		        }
 
-		        Vertices.SetLengthNoClear(vertexCount);
-		        Triangles.SetLengthNoClear(indexCount);
+		        data.RenderedSpritesCount.Value = data.RenderedSprites.Count();
 	        }
         }
         
+        [BurstCompile]
+        private struct ResizeLargeListsJob : IJob
+        {
+	        [ReadOnly]
+	        [NativeDisableContainerSafetyRestriction]
+	        public NativeArray<TilemapDataSingleton.IntGridLayer> IntGridLayers;
+	        
+	        public NativeList<int2> Positions;
+	        public NativeList<SpriteMesh> SpriteMeshes;
+	        public NativeList<Vertex> Vertices;
+	        public NativeList<int> Indices;
+
+	        public NativeList<int> LayerPointers;
+	        public NativeList<OffsetCount> Offsets;
+	        
+	        public void Execute()
+	        {
+		        var meshesCount = 0;		
+		        for (var i = 0; i < IntGridLayers.Length; i++)
+		        {
+			        var data = IntGridLayers[i];
+
+			        var offset = meshesCount;
+			        var count = data.RenderedSpritesCount.Value;
+			        meshesCount += count;
+			        
+			        Offsets[i] = new OffsetCount
+			        {
+				        Offset = offset,
+				        Count = count
+			        };
+		        }
+
+		        var vertexCount = meshesCount * 4;
+		        var triangleCount = meshesCount * 6;		
+		        
+		        Positions.EnsureCapacity(meshesCount, true);
+		        SpriteMeshes.EnsureCapacity(meshesCount, true);
+		        Vertices.EnsureCapacity(vertexCount, true);
+		        Indices.EnsureCapacity(triangleCount, true);
+		        LayerPointers.EnsureCapacity(meshesCount, true);
+	        }
+        }
+        
+        [BurstCompile]
+        private struct PrepareSpriteMeshDataJob : IJobFor
+        {
+	        [ReadOnly]
+	        [NativeDisableContainerSafetyRestriction]
+	        public NativeArray<TilemapDataSingleton.IntGridLayer> IntGridLayers;
+	        
+	        [ReadOnly]
+	        public NativeArray<OffsetCount> Offsets;
+	        
+	        [NativeDisableParallelForRestriction]
+	        public NativeArray<int2> Positions;
+	        [NativeDisableParallelForRestriction]
+	        public NativeArray<SpriteMesh> SpriteMeshes;
+	        [NativeDisableParallelForRestriction]
+	        public NativeArray<int> LayerPointers;
+	        
+	        public unsafe void Execute(int index)
+	        {
+		        var data = IntGridLayers[index];
+		        var offset = Offsets[index];
+		        
+		        data.RenderedSprites.ToNativeArrays(ref Positions, ref SpriteMeshes, offset.Offset);
+		        
+		        UnsafeUtility.MemCpyReplicate(
+			        (byte*)LayerPointers.GetUnsafePtr() + offset.Offset * UnsafeUtility.SizeOf<int>(), 
+			        UnsafeUtility.AddressOf(ref index), UnsafeUtility.SizeOf<int>(), offset.Count);
+	        }
+        }
+		
+        [BurstCompile]
+        private struct CopyToMeshDataJob : IJobFor
+        {
+	        [ReadOnly]
+	        public NativeArray<VertexAttributeDescriptor> Layout;
+	        [ReadOnly]
+	        public NativeArray<Vertex> Vertices;
+	        [ReadOnly]
+	        public NativeArray<int> Indices;
+	        [ReadOnly]
+	        public NativeArray<OffsetCount> Offsets;
+
+	        public Mesh.MeshDataArray MeshDataArray;
+	        [NativeDisableContainerSafetyRestriction]
+	        public NativeArray<NativeArray<Vertex>> Verts;
+	        [NativeDisableContainerSafetyRestriction]
+	        public NativeArray<NativeArray<int>> Trigs;
+	        
+	        public void Execute(int index)
+	        {
+		        var meshData = MeshDataArray[index];
+		        var offset = Offsets[index];
+		        
+		        var vertexCount = offset.Count * 4;
+		        var indexCount = offset.Count * 6;
+		        
+		        meshData.SetVertexBufferParams(vertexCount, Layout);
+		        meshData.SetIndexBufferParams(indexCount, IndexFormat.UInt32);
+
+		        Verts[index] = meshData.GetVertexData<Vertex>();
+		        Trigs[index] = meshData.GetIndexData<int>();
+		        // var vertexData = meshData.GetVertexData<Vertex>();
+		        // var indexData = meshData.GetIndexData<int>();
+		        //
+		        // Vertices.CopyToUnsafe(vertexData, vertexCount, offset.Offset * 4, 0);
+		        // Indices.CopyToUnsafe(indexData, indexCount, offset.Offset * 6, 0);
+		        //
+		        // meshData.subMeshCount = 1;
+		        // meshData.SetSubMesh(0, new SubMeshDescriptor(0, indexCount));
+	        }
+        }
+        
+        [BurstCompile]
+        private unsafe struct CopyToMeshDataTestJob : IJobFor
+        {
+	        [ReadOnly]
+	        public NativeArray<VertexAttributeDescriptor> Layout;
+	        //[ReadOnly]
+	        [NativeDisableContainerSafetyRestriction]
+	        public NativeArray<NativeArray<Vertex>> VerticesPtr;
+	        //[ReadOnly]
+	        [NativeDisableContainerSafetyRestriction]
+	        public NativeArray<NativeArray<int>> IndicesPtr;
+	        [ReadOnly]
+	        public NativeArray<Vertex> Vertices;
+	        [ReadOnly]
+	        public NativeArray<int> Indices;
+	        [ReadOnly]
+	        public NativeArray<OffsetCount> Offsets;
+
+	        public Mesh.MeshDataArray MeshDataArray;
+	        
+	        public void Execute(int index)
+	        {
+		        var meshData = MeshDataArray[index];
+		        var offset = Offsets[index];
+		        
+		        var vertexCount = offset.Count * 4;
+		        var indexCount = offset.Count * 6;
+
+		        Vertices.CopyToUnsafe(VerticesPtr[index], vertexCount, offset.Offset * 4, 0);
+		        Indices.CopyToUnsafe(IndicesPtr[index], indexCount, offset.Offset * 6, 0);
+		        
+		        meshData.subMeshCount = 1;
+		        meshData.SetSubMesh(0, new SubMeshDescriptor(0, indexCount));
+	        }
+        }
+		
         [BurstCompile]
         private struct GenerateVertexDataJob : IJobParallelForDefer
         {
@@ -146,28 +323,37 @@ namespace KrasCore.Mosaic
 	        [NativeDisableParallelForRestriction]
         	[WriteOnly] public NativeArray<int> Triangles;
 
-        	public Swizzle Swizzle;
-	        public float3 GridCellSize;
-	        public Orientation Orientation;
+	        [ReadOnly]
+	        public NativeArray<int> LayerPointer;
+	        [ReadOnly]
+	        public NativeArray<TilemapRendererData> LayerData;
+	        [ReadOnly]
+	        public NativeArray<OffsetCount> OffsetCount;
 	        
         	public void Execute(int index)
 	        {
 		        var spriteMesh = SpriteMeshes[index];
 		        var pos = Positions[index];
+		        var data = LayerData[LayerPointer[index]];
+		        var offsetCount = OffsetCount[LayerPointer[index]];
+		        
+		        var gridCellSize = data.GridCellSize;
+		        var swizzle = data.Swizzle;
+		        var orientation = data.Orientation;
 		        
 		        MosaicUtils.GetSpriteMeshTranslation(spriteMesh, out var meshTranslation);
 
-		        var rotatedPos = MosaicUtils.ToWorldSpace(pos, GridCellSize, Swizzle)
-		                         + MosaicUtils.ApplyOrientation(meshTranslation, Orientation);
+		        var rotatedPos = MosaicUtils.ToWorldSpace(pos, gridCellSize, swizzle)
+		                         + MosaicUtils.ApplyOrientation(meshTranslation, orientation);
 
-		        var pivotPoint = MosaicUtils.ApplyOrientation(spriteMesh.RectScale * spriteMesh.NormalizedPivot, Orientation);
+		        var pivotPoint = MosaicUtils.ApplyOrientation(spriteMesh.RectScale * spriteMesh.NormalizedPivot, orientation);
 		        
-		        var rotatedSize = MosaicUtils.ApplyOrientation(spriteMesh.RectScale, Orientation);
+		        var rotatedSize = MosaicUtils.ApplyOrientation(spriteMesh.RectScale, orientation);
 		        
-		        var normal = MosaicUtils.ApplyOrientation(new float3(0, 0, 1), Orientation);
+		        var normal = MosaicUtils.ApplyOrientation(new float3(0, 0, 1), orientation);
 		        
-		        var up = MosaicUtils.ApplyOrientation(new float3(0, 1, 0), Orientation) * rotatedSize;
-		        var right = MosaicUtils.ApplyOrientation(new float3(1, 0, 0), Orientation) * rotatedSize;
+		        var up = MosaicUtils.ApplyOrientation(new float3(0, 1, 0), orientation) * rotatedSize;
+		        var right = MosaicUtils.ApplyOrientation(new float3(1, 0, 0), orientation) * rotatedSize;
 
         		int vc = 4 * index;
         		int tc = 2 * 3 * index;
@@ -181,32 +367,34 @@ namespace KrasCore.Mosaic
 
         		Vertices[vc + 0] = new Vertex
         		{
-        			position = rotatedPos + Rotate(up - pivotPoint, spriteMesh.Rotation) + pivotPoint,
+        			position = rotatedPos + Rotate(up - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
 			        normal = normal,
         			uv = new float2(minUv.x, maxUv.y)
         		};
 
         		Vertices[vc + 1] = new Vertex
         		{
-        			position = rotatedPos + Rotate(up + right - pivotPoint, spriteMesh.Rotation) + pivotPoint,
+        			position = rotatedPos + Rotate(up + right - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
 			        normal = normal,
         			uv = new float2(maxUv.x, maxUv.y)
         		};
 
         		Vertices[vc + 2] = new Vertex
         		{
-        			position = rotatedPos + Rotate(right - pivotPoint, spriteMesh.Rotation) + pivotPoint,
+        			position = rotatedPos + Rotate(right - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
 			        normal = normal,
         			uv = new float2(maxUv.x, minUv.y)
         		};
 
         		Vertices[vc + 3] = new Vertex
         		{
-        			position = rotatedPos + Rotate(-pivotPoint, spriteMesh.Rotation) + pivotPoint,
+        			position = rotatedPos + Rotate(-pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
 			        normal = normal,
         			uv = new float2(minUv.x, minUv.y)
         		};
 
+		        vc -= offsetCount.Offset * 4;
+				
         		Triangles[tc + 0] = (vc + 0);
         		Triangles[tc + 1] = (vc + 1);
         		Triangles[tc + 2] = (vc + 2);
@@ -216,21 +404,21 @@ namespace KrasCore.Mosaic
         		Triangles[tc + 5] = (vc + 3);
         	}
 	        
-	        private float3 Rotate(in float3 direction, in int rotation)
+	        private float3 Rotate(in float3 direction, in int rotation, in Orientation orientation)
 	        {
 		        return rotation switch
 		        {
 			        0 => direction,
-			        1 => math.mul(Orientation == Orientation.XY ? RotZ90 : RotY90, direction),
-			        2 => math.mul(Orientation == Orientation.XY ? RotZ180 : RotY180, direction),
-			        3 => math.mul(Orientation == Orientation.XY ? RotZ270 : RotY270, direction),
+			        1 => math.mul(orientation == Orientation.XY ? RotZ90 : RotY90, direction),
+			        2 => math.mul(orientation == Orientation.XY ? RotZ180 : RotY180, direction),
+			        3 => math.mul(orientation == Orientation.XY ? RotZ270 : RotY270, direction),
 			        _ => default
 		        };
 	        }
         }
     }
-    
-    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+
+	[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
     public struct Vertex
     {
         public float3 position;
