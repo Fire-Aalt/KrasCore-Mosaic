@@ -6,13 +6,12 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
-using Hash128 = Unity.Entities.Hash128;
 
 namespace KrasCore.Mosaic
 {
-	[UpdateAfter(typeof(TilemapAllocateMeshDataSystem))]
+	[UpdateAfter(typeof(TilemapCommandBufferSystem))]
 	[UpdateInGroup(typeof(SimulationSystemGroup), OrderLast = true)]
-    public partial struct TilemapUpdateMeshDataSystem : ISystem
+    public partial struct TilemapMeshDataSystem : ISystem
     {
 	    private static readonly quaternion RotY90 = quaternion.RotateY(90f * math.TORADIANS);
 	    private static readonly quaternion RotY180 = quaternion.RotateY(180f * math.TORADIANS);
@@ -53,20 +52,27 @@ namespace KrasCore.Mosaic
             ref var meshDataSingleton = ref SystemAPI.GetSingletonRW<TilemapMeshDataSingleton>().ValueRW;
 	        var rendererSingleton = SystemAPI.GetSingleton<TilemapRendererSingleton>();
             
-	        if (!meshDataSingleton.IsDirty) return;
-	        
 	        rendererSingleton.DirtyIntGridLayers.Clear();
 	        rendererSingleton.DirtyTilemapsRendererData.Clear();
 	        rendererSingleton.DirtyOffsetCounts.Clear();
 	        
-            foreach (var hash in meshDataSingleton.IntGridHashesToUpdate)
-            {
-	            var dataLayer = dataSingleton.IntGridLayers[hash];
-	            
+	        foreach (var kvp in dataSingleton.IntGridLayers)
+	        {
+		        var intGridHash = kvp.Key;
+		        var dataLayer = kvp.Value;
+                
+		        if (dataLayer.PositionToRemove.List.Length == 0 && dataLayer.SpriteCommands.List.Length == 0)
+		        {
+			        continue;
+		        }
+		        meshDataSingleton.IntGridHashesToUpdate.Add(intGridHash);
 	            rendererSingleton.DirtyIntGridLayers.Add(dataLayer);
 	            rendererSingleton.DirtyTilemapsRendererData.Add(new TilemapRendererData(dataLayer.TilemapData));
 	            rendererSingleton.DirtyOffsetCounts.Add(default);
-            }
+	        }
+	        if (!meshDataSingleton.IsDirty) return;
+	        
+	        meshDataSingleton.MeshDataArray = Mesh.AllocateWritableMeshData(meshDataSingleton.IntGridHashesToUpdate.Length);
 
             var layersCount = rendererSingleton.DirtyIntGridLayers.Length;
             
