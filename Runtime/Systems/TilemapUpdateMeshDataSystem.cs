@@ -12,7 +12,7 @@ namespace KrasCore.Mosaic
 {
 	[UpdateAfter(typeof(TilemapAllocateMeshDataSystem))]
 	[UpdateInGroup(typeof(SimulationSystemGroup), OrderLast = true)]
-    public partial struct TilemapRendererVertexDataSystem : ISystem
+    public partial struct TilemapUpdateMeshDataSystem : ISystem
     {
 	    private static readonly quaternion RotY90 = quaternion.RotateY(90f * math.TORADIANS);
 	    private static readonly quaternion RotY180 = quaternion.RotateY(180f * math.TORADIANS);
@@ -50,7 +50,7 @@ namespace KrasCore.Mosaic
         {
 	        state.EntityManager.CompleteDependencyBeforeRO<TilemapDataSingleton>();
             var dataSingleton = SystemAPI.GetSingleton<TilemapDataSingleton>();
-            var meshDataSingleton = SystemAPI.GetSingleton<TilemapMeshDataSingleton>();
+            ref var meshDataSingleton = ref SystemAPI.GetSingletonRW<TilemapMeshDataSingleton>().ValueRW;
 	        var rendererSingleton = SystemAPI.GetSingleton<TilemapRendererSingleton>();
             
 	        if (!meshDataSingleton.IsDirty) return;
@@ -67,69 +67,73 @@ namespace KrasCore.Mosaic
 	            rendererSingleton.DirtyTilemapsRendererData.Add(new TilemapRendererData(dataLayer.TilemapData));
 	            rendererSingleton.DirtyOffsetCounts.Add(default);
             }
-            
-            var verts = new NativeArray<NativeArray<Vertex>>(rendererSingleton.DirtyIntGridLayers.Length, Allocator.TempJob);
-            var trigs = new NativeArray<NativeArray<int>>(rendererSingleton.DirtyIntGridLayers.Length, Allocator.TempJob);
+
+            var layersCount = rendererSingleton.DirtyIntGridLayers.Length;
             
             var handle = new UpdateRenderedSpritesJob
             {
-	            IntGridLayers = rendererSingleton.DirtyIntGridLayers.AsArray()
-            }.ScheduleParallel(rendererSingleton.DirtyIntGridLayers.Length, 1, state.Dependency);
+	            IntGridLayers = rendererSingleton.DirtyIntGridLayers
+            }.ScheduleParallel(layersCount, 1, state.Dependency);
             
             handle = new ResizeLargeListsJob
             {
-	            IntGridLayers = rendererSingleton.DirtyIntGridLayers.AsArray(),
+	            IntGridLayers = rendererSingleton.DirtyIntGridLayers,
+	            Offsets = rendererSingleton.DirtyOffsetCounts,
 	            Positions = rendererSingleton.Positions,
 	            SpriteMeshes = rendererSingleton.SpriteMeshes,
 	            Vertices = rendererSingleton.Vertices,
 	            Indices = rendererSingleton.Indices,
 	            LayerPointers = rendererSingleton.LayerPointers,
-	            Offsets = rendererSingleton.DirtyOffsetCounts
             }.Schedule(handle);
+            
+            var setBufferParamsHandle = new SetBufferParamsJob
+            {
+	            Layout = _layout,
+	            Offsets = rendererSingleton.DirtyOffsetCounts,
+	            MeshDataArray = meshDataSingleton.MeshDataArray
+            }.ScheduleParallel(layersCount, 1, handle);
             
             handle = new PrepareSpriteMeshDataJob
             {
-	            IntGridLayers = rendererSingleton.DirtyIntGridLayers.AsArray(),
+	            IntGridLayers = rendererSingleton.DirtyIntGridLayers,
+	            Offsets = rendererSingleton.DirtyOffsetCounts,
 	            Positions = rendererSingleton.Positions.AsDeferredJobArray(),
 	            SpriteMeshes = rendererSingleton.SpriteMeshes.AsDeferredJobArray(),
-	            LayerPointers = rendererSingleton.LayerPointers.AsDeferredJobArray(),
-	            Offsets = rendererSingleton.DirtyOffsetCounts.AsDeferredJobArray()
-            }.ScheduleParallel(rendererSingleton.DirtyIntGridLayers.Length, 1, handle);
+	            LayerPointers = rendererSingleton.LayerPointers.AsDeferredJobArray()
+            }.ScheduleParallel(layersCount, 1, handle);
             
             handle = new GenerateVertexDataJob
             {
+	            LayerData = rendererSingleton.DirtyTilemapsRendererData,
+	            OffsetCount = rendererSingleton.DirtyOffsetCounts,
 	            Positions = rendererSingleton.Positions.AsDeferredJobArray(),
 	            SpriteMeshes = rendererSingleton.SpriteMeshes.AsDeferredJobArray(),
-	            Vertices = rendererSingleton.Vertices.AsDeferredJobArray(),
-	            Triangles = rendererSingleton.Indices.AsDeferredJobArray(),
 	            LayerPointer = rendererSingleton.LayerPointers.AsDeferredJobArray(),
-	            OffsetCount = rendererSingleton.DirtyOffsetCounts.AsDeferredJobArray(),
-	            LayerData = rendererSingleton.DirtyTilemapsRendererData.AsArray()
+	            Vertices = rendererSingleton.Vertices.AsDeferredJobArray(),
+	            Indices = rendererSingleton.Indices.AsDeferredJobArray(),
             }.Schedule(rendererSingleton.SpriteMeshes, 32, handle);
-            
-            
-            handle = new CopyToMeshDataJob
-            {
-	            Layout = _layout,
-	            Offsets = rendererSingleton.DirtyOffsetCounts.AsDeferredJobArray(),
-	            Vertices = rendererSingleton.Vertices.AsDeferredJobArray(),
-	            Indices = rendererSingleton.Indices.AsDeferredJobArray(),
-	            Verts = verts,
-	            Trigs = trigs,
-	            MeshDataArray = meshDataSingleton.MeshDataArray
-            }.ScheduleParallel(rendererSingleton.DirtyIntGridLayers.Length, 1, handle);
 
+            var meshDataHandle = JobHandle.CombineDependencies(setBufferParamsHandle, handle);
 			
-            handle = new CopyToMeshDataTestJob
+            var vertexHandle = new CopyVertexDataJob
             {
-	            Layout = _layout,
-	            VerticesPtr = verts,
-	            IndicesPtr = trigs,
-	            Offsets = rendererSingleton.DirtyOffsetCounts.AsDeferredJobArray(),
+	            Offsets = rendererSingleton.DirtyOffsetCounts,
 	            Vertices = rendererSingleton.Vertices.AsDeferredJobArray(),
+	            MeshDataArray = meshDataSingleton.MeshDataArray,
+            }.ScheduleParallel(layersCount, 1, meshDataHandle);
+            
+            var indexHandle = new CopyIndexDataJob
+            {
+	            Offsets = rendererSingleton.DirtyOffsetCounts,
 	            Indices = rendererSingleton.Indices.AsDeferredJobArray(),
-	            MeshDataArray = meshDataSingleton.MeshDataArray
-            }.ScheduleParallel(rendererSingleton.DirtyIntGridLayers.Length, 1, handle);
+	            MeshDataArray = meshDataSingleton.MeshDataArray,
+            }.ScheduleParallel(layersCount, 1, meshDataHandle);
+            
+            handle = new SetSubMeshJob
+            {
+	            Offsets = rendererSingleton.DirtyOffsetCounts,
+	            MeshDataArray = meshDataSingleton.MeshDataArray,
+            }.ScheduleParallel(layersCount, 1, JobHandle.CombineDependencies(vertexHandle, indexHandle));
             
             state.Dependency = handle;
         }
@@ -138,7 +142,7 @@ namespace KrasCore.Mosaic
         private struct UpdateRenderedSpritesJob : IJobFor
         {
 	        [NativeDisableContainerSafetyRestriction]
-	        public NativeArray<TilemapDataSingleton.IntGridLayer> IntGridLayers;
+	        public NativeList<TilemapDataSingleton.IntGridLayer> IntGridLayers;
 	        
 	        public void Execute(int index)
 	        {
@@ -163,7 +167,7 @@ namespace KrasCore.Mosaic
         {
 	        [ReadOnly]
 	        [NativeDisableContainerSafetyRestriction]
-	        public NativeArray<TilemapDataSingleton.IntGridLayer> IntGridLayers;
+	        public NativeList<TilemapDataSingleton.IntGridLayer> IntGridLayers;
 	        
 	        public NativeList<int2> Positions;
 	        public NativeList<SpriteMesh> SpriteMeshes;
@@ -207,10 +211,10 @@ namespace KrasCore.Mosaic
         {
 	        [ReadOnly]
 	        [NativeDisableContainerSafetyRestriction]
-	        public NativeArray<TilemapDataSingleton.IntGridLayer> IntGridLayers;
+	        public NativeList<TilemapDataSingleton.IntGridLayer> IntGridLayers;
 	        
 	        [ReadOnly]
-	        public NativeArray<OffsetCount> Offsets;
+	        public NativeList<OffsetCount> Offsets;
 	        
 	        [NativeDisableParallelForRestriction]
 	        public NativeArray<int2> Positions;
@@ -233,22 +237,14 @@ namespace KrasCore.Mosaic
         }
 		
         [BurstCompile]
-        private struct CopyToMeshDataJob : IJobFor
+        private struct SetBufferParamsJob : IJobFor
         {
 	        [ReadOnly]
 	        public NativeArray<VertexAttributeDescriptor> Layout;
 	        [ReadOnly]
-	        public NativeArray<Vertex> Vertices;
-	        [ReadOnly]
-	        public NativeArray<int> Indices;
-	        [ReadOnly]
-	        public NativeArray<OffsetCount> Offsets;
-
+	        public NativeList<OffsetCount> Offsets;
+	        
 	        public Mesh.MeshDataArray MeshDataArray;
-	        [NativeDisableContainerSafetyRestriction]
-	        public NativeArray<NativeArray<Vertex>> Verts;
-	        [NativeDisableContainerSafetyRestriction]
-	        public NativeArray<NativeArray<int>> Trigs;
 	        
 	        public void Execute(int index)
 	        {
@@ -260,38 +256,18 @@ namespace KrasCore.Mosaic
 		        
 		        meshData.SetVertexBufferParams(vertexCount, Layout);
 		        meshData.SetIndexBufferParams(indexCount, IndexFormat.UInt32);
-
-		        Verts[index] = meshData.GetVertexData<Vertex>();
-		        Trigs[index] = meshData.GetIndexData<int>();
-		        // var vertexData = meshData.GetVertexData<Vertex>();
-		        // var indexData = meshData.GetIndexData<int>();
-		        //
-		        // Vertices.CopyToUnsafe(vertexData, vertexCount, offset.Offset * 4, 0);
-		        // Indices.CopyToUnsafe(indexData, indexCount, offset.Offset * 6, 0);
-		        //
-		        // meshData.subMeshCount = 1;
-		        // meshData.SetSubMesh(0, new SubMeshDescriptor(0, indexCount));
 	        }
         }
         
         [BurstCompile]
-        private unsafe struct CopyToMeshDataTestJob : IJobFor
+        private struct CopyVertexDataJob : IJobFor
         {
-	        [ReadOnly]
-	        public NativeArray<VertexAttributeDescriptor> Layout;
-	        //[ReadOnly]
-	        [NativeDisableContainerSafetyRestriction]
-	        public NativeArray<NativeArray<Vertex>> VerticesPtr;
-	        //[ReadOnly]
-	        [NativeDisableContainerSafetyRestriction]
-	        public NativeArray<NativeArray<int>> IndicesPtr;
 	        [ReadOnly]
 	        public NativeArray<Vertex> Vertices;
 	        [ReadOnly]
-	        public NativeArray<int> Indices;
-	        [ReadOnly]
-	        public NativeArray<OffsetCount> Offsets;
+	        public NativeList<OffsetCount> Offsets;
 
+	        [NativeDisableContainerSafetyRestriction]
 	        public Mesh.MeshDataArray MeshDataArray;
 	        
 	        public void Execute(int index)
@@ -300,10 +276,47 @@ namespace KrasCore.Mosaic
 		        var offset = Offsets[index];
 		        
 		        var vertexCount = offset.Count * 4;
+
+		        Vertices.CopyToUnsafe(meshData.GetVertexData<Vertex>(), vertexCount, offset.Offset * 4, 0);
+	        }
+        }
+        
+        [BurstCompile]
+        private struct CopyIndexDataJob : IJobFor
+        {
+	        [ReadOnly]
+	        public NativeArray<int> Indices;
+	        [ReadOnly]
+	        public NativeList<OffsetCount> Offsets;
+
+	        [NativeDisableContainerSafetyRestriction]
+	        public Mesh.MeshDataArray MeshDataArray;
+	        
+	        public void Execute(int index)
+	        {
+		        var meshData = MeshDataArray[index];
+		        var offset = Offsets[index];
+		        
 		        var indexCount = offset.Count * 6;
 
-		        Vertices.CopyToUnsafe(VerticesPtr[index], vertexCount, offset.Offset * 4, 0);
-		        Indices.CopyToUnsafe(IndicesPtr[index], indexCount, offset.Offset * 6, 0);
+		        Indices.CopyToUnsafe(meshData.GetIndexData<int>(), indexCount, offset.Offset * 6, 0);
+	        }
+        }
+        
+        [BurstCompile]
+        private struct SetSubMeshJob : IJobFor
+        {
+	        [ReadOnly]
+	        public NativeList<OffsetCount> Offsets;
+
+	        public Mesh.MeshDataArray MeshDataArray;
+	        
+	        public void Execute(int index)
+	        {
+		        var meshData = MeshDataArray[index];
+		        var offset = Offsets[index];
+		        
+		        var indexCount = offset.Count * 6;
 		        
 		        meshData.subMeshCount = 1;
 		        meshData.SetSubMesh(0, new SubMeshDescriptor(0, indexCount));
@@ -317,25 +330,28 @@ namespace KrasCore.Mosaic
 	        public NativeArray<int2> Positions;
 	        [ReadOnly]
 	        public NativeArray<SpriteMesh> SpriteMeshes;
-
-	        [NativeDisableParallelForRestriction]
-			[WriteOnly] public NativeArray<Vertex> Vertices;
-	        [NativeDisableParallelForRestriction]
-        	[WriteOnly] public NativeArray<int> Triangles;
-
 	        [ReadOnly]
 	        public NativeArray<int> LayerPointer;
+	        
+	        [NativeDisableParallelForRestriction]
+	        public NativeArray<Vertex> Vertices;
+	        
+	        [NativeDisableParallelForRestriction]
+	        public NativeArray<int> Indices;
+
 	        [ReadOnly]
-	        public NativeArray<TilemapRendererData> LayerData;
+	        public NativeList<TilemapRendererData> LayerData;
 	        [ReadOnly]
-	        public NativeArray<OffsetCount> OffsetCount;
+	        public NativeList<OffsetCount> OffsetCount;
 	        
         	public void Execute(int index)
 	        {
 		        var spriteMesh = SpriteMeshes[index];
 		        var pos = Positions[index];
-		        var data = LayerData[LayerPointer[index]];
-		        var offsetCount = OffsetCount[LayerPointer[index]];
+		        
+		        var layerPointer = LayerPointer[index];
+		        var data = LayerData[layerPointer];
+		        var offset = OffsetCount[layerPointer];
 		        
 		        var gridCellSize = data.GridCellSize;
 		        var swizzle = data.Swizzle;
@@ -364,44 +380,44 @@ namespace KrasCore.Mosaic
 		        var maxUv = new float2(
 			        spriteMesh.Flip.x ? spriteMesh.MinUv.x : spriteMesh.MaxUv.x,
 			        spriteMesh.Flip.y ? spriteMesh.MinUv.y : spriteMesh.MaxUv.y);
-
-        		Vertices[vc + 0] = new Vertex
+		        
+		        Vertices[vc + 0] = new Vertex
         		{
         			position = rotatedPos + Rotate(up - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
 			        normal = normal,
         			uv = new float2(minUv.x, maxUv.y)
         		};
 
-        		Vertices[vc + 1] = new Vertex
+		        Vertices[vc + 1] = new Vertex
         		{
         			position = rotatedPos + Rotate(up + right - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
 			        normal = normal,
         			uv = new float2(maxUv.x, maxUv.y)
         		};
 
-        		Vertices[vc + 2] = new Vertex
+		        Vertices[vc + 2] = new Vertex
         		{
         			position = rotatedPos + Rotate(right - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
 			        normal = normal,
         			uv = new float2(maxUv.x, minUv.y)
         		};
 
-        		Vertices[vc + 3] = new Vertex
+		        Vertices[vc + 3] = new Vertex
         		{
         			position = rotatedPos + Rotate(-pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
 			        normal = normal,
         			uv = new float2(minUv.x, minUv.y)
         		};
+		        
+		        vc -= offset.Offset * 4;
+			        
+        		Indices[tc + 0] = (vc + 0);
+        		Indices[tc + 1] = (vc + 1);
+        		Indices[tc + 2] = (vc + 2);
 
-		        vc -= offsetCount.Offset * 4;
-				
-        		Triangles[tc + 0] = (vc + 0);
-        		Triangles[tc + 1] = (vc + 1);
-        		Triangles[tc + 2] = (vc + 2);
-
-        		Triangles[tc + 3] = (vc + 0);
-        		Triangles[tc + 4] = (vc + 2);
-        		Triangles[tc + 5] = (vc + 3);
+        		Indices[tc + 3] = (vc + 0);
+        		Indices[tc + 4] = (vc + 2);
+        		Indices[tc + 5] = (vc + 3);
         	}
 	        
 	        private float3 Rotate(in float3 direction, in int rotation, in Orientation orientation)
