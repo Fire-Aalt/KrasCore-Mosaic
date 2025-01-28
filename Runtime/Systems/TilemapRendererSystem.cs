@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Entities;
@@ -9,19 +8,6 @@ using Object = UnityEngine.Object;
 
 namespace KrasCore.Mosaic
 {
-	public struct TilemapMeshDataSingleton : IComponentData, IDisposable
-	{
-		public NativeList<Hash128> IntGridHashesToUpdate;
-		public Mesh.MeshDataArray MeshDataArray;
-
-		public bool IsDirty => IntGridHashesToUpdate.Length > 0;
-        
-		public void Dispose()
-		{
-			IntGridHashesToUpdate.Dispose();
-		}
-	}
-	
 	[RequireMatchingQueriesForUpdate]
 	[UpdateInGroup(typeof(PresentationSystemGroup))]
 	public partial class TilemapRendererSystem : SystemBase
