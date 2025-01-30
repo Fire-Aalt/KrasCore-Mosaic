@@ -60,7 +60,7 @@ namespace KrasCore.Mosaic
                 
                 AddComponent(entity, new TilemapData
                 {
-                    IntGridHash = authoring._intGrid.intGridHash,
+                    IntGridHash = authoring._intGrid.Hash,
                     Orientation = authoring._orientation,
                     ShadowCastingMode = authoring._shadowCastingMode,
                     ReceiveShadows = authoring._receiveShadows

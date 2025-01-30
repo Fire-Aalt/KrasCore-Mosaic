@@ -21,9 +21,8 @@ namespace KrasCore.Mosaic
         [SerializeField, HideInInspector]
         private int _counter = 1;
 
-        [HideInInspector]
-        public Hash128 intGridHash;
-        
+        [field: SerializeField, HideInInspector] public Hash128 Hash { get; private set; }
+
 #if UNITY_EDITOR
         [Button]
         private void CreateRuleGroup()
@@ -40,7 +39,7 @@ namespace KrasCore.Mosaic
         
         private void OnValidate()
         {
-            intGridHash = AssetDatabaseUtils.ToGuidHash(this);
+            Hash = AssetDatabaseUtils.ToGuidHash(this);
             foreach (var intGridValue in intGridValues)
             {
                 if (intGridValue.value == -1)
@@ -49,6 +48,12 @@ namespace KrasCore.Mosaic
                     _counter++;
                 }
             }
+
+            foreach (var ruleGroup in ruleGroups)
+            {
+                ruleGroup.intGrid = this;
+            }
+            
             ValidateDict();
         }
         

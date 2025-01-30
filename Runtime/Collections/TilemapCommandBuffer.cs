@@ -46,7 +46,7 @@ namespace KrasCore.Mosaic
         
         public void SetIntGridValue(IntGrid intGrid, int2 position, int intGridValue)
         {
-            SetIntGridValue(intGrid.intGridHash, position, intGridValue);
+            SetIntGridValue(intGrid.Hash, position, intGridValue);
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -66,7 +66,7 @@ namespace KrasCore.Mosaic
         
         public void Clear(IntGrid intGrid)
         {
-            Clear(intGrid.intGridHash);
+            Clear(intGrid.Hash);
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

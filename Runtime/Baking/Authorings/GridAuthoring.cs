@@ -30,7 +30,7 @@ namespace KrasCore.Mosaic
                 var tilemaps = authoring.GetComponentsInChildren<TilemapAuthoring>();
                 foreach (var tilemap in tilemaps)
                 {
-                    buffer.Add(new GridBakingData { IntGridHash = tilemap.IntGrid.intGridHash });
+                    buffer.Add(new GridBakingData { IntGridHash = tilemap.IntGrid.Hash });
                 }
             }
         }
