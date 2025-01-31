@@ -16,8 +16,10 @@ namespace KrasCore.Mosaic
         
         public NativeList<TilemapDataSingleton.IntGridLayer> DirtyIntGridLayers;
         public NativeList<TilemapRendererData> DirtyTilemapsRendererData;
-        public NativeList<OffsetCount> DirtyOffsetCounts;
-		
+        public NativeList<OffsetData> DirtyOffsetCounts;
+
+        public AABB2D CullingBounds;
+        
         public TilemapRendererSingleton(int capacity, Allocator allocator)
         {
             Positions = new NativeList<int2>(capacity, allocator);
@@ -28,7 +30,9 @@ namespace KrasCore.Mosaic
 
             DirtyIntGridLayers = new NativeList<TilemapDataSingleton.IntGridLayer>(8, allocator);
             DirtyTilemapsRendererData = new NativeList<TilemapRendererData>(8, allocator);
-            DirtyOffsetCounts = new NativeList<OffsetCount>(8, allocator);
+            DirtyOffsetCounts = new NativeList<OffsetData>(8, allocator);
+
+            CullingBounds = new AABB2D { Extents = new float2(float.MaxValue, float.MaxValue) / 2f };
         }
 
         public void Dispose()

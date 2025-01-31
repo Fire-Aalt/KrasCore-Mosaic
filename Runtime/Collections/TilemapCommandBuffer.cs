@@ -34,6 +34,7 @@ namespace KrasCore.Mosaic
         
         public NativeHashMap<Hash128, IntGridLayer> Layers;
         public NativeReference<uint> GlobalSeed;
+        public NativeReference<AABB2D> CullingBounds;
 
         private readonly Allocator _allocator;
         
@@ -42,6 +43,9 @@ namespace KrasCore.Mosaic
             _allocator = allocator;
             Layers = new NativeHashMap<Hash128, IntGridLayer>(capacity, allocator);
             GlobalSeed = new NativeReference<uint>(allocator);
+            CullingBounds = new NativeReference<AABB2D>(allocator);
+            
+            CullingBounds.Value = new AABB2D { Extents = new float2(float.MaxValue, float.MaxValue) / 2f };
         }
         
         public void SetIntGridValue(IntGrid intGrid, int2 position, int intGridValue)
@@ -70,10 +74,15 @@ namespace KrasCore.Mosaic
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Clear(Hash128 intGridHash)
+        public void Clear(in Hash128 intGridHash)
         {
             var layer = GetOrAddLayer(intGridHash);
             layer.ClearCommand.Value = true;
+        }
+        
+        public void SetCullingBounds(in AABB2D bounds)
+        {
+            CullingBounds.Value = bounds;
         }
 
         public void SetGlobalSeed(uint seed)
@@ -99,6 +108,7 @@ namespace KrasCore.Mosaic
             }
             Layers.Dispose();
             GlobalSeed.Dispose();
+            CullingBounds.Dispose();
         }
     }
 }

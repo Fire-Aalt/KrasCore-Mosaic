@@ -48,11 +48,11 @@ namespace KrasCore.Mosaic
         public void OnUpdate(ref SystemState state)
         {
             var tcb = SystemAPI.GetSingleton<TilemapCommandBufferSingleton>().Tcb;
-            ref var singleton = ref SystemAPI.GetSingletonRW<TilemapDataSingleton>().ValueRW;
-            var intGridLayers = singleton.IntGridLayers;
+            ref var dataSingleton = ref SystemAPI.GetSingletonRW<TilemapDataSingleton>().ValueRW;
+            var intGridLayers = dataSingleton.IntGridLayers;
             
             // Clear last frame data
-            singleton.EntityCommands.Clear();
+            dataSingleton.EntityCommands.Clear();
             
             foreach (var (tilemapDataRO, rulesBuffer, refreshPositionsBuffer, entityBuffer) in SystemAPI.Query<RefRO<TilemapData>, DynamicBuffer<RuleBlobReferenceElement>, DynamicBuffer<RefreshPositionElement>, DynamicBuffer<WeightedEntityElement>>())
             {
@@ -117,7 +117,7 @@ namespace KrasCore.Mosaic
                     PositionsToRefresh = layer.PositionsToRefreshList.AsDeferredJobArray(),
                     EntityBuffer = entityBuffer,
                     RulesBuffer = rulesBuffer,
-                    EntityCommands = singleton.EntityCommands.AsThreadWriter(),
+                    EntityCommands = dataSingleton.EntityCommands.AsThreadWriter(),
                     RuleCommands = layer.RuleCommands.AsThreadWriter(),
                     SpriteCommands = layer.SpriteCommands.AsThreadWriter(),
                     PositionsToRemove = layer.PositionToRemove.AsThreadWriter(),
@@ -143,7 +143,7 @@ namespace KrasCore.Mosaic
             if (_jobHandles.Length == 0) return;
             var combinedDependency = JobHandle.CombineDependencies(_jobHandles.AsArray());
             
-            state.Dependency = singleton.EntityCommands.CopyParallelToList(combinedDependency);
+            state.Dependency = dataSingleton.EntityCommands.CopyParallelToList(combinedDependency);
             _jobHandles.Clear();
         }
 
