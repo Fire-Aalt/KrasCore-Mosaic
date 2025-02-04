@@ -57,14 +57,16 @@ namespace KrasCore.Mosaic
 			foreach (var (tilemapDataRO, localToWorldRO, runtimeMaterialRO) in SystemAPI.Query<RefRO<TilemapData>, RefRO<LocalToWorld>, RefRO<RuntimeMaterial>>())
 			{
 				var tilemapData = tilemapDataRO.ValueRO;
-				var mesh = _meshes[tilemapData.IntGridHash];
 				
-				Graphics.RenderMesh(new RenderParams(runtimeMaterialRO.ValueRO.Value)
+				if (_meshes.TryGetValue(tilemapData.IntGridHash, out var mesh))
 				{
-					worldBounds = new Bounds(Vector3.zero, Vector3.one * 999999),
-					receiveShadows = tilemapData.ReceiveShadows,
-					shadowCastingMode = tilemapData.ShadowCastingMode,
-				}, mesh, 0, localToWorldRO.ValueRO.Value);
+					Graphics.RenderMesh(new RenderParams(runtimeMaterialRO.ValueRO.Value)
+					{
+						worldBounds = new Bounds(Vector3.zero, Vector3.one * 999999),
+						receiveShadows = tilemapData.ReceiveShadows,
+						shadowCastingMode = tilemapData.ShadowCastingMode,
+					}, mesh, 0, localToWorldRO.ValueRO.Value);
+				}
 			}
 		}
 	}
