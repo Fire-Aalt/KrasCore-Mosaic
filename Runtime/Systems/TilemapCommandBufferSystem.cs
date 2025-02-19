@@ -125,9 +125,9 @@ namespace KrasCore.Mosaic
                     Seed = tcb.GlobalSeed.Value
                 }.Schedule(layer.PositionsToRefreshList, 16, jobDependency);
                 
-                var handle1 = layer.SpriteCommands.CopyParallelToList(jobDependency);
-                var handle2 = layer.PositionToRemove.CopyParallelToList(jobDependency);
-                var handle3 = layer.RuleCommands.CopyParallelToList(jobDependency);
+                var handle1 = layer.SpriteCommands.CopyParallelToListSingle(jobDependency);
+                var handle2 = layer.PositionToRemove.CopyParallelToListSingle(jobDependency);
+                var handle3 = layer.RuleCommands.CopyParallelToListSingle(jobDependency);
 
                 var finalHandle = JobHandle.CombineDependencies(handle1, handle2, handle3);
 
@@ -143,7 +143,7 @@ namespace KrasCore.Mosaic
             if (_jobHandles.Length == 0) return;
             var combinedDependency = JobHandle.CombineDependencies(_jobHandles.AsArray());
             
-            state.Dependency = dataSingleton.EntityCommands.CopyParallelToList(combinedDependency);
+            state.Dependency = dataSingleton.EntityCommands.CopyParallelToListSingle(combinedDependency);
             _jobHandles.Clear();
         }
 
