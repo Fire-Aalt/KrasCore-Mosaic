@@ -30,7 +30,7 @@ namespace KrasCore.Mosaic
         
             // Store data locally to simplify lookups
             public TilemapData TilemapData;
-        
+            
             public IntGridLayer(TilemapData tilemapData, int capacity, Allocator allocator)
             {
                 IntGrid = new NativeParallelHashMap<int2, int>(capacity, allocator);

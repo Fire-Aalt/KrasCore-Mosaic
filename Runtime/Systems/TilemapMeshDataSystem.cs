@@ -48,11 +48,13 @@ namespace KrasCore.Mosaic
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-	        state.EntityManager.CompleteDependencyBeforeRO<TilemapDataSingleton>();
+	        state.EntityManager.CompleteDependencyBeforeRW<TilemapDataSingleton>();
+	        state.EntityManager.CompleteDependencyBeforeRW<TilemapMeshDataSingleton>();
+	        state.EntityManager.CompleteDependencyBeforeRW<TilemapRendererSingleton>();
 	        
-            var dataSingleton = SystemAPI.GetSingleton<TilemapDataSingleton>();
+            ref var dataSingleton = ref SystemAPI.GetSingletonRW<TilemapDataSingleton>().ValueRW;
             ref var meshDataSingleton = ref SystemAPI.GetSingletonRW<TilemapMeshDataSingleton>().ValueRW;
-	        var rendererSingleton = SystemAPI.GetSingleton<TilemapRendererSingleton>();
+	        ref var rendererSingleton = ref SystemAPI.GetSingletonRW<TilemapRendererSingleton>().ValueRW;
 	        
 	        // Set Culling Bounds
 	        var tcb = SystemAPI.GetSingleton<TilemapCommandBufferSingleton>().Tcb;

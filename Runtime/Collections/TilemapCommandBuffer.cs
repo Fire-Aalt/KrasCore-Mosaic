@@ -10,22 +10,22 @@ namespace KrasCore.Mosaic
     {
         public struct IntGridLayer : IDisposable
         {
-            public NativeQueue<SetCommand> SetQueue;
+            public NativeList<SetCommand> SetCommands;
             public NativeReference<bool> ClearCommand;
 
             public IntGridLayer(int capacity, Allocator allocator)
             {
-                SetQueue = new NativeQueue<SetCommand>(allocator);
+                SetCommands = new NativeList<SetCommand>(capacity, allocator);
                 ClearCommand = new NativeReference<bool>(allocator);
             }
 
             public void Dispose()
             {
-                SetQueue.Dispose();
+                SetCommands.Dispose();
                 ClearCommand.Dispose();
             }
         }
-        
+
         public struct SetCommand
         {
             public int2 Position;
@@ -41,6 +41,7 @@ namespace KrasCore.Mosaic
         public TilemapCommandBuffer(int capacity, Allocator allocator)
         {
             _allocator = allocator;
+
             Layers = new NativeHashMap<Hash128, IntGridLayer>(capacity, allocator);
             GlobalSeed = new NativeReference<uint>(allocator);
             CullingBounds = new NativeReference<AABB2D>(allocator);
@@ -57,7 +58,7 @@ namespace KrasCore.Mosaic
         public void SetIntGridValue(in Hash128 intGridHash, in int2 position, int intGridValue)
         {
             var layer = GetOrAddLayer(intGridHash);
-            layer.SetQueue.Enqueue(new SetCommand { Position = position, IntGridValue = intGridValue });
+            layer.SetCommands.Add(new SetCommand { Position = position, IntGridValue = intGridValue });
         }
 
         public void ClearAll()
@@ -90,7 +91,18 @@ namespace KrasCore.Mosaic
             GlobalSeed.Value = seed;
         }
         
-        private IntGridLayer GetOrAddLayer(Hash128 intGridHash)
+        public bool TryRegisterIntGridLayer(in Hash128 intGridHash)
+        {
+            if (!Layers.TryGetValue(intGridHash, out var layer))
+            {
+                layer = new IntGridLayer(256, _allocator);
+                Layers[intGridHash] = layer;
+                return true;
+            }
+            return false;
+        }
+        
+        private IntGridLayer GetOrAddLayer(in Hash128 intGridHash)
         {
             if (!Layers.TryGetValue(intGridHash, out var layer))
             {

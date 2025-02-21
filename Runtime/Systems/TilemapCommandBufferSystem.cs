@@ -5,7 +5,6 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
-using UnityEngine;
 using Hash128 = Unity.Entities.Hash128;
 using Random = Unity.Mathematics.Random;
 
@@ -47,13 +46,15 @@ namespace KrasCore.Mosaic
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            var tcb = SystemAPI.GetSingleton<TilemapCommandBufferSingleton>().Tcb;
+            state.EntityManager.CompleteDependencyBeforeRW<TilemapCommandBufferSingleton>();
+            
+            ref var tcb = ref SystemAPI.GetSingletonRW<TilemapCommandBufferSingleton>().ValueRW.Tcb;
             ref var dataSingleton = ref SystemAPI.GetSingletonRW<TilemapDataSingleton>().ValueRW;
             var intGridLayers = dataSingleton.IntGridLayers;
             
             // Clear last frame data
             dataSingleton.EntityCommands.Clear();
-            
+
             foreach (var (tilemapDataRO, rulesBuffer, refreshPositionsBuffer, entityBuffer) in SystemAPI.Query<RefRO<TilemapData>, DynamicBuffer<RuleBlobReferenceElement>, DynamicBuffer<RefreshPositionElement>, DynamicBuffer<WeightedEntityElement>>())
             {
                 var intGridHash = tilemapDataRO.ValueRO.IntGridHash;
@@ -90,14 +91,14 @@ namespace KrasCore.Mosaic
                     layer.RuleGrid.Clear();
                     continue;
                 }
-                if (bufferLayer.SetQueue.IsEmpty()) continue;
+                if (bufferLayer.SetCommands.Length == 0) continue;
                 
                 // ProcessCommandsJob
                 var jobDependency = new ProcessCommandsJob
                 {
                     IntGrid = layer.IntGrid,
                     ChangedPositions = layer.ChangedPositions,
-                    SetCommandsQueue = bufferLayer.SetQueue
+                    SetCommands = bufferLayer.SetCommands
                 }.Schedule(state.Dependency);
                 
                 // Find and filter refresh positions
@@ -170,24 +171,25 @@ namespace KrasCore.Mosaic
                 }
             }
         }
-        
+
         [BurstCompile]
         private struct ProcessCommandsJob : IJob
         {
-            public NativeQueue<TilemapCommandBuffer.SetCommand> SetCommandsQueue;
+            public NativeList<TilemapCommandBuffer.SetCommand> SetCommands;
             public NativeParallelHashMap<int2, int> IntGrid;
             public NativeHashSet<int2> ChangedPositions;
             
             public void Execute()
             {
-                while (SetCommandsQueue.TryDequeue(out var command))
+                foreach (var command in SetCommands)
                 {
                     IntGrid[command.Position] = command.IntGridValue;
                     ChangedPositions.Add(command.Position);
                 }
+                SetCommands.Clear();
             }
         }
-
+        
         [BurstCompile]
         private struct FindRefreshPositionsJob : IJob
         {
