@@ -5,6 +5,7 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
+using UnityEngine;
 using Hash128 = Unity.Entities.Hash128;
 using Random = Unity.Mathematics.Random;
 
@@ -44,9 +45,10 @@ namespace KrasCore.Mosaic
         }
         
         [BurstCompile]
-        public void OnUpdate(ref SystemState state)
+        public unsafe void OnUpdate(ref SystemState state)
         {
             state.EntityManager.CompleteDependencyBeforeRW<TilemapCommandBufferSingleton>();
+            state.EntityManager.CompleteDependencyBeforeRW<TilemapDataSingleton>();
             
             ref var tcb = ref SystemAPI.GetSingletonRW<TilemapCommandBufferSingleton>().ValueRW.Tcb;
             ref var dataSingleton = ref SystemAPI.GetSingletonRW<TilemapDataSingleton>().ValueRW;
@@ -74,7 +76,7 @@ namespace KrasCore.Mosaic
                 layer.SpriteCommands.Clear();
                 layer.PositionToRemove.Clear();
                 
-                var bufferLayer = tcb.Layers[intGridHash];
+                ref var bufferLayer = ref tcb.Layers.GetValueAsRef(intGridHash);
                 if (bufferLayer.ClearCommand.Value)
                 {
                     bufferLayer.ClearCommand.Value = false;
@@ -98,7 +100,7 @@ namespace KrasCore.Mosaic
                 {
                     IntGrid = layer.IntGrid,
                     ChangedPositions = layer.ChangedPositions,
-                    SetCommands = bufferLayer.SetCommands
+                    SetCommands = UnsafeUtilityExtra.AddressOf(ref bufferLayer.SetCommands)
                 }.Schedule(state.Dependency);
                 
                 // Find and filter refresh positions
@@ -173,20 +175,23 @@ namespace KrasCore.Mosaic
         }
 
         [BurstCompile]
-        private struct ProcessCommandsJob : IJob
+        private unsafe struct ProcessCommandsJob : IJob
         {
-            public NativeList<TilemapCommandBuffer.SetCommand> SetCommands;
+            [NativeDisableUnsafePtrRestriction]
+            public UnsafeList<TilemapCommandBuffer.SetCommand>* SetCommands;
             public NativeParallelHashMap<int2, int> IntGrid;
             public NativeHashSet<int2> ChangedPositions;
             
             public void Execute()
             {
-                foreach (var command in SetCommands)
+                var enumerator = SetCommands->GetEnumerator();
+                while (enumerator.MoveNext())
                 {
+                    var command = enumerator.Current;
                     IntGrid[command.Position] = command.IntGridValue;
                     ChangedPositions.Add(command.Position);
                 }
-                SetCommands.Clear();
+                SetCommands->Clear();
             }
         }
         

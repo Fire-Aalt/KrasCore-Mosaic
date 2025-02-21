@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Mathematics;
 
@@ -10,12 +11,12 @@ namespace KrasCore.Mosaic
     {
         public struct IntGridLayer : IDisposable
         {
-            public NativeList<SetCommand> SetCommands;
+            public UnsafeList<SetCommand> SetCommands;
             public NativeReference<bool> ClearCommand;
 
             public IntGridLayer(int capacity, Allocator allocator)
             {
-                SetCommands = new NativeList<SetCommand>(capacity, allocator);
+                SetCommands = new UnsafeList<SetCommand>(capacity, allocator);
                 ClearCommand = new NativeReference<bool>(allocator);
             }
 
@@ -32,6 +33,7 @@ namespace KrasCore.Mosaic
             public int IntGridValue;
         }
         
+        [NativeDisableContainerSafetyRestriction]
         public NativeHashMap<Hash128, IntGridLayer> Layers;
         public NativeReference<uint> GlobalSeed;
         public NativeReference<AABB2D> CullingBounds;
@@ -57,7 +59,7 @@ namespace KrasCore.Mosaic
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetIntGridValue(in Hash128 intGridHash, in int2 position, int intGridValue)
         {
-            var layer = GetOrAddLayer(intGridHash);
+            ref var layer = ref GetOrAddLayer(intGridHash);
             layer.SetCommands.Add(new SetCommand { Position = position, IntGridValue = intGridValue });
         }
 
@@ -77,7 +79,7 @@ namespace KrasCore.Mosaic
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Clear(in Hash128 intGridHash)
         {
-            var layer = GetOrAddLayer(intGridHash);
+            ref var layer = ref GetOrAddLayer(intGridHash);
             layer.ClearCommand.Value = true;
         }
         
@@ -102,14 +104,14 @@ namespace KrasCore.Mosaic
             return false;
         }
         
-        private IntGridLayer GetOrAddLayer(in Hash128 intGridHash)
+        private ref IntGridLayer GetOrAddLayer(in Hash128 intGridHash)
         {
             if (!Layers.TryGetValue(intGridHash, out var layer))
             {
                 layer = new IntGridLayer(256, _allocator);
                 Layers[intGridHash] = layer;
             }
-            return layer;
+            return ref Layers.GetValueAsRef(intGridHash);
         }
 
         public void Dispose()
