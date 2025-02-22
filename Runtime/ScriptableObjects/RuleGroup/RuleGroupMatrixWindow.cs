@@ -86,6 +86,7 @@ namespace KrasCore.Mosaic
                 result.Validate();
             }
           
+            EditorUtility.SetDirty(_target.RuleGroup);
         }
 
         private void Init(RuleGroup.Rule target)
