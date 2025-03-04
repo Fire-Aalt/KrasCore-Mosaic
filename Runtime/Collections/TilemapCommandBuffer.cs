@@ -35,8 +35,9 @@ namespace KrasCore.Mosaic
         
         [NativeDisableContainerSafetyRestriction]
         public NativeHashMap<Hash128, IntGridLayer> Layers;
-        public NativeReference<uint> GlobalSeed;
-        public NativeReference<AABB2D> CullingBounds;
+        internal NativeReference<uint> GlobalSeed;
+        internal NativeReference<AABB2D> CullingBounds;
+        internal NativeReference<AABB2D> PrevCullingBounds;
 
         private readonly Allocator _allocator;
         
@@ -47,6 +48,7 @@ namespace KrasCore.Mosaic
             Layers = new NativeHashMap<Hash128, IntGridLayer>(capacity, allocator);
             GlobalSeed = new NativeReference<uint>(allocator);
             CullingBounds = new NativeReference<AABB2D>(allocator);
+            PrevCullingBounds = new NativeReference<AABB2D>(allocator);
             
             CullingBounds.Value = new AABB2D { Extents = new float2(float.MaxValue, float.MaxValue) / 2f };
         }
@@ -123,6 +125,7 @@ namespace KrasCore.Mosaic
             Layers.Dispose();
             GlobalSeed.Dispose();
             CullingBounds.Dispose();
+            PrevCullingBounds.Dispose();
         }
     }
 }

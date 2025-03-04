@@ -10,7 +10,7 @@ namespace KrasCore.Mosaic
     /// minimum and maximum coordinate. Therefore, there may be issues at extreme coordinates, such as FLT_MAX or infinity.
     ///</summary>
     [Serializable]
-    public struct AABB2D
+    public struct AABB2D : IEquatable<AABB2D>
     {
         /// <summary>
         /// The location of the center of the AABB
@@ -62,5 +62,15 @@ namespace KrasCore.Mosaic
         /// <param name="b">The AABB to check for whether it's contained by this AABB</param>
         /// <returns>True if the AABB is contained, and false if it is not.</returns>
         public bool Contains(AABB2D b) => math.all((Min <= b.Min) & (Max >= b.Max));
+
+        public bool Equals(AABB2D other)
+        {
+            return Center.Equals(other.Center) && Extents.Equals(other.Extents);
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(Center, Extents);
+        }
     }
 }

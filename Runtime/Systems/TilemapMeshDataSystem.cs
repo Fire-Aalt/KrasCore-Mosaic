@@ -69,7 +69,9 @@ namespace KrasCore.Mosaic
 		        var intGridHash = kvp.Key;
 		        var dataLayer = kvp.Value;
                 
-		        if (dataLayer.PositionToRemove.List.Length == 0 && dataLayer.SpriteCommands.List.Length == 0)
+		        if (dataLayer.PositionToRemove.List.Length == 0 
+		            && dataLayer.SpriteCommands.List.Length == 0
+		            && tcb.PrevCullingBounds.Value.Equals(tcb.CullingBounds.Value))
 		        {
 			        continue;
 		        }
@@ -80,6 +82,7 @@ namespace KrasCore.Mosaic
 	        }
 	        if (!meshDataSingleton.IsDirty) return;
 	        
+	        tcb.PrevCullingBounds.Value = tcb.CullingBounds.Value;
 	        meshDataSingleton.MeshDataArray = Mesh.AllocateWritableMeshData(meshDataSingleton.IntGridHashesToUpdate.Length);
 
             var layersCount = rendererSingleton.DirtyIntGridLayers.Length;
