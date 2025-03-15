@@ -7,10 +7,6 @@ using UnityEngine.Rendering;
 using Hash128 = Unity.Entities.Hash128;
 using Random = Unity.Mathematics.Random;
 
-#if HYBRID_ECS
-using KrasCore.HybridECS;
-#endif
-
 namespace KrasCore.Mosaic
 {
     public class TilemapAuthoring : MonoBehaviour
@@ -77,12 +73,7 @@ namespace KrasCore.Mosaic
                 for (var i = 0; i < rule.TileEntities.Count; i++)
                 {
                     var go = rule.TileEntities[i].result;
-#if HYBRID_ECS
-                    if (go.TryGetComponent(out HybridPrefab hybridPrefab))
-                    {
-                        go = hybridPrefab.BakingPrefabReference.editorAsset as GameObject;
-                    }
-#endif
+
                     weightedEntityBuffer.Add(new WeightedEntityElement
                     {
                         Value = GetEntity(go, TransformUsageFlags.None)
