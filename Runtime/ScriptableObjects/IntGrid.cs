@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
-using KrasCore.Editor;
 using Sirenix.OdinInspector;
-using UnityEditor;
 using UnityEngine;
 using Hash128 = Unity.Entities.Hash128;
+
+#if UNITY_EDITOR
+using KrasCore.Editor;
+#endif
 
 namespace KrasCore.Mosaic
 {
