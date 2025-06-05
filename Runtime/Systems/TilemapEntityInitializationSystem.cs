@@ -5,7 +5,7 @@ using Unity.Transforms;
 
 namespace KrasCore.Mosaic
 {
-    [UpdateInGroup(typeof(InitializationSystemGroup))]
+    [UpdateInGroup(typeof(TilemapInitializationSystemGroup))]
     [UpdateAfter(typeof(TilemapEntityCleanupSystem))]
     public partial struct TilemapEntityInitializationSystem : ISystem
     {
@@ -21,6 +21,7 @@ namespace KrasCore.Mosaic
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
+            state.EntityManager.CompleteDependencyBeforeRO<TilemapDataSingleton>();
             var singleton = SystemAPI.GetSingleton<TilemapDataSingleton>();
             _commandsList = singleton.EntityCommands.List;
             _intGridLayers = singleton.IntGridLayers;

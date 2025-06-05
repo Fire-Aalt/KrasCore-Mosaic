@@ -5,9 +5,8 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
-using UnityEngine;
-using Hash128 = Unity.Entities.Hash128;
-using Random = Unity.Mathematics.Random;
+
+// ReSharper disable Unity.Entities.MustBeSurroundedWithRefRwRo
 
 namespace KrasCore.Mosaic
 {
@@ -23,10 +22,7 @@ namespace KrasCore.Mosaic
             state.RequireForUpdate<TilemapCommandBufferSingleton>();
             state.RequireForUpdate<TilemapDataSingleton>();
             
-            state.EntityManager.CreateSingleton(new TilemapCommandBufferSingleton
-            {
-                Tcb = new TilemapCommandBuffer(256, Allocator.Persistent)
-            });
+            state.EntityManager.CreateSingleton(new TilemapCommandBufferSingleton(8, Allocator.Persistent));
             state.EntityManager.CreateSingleton(new TilemapDataSingleton
             {
                 IntGridLayers = new NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer>(8, Allocator.Persistent),
@@ -45,100 +41,82 @@ namespace KrasCore.Mosaic
         }
         
         [BurstCompile]
-        public unsafe void OnUpdate(ref SystemState state)
+        public void OnUpdate(ref SystemState state)
         {
             state.EntityManager.CompleteDependencyBeforeRW<TilemapCommandBufferSingleton>();
             state.EntityManager.CompleteDependencyBeforeRW<TilemapDataSingleton>();
             
-            ref var tcb = ref SystemAPI.GetSingletonRW<TilemapCommandBufferSingleton>().ValueRW.Tcb;
+            ref var tcb = ref SystemAPI.GetSingletonRW<TilemapCommandBufferSingleton>().ValueRW;
             ref var dataSingleton = ref SystemAPI.GetSingletonRW<TilemapDataSingleton>().ValueRW;
-            var intGridLayers = dataSingleton.IntGridLayers;
             
             // Clear last frame data
             dataSingleton.EntityCommands.Clear();
 
-            foreach (var (tilemapDataRO, rulesBuffer, refreshPositionsBuffer, entityBuffer) in SystemAPI.Query<RefRO<TilemapData>, DynamicBuffer<RuleBlobReferenceElement>, DynamicBuffer<RefreshPositionElement>, DynamicBuffer<WeightedEntityElement>>())
+            foreach (var (tilemapDataRO, rulesBuffer, refreshPositionsBuffer, entityBuffer) in SystemAPI.Query<RefRO<TilemapData>,
+                         DynamicBuffer<RuleBlobReferenceElement>, DynamicBuffer<RefreshPositionElement>, DynamicBuffer<WeightedEntityElement>>())
             {
                 var intGridHash = tilemapDataRO.ValueRO.IntGridHash;
-
-                if (!intGridLayers.ContainsKey(intGridHash))
-                {
-                    intGridLayers.Add(intGridHash, new TilemapDataSingleton.IntGridLayer(tilemapDataRO.ValueRO, 64, Allocator.Persistent));
-                }
-                var layer = intGridLayers[intGridHash];
-                layer.TilemapData = tilemapDataRO.ValueRO;
-                intGridLayers[intGridHash] = layer;
-                
-                if (!tcb.Layers.ContainsKey(intGridHash)) continue;
+                var dataLayer = dataSingleton.IntGridLayers[intGridHash];
                 
                 // Clear last frame data
-                layer.RuleCommands.Clear();
-                layer.SpriteCommands.Clear();
-                layer.PositionToRemove.Clear();
+                dataLayer.RuleCommands.Clear();
+                dataLayer.SpriteCommands.Clear();
+                dataLayer.PositionToRemove.Clear();
                 
-                ref var bufferLayer = ref tcb.Layers.GetValueAsRef(intGridHash);
-                if (bufferLayer.ClearCommand.Value)
+                var commandsLayer = tcb.Layers[intGridHash];
+                
+                if (TryClearAll(ref commandsLayer, ref dataLayer, refreshPositionsBuffer)
+                    || commandsLayer.SetCommandsMapper.ParallelList.Length == 0)
                 {
-                    bufferLayer.ClearCommand.Value = false;
-
-                    foreach (var kvp in layer.IntGrid)
-                    {
-                        foreach (var refreshOffset in refreshPositionsBuffer)
-                        {
-                            var pos = kvp.Key + refreshOffset.Value;
-                            layer.PositionToRemove.List.Add(new RemoveCommand { Position = pos });
-                        }
-                    }
-                    layer.IntGrid.Clear();
-                    layer.RuleGrid.Clear();
                     continue;
                 }
-                if (bufferLayer.SetCommands.Length == 0) continue;
+                
+                var jobDependency = commandsLayer.SetCommandsMapper.CopyParallelToListSingle(state.Dependency);
                 
                 // ProcessCommandsJob
-                var jobDependency = new ProcessCommandsJob
+                jobDependency = new ProcessCommandsJob
                 {
-                    IntGrid = layer.IntGrid,
-                    ChangedPositions = layer.ChangedPositions,
-                    SetCommands = UnsafeUtilityExtra.AddressOf(ref bufferLayer.SetCommands)
-                }.Schedule(state.Dependency);
+                    IntGrid = dataLayer.IntGrid,
+                    ChangedPositions = dataLayer.ChangedPositions,
+                    CommandsMapper = commandsLayer.SetCommandsMapper,
+                }.Schedule(jobDependency);
                 
                 // Find and filter refresh positions
                 jobDependency = new FindRefreshPositionsJob
                 {
                     RefreshOffsets = refreshPositionsBuffer.AsNativeArray().Reinterpret<int2>(),
-                    ChangedPositions = layer.ChangedPositions,
-                    PositionsToRefresh = layer.PositionsToRefresh,
-                    PositionsToRefreshList = layer.PositionsToRefreshList
+                    ChangedPositions = dataLayer.ChangedPositions,
+                    PositionsToRefresh = dataLayer.PositionsToRefresh,
+                    PositionsToRefreshList = dataLayer.PositionsToRefreshList
                 }.Schedule(jobDependency);
                 
                 // Apply rules
                 jobDependency = new ProcessRulesJob
                 {
-                    IntGrid = layer.IntGrid,
-                    RuleGrid = layer.RuleGrid,
-                    PositionsToRefresh = layer.PositionsToRefreshList.AsDeferredJobArray(),
+                    IntGrid = dataLayer.IntGrid,
+                    RuleGrid = dataLayer.RuleGrid,
+                    PositionsToRefresh = dataLayer.PositionsToRefreshList.AsDeferredJobArray(),
                     EntityBuffer = entityBuffer,
                     RulesBuffer = rulesBuffer,
                     EntityCommands = dataSingleton.EntityCommands.AsThreadWriter(),
-                    RuleCommands = layer.RuleCommands.AsThreadWriter(),
-                    SpriteCommands = layer.SpriteCommands.AsThreadWriter(),
-                    PositionsToRemove = layer.PositionToRemove.AsThreadWriter(),
+                    RuleCommands = dataLayer.RuleCommands.AsThreadWriter(),
+                    SpriteCommands = dataLayer.SpriteCommands.AsThreadWriter(),
+                    PositionsToRemove = dataLayer.PositionToRemove.AsThreadWriter(),
                     IntGridHash = intGridHash,
                     Seed = tcb.GlobalSeed.Value
-                }.Schedule(layer.PositionsToRefreshList, 16, jobDependency);
+                }.Schedule(dataLayer.PositionsToRefreshList, 16, jobDependency);
                 
-                var handle1 = layer.SpriteCommands.CopyParallelToListSingle(jobDependency);
-                var handle2 = layer.PositionToRemove.CopyParallelToListSingle(jobDependency);
-                var handle3 = layer.RuleCommands.CopyParallelToListSingle(jobDependency);
+                var handle1 = dataLayer.SpriteCommands.CopyParallelToListSingle(jobDependency);
+                var handle2 = dataLayer.PositionToRemove.CopyParallelToListSingle(jobDependency);
+                var handle3 = dataLayer.RuleCommands.CopyParallelToListSingle(jobDependency);
 
                 var finalHandle = JobHandle.CombineDependencies(handle1, handle2, handle3);
 
                 finalHandle = new UpdateRuleGridJob
                 {
-                    RuleGrid = layer.RuleGrid,
-                    RuleCommands = layer.RuleCommands.List.AsDeferredJobArray(),
-                    PositionsToRemove = layer.PositionToRemove.List.AsDeferredJobArray()
+                    RuleGrid = dataLayer.RuleGrid,
+                    RuleCommands = dataLayer.RuleCommands.List.AsDeferredJobArray(),
+                    PositionsToRemove = dataLayer.PositionToRemove.List.AsDeferredJobArray()
                 }.Schedule(finalHandle);
                 _jobHandles.Add(finalHandle);
             }
@@ -148,6 +126,25 @@ namespace KrasCore.Mosaic
             
             state.Dependency = dataSingleton.EntityCommands.CopyParallelToListSingle(combinedDependency);
             _jobHandles.Clear();
+        }
+
+        private bool TryClearAll(ref TilemapCommandBufferSingleton.IntGridLayer bufferLayer, ref TilemapDataSingleton.IntGridLayer layer,
+            in DynamicBuffer<RefreshPositionElement> refreshPositionsBuffer)
+        {
+            if (!bufferLayer.ClearCommand.Value) return false;
+            bufferLayer.ClearCommand.Value = false;
+
+            foreach (var kvp in layer.IntGrid)
+            {
+                foreach (var refreshOffset in refreshPositionsBuffer)
+                {
+                    var pos = kvp.Key + refreshOffset.Value;
+                    layer.PositionToRemove.List.Add(new RemoveCommand { Position = pos });
+                }
+            }
+            layer.IntGrid.Clear();
+            layer.RuleGrid.Clear();
+            return true;
         }
 
         [BurstCompile]
@@ -175,23 +172,20 @@ namespace KrasCore.Mosaic
         }
 
         [BurstCompile]
-        private unsafe struct ProcessCommandsJob : IJob
+        private struct ProcessCommandsJob : IJob
         {
-            [NativeDisableUnsafePtrRestriction]
-            public UnsafeList<TilemapCommandBuffer.SetCommand>* SetCommands;
+            public ParallelToListMapper<SetCommand> CommandsMapper;
             public NativeParallelHashMap<int2, int> IntGrid;
             public NativeHashSet<int2> ChangedPositions;
             
             public void Execute()
             {
-                var enumerator = SetCommands->GetEnumerator();
-                while (enumerator.MoveNext())
+                foreach (var command in CommandsMapper.List)
                 {
-                    var command = enumerator.Current;
                     IntGrid[command.Position] = command.IntGridValue;
                     ChangedPositions.Add(command.Position);
                 }
-                SetCommands->Clear();
+                CommandsMapper.Clear();
             }
         }
         

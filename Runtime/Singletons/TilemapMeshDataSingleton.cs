@@ -6,7 +6,7 @@ using Hash128 = Unity.Entities.Hash128;
 
 namespace KrasCore.Mosaic
 {
-    public struct TilemapMeshDataSingleton : IComponentData, IDisposable
+    internal struct TilemapMeshDataSingleton : IComponentData, IDisposable
     {
         public NativeList<Hash128> IntGridHashesToUpdate;
         public Mesh.MeshDataArray MeshDataArray;

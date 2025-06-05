@@ -3,15 +3,9 @@ using Unity.Entities;
 
 namespace KrasCore.Mosaic
 {
-    [UpdateInGroup(typeof(InitializationSystemGroup))]
+    [UpdateInGroup(typeof(TilemapInitializationSystemGroup))]
     public partial struct TilemapEntityCleanupSystem : ISystem
     {
-        [BurstCompile]
-        public void OnCreate(ref SystemState state)
-        {
-            state.RequireForUpdate<TilemapDataSingleton>();
-        }
-        
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {

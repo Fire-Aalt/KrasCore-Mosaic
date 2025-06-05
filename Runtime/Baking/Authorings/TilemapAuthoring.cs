@@ -58,9 +58,12 @@ namespace KrasCore.Mosaic
                 {
                     IntGridHash = authoring._intGrid.Hash,
                     Orientation = authoring._orientation,
+                    GridEntity = GetEntity(authoring.GetComponentInParent<GridAuthoring>(), TransformUsageFlags.None),
                     ShadowCastingMode = authoring._shadowCastingMode,
                     ReceiveShadows = authoring._receiveShadows
                 });
+                SetComponentEnabled<TilemapData>(entity, false);
+
                 AddComponent(entity, new RuntimeMaterialLookup(authoring._material, refTexture));
                 AddComponent<RuntimeMaterial>(entity);
 
@@ -155,12 +158,13 @@ namespace KrasCore.Mosaic
         }
     }
 
-    public struct TilemapData : IComponentData
+    public struct TilemapData : IComponentData, IEnableableComponent
     {
         public Hash128 IntGridHash;
         public Orientation Orientation;
         
         // Store data locally to simplify lookups
+        public Entity GridEntity;
         public GridData GridData;
         
         public ShadowCastingMode ShadowCastingMode;
@@ -168,7 +172,7 @@ namespace KrasCore.Mosaic
         
         public Swizzle Swizzle => GridData.CellSwizzle;
     }
-
+    
     public struct RuleCell
     {
         public int2 Offset;

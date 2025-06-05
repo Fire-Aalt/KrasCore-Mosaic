@@ -2,15 +2,15 @@ using System;
 using KrasCore.Mosaic;
 using KrasCore.NZCore;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Transforms;
 
-
 namespace KrasCore.Mosaic
 {
-    public struct TilemapDataSingleton : IComponentData, IDisposable
+    internal struct TilemapDataSingleton : IComponentData, IDisposable
     {
         public struct IntGridLayer : IDisposable
         {
@@ -31,7 +31,7 @@ namespace KrasCore.Mosaic
             // Store data locally to simplify lookups
             public TilemapData TilemapData;
             
-            public IntGridLayer(TilemapData tilemapData, int capacity, Allocator allocator)
+            public IntGridLayer(int capacity, Allocator allocator)
             {
                 IntGrid = new NativeParallelHashMap<int2, int>(capacity, allocator);
                 RuleGrid = new NativeParallelHashMap<int2, int>(capacity, allocator);
@@ -48,7 +48,12 @@ namespace KrasCore.Mosaic
                 SpriteCommands = new ParallelToListMapper<SpriteCommand>(capacity, allocator);
                 PositionToRemove = new ParallelToListMapper<RemoveCommand>(capacity, allocator);
             
-                TilemapData = tilemapData;
+                TilemapData = default;
+            }
+            
+            internal void SetTilemapData(in TilemapData data)
+            {
+                TilemapData = data;
             }
 
             public void Dispose()
@@ -70,10 +75,19 @@ namespace KrasCore.Mosaic
             }
         }
         
+        [NativeDisableContainerSafetyRestriction]
         public NativeHashMap<Hash128, IntGridLayer> IntGridLayers;
 
         // Store entity commands on a singleton to sort it later and instantiate using batch API
         public ParallelToListMapper<EntityCommand> EntityCommands;
+        
+        public bool TryRegisterIntGridLayer(in Hash128 intGridHash)
+        {
+            if (IntGridLayers.ContainsKey(intGridHash)) return false;
+            
+            IntGridLayers.Add(intGridHash, new IntGridLayer(64, Allocator.Persistent));
+            return true;
+        }
         
         public void Dispose()
         {

@@ -1,12 +1,11 @@
 using System;
 using Unity.Collections;
 using Unity.Entities;
-using Unity.Jobs;
 using Unity.Mathematics;
 
 namespace KrasCore.Mosaic
 {
-    public struct TilemapRendererSingleton : IComponentData, IDisposable
+    internal struct TilemapRendererSingleton : IComponentData, IDisposable
     {
         public NativeList<int2> Positions;
         public NativeList<SpriteMesh> SpriteMeshes;

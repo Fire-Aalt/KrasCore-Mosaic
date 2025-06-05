@@ -25,21 +25,8 @@ namespace KrasCore.Mosaic
                     CellSize = authoring._cellSize,
                     CellSwizzle = authoring._cellSwizzle
                 });
-
-                var buffer = AddBuffer<GridBakingData>(entity);
-                var tilemaps = authoring.GetComponentsInChildren<TilemapAuthoring>();
-                foreach (var tilemap in tilemaps)
-                {
-                    buffer.Add(new GridBakingData { IntGridHash = tilemap.IntGrid.Hash });
-                }
             }
         }
-    }
-    
-    [BakingType]
-    public struct GridBakingData : IBufferElementData
-    {
-        public Hash128 IntGridHash;
     }
     
     public struct GridData : IComponentData

@@ -57,7 +57,7 @@ namespace KrasCore.Mosaic
 	        ref var rendererSingleton = ref SystemAPI.GetSingletonRW<TilemapRendererSingleton>().ValueRW;
 	        
 	        // Set Culling Bounds
-	        var tcb = SystemAPI.GetSingleton<TilemapCommandBufferSingleton>().Tcb;
+	        var tcb = SystemAPI.GetSingleton<TilemapCommandBufferSingleton>();
 	        rendererSingleton.CullingBounds = tcb.CullingBounds.Value;
             
 	        rendererSingleton.DirtyIntGridLayers.Clear();
