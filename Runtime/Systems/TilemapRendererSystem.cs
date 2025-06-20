@@ -1,6 +1,9 @@
 using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Entities.Graphics;
+using Unity.Mathematics;
+using Unity.Rendering;
 using Unity.Transforms;
 using UnityEngine;
 using Hash128 = Unity.Entities.Hash128;
@@ -19,7 +22,8 @@ namespace KrasCore.Mosaic
 		{
 			EntityManager.CreateSingleton(new TilemapMeshDataSingleton
 			{
-				IntGridHashesToUpdate = new NativeList<Hash128>(8, Allocator.Persistent)
+				IntGridHashesToUpdate = new NativeList<Hash128>(8, Allocator.Persistent),
+				UpdatedMeshBoundsMap = new NativeParallelHashMap<Hash128, AABB>(8, Allocator.Persistent)
 			});
 		}
 
@@ -42,11 +46,36 @@ namespace KrasCore.Mosaic
 				if (!_meshes.TryGetValue(intGridHash, out var mesh))
 				{
 					mesh = new Mesh { name = "Mosaic.TilemapMesh" };
+					mesh.MarkDynamic();
 					_meshes.Add(intGridHash, mesh);
 				}
 				_meshesToUpdate.Add(mesh);
 			}
+			
+			var uninitializedQuery = SystemAPI.QueryBuilder().WithAll<TilemapData, RuntimeMaterial>().WithNone<MaterialMeshInfo>().Build();
+			if (!uninitializedQuery.IsEmpty)
+			{
+				var entitiesGraphicsSystem = World.GetExistingSystemManaged<EntitiesGraphicsSystem>();
+				
+				var entities = uninitializedQuery.ToEntityArray(Allocator.Temp);
+				var tilemapsData = uninitializedQuery.ToComponentDataArray<TilemapData>(Allocator.Temp);
+				var runtimeMaterials = uninitializedQuery.ToComponentDataArray<RuntimeMaterial>(Allocator.Temp);
+				
+				for (int i = 0; i < entities.Length; i++)
+				{
+					var tilemapData = tilemapsData[i];
+					var meshId = entitiesGraphicsSystem.RegisterMesh(_meshes[tilemapData.IntGridHash]);
+					var materialId = entitiesGraphicsSystem.RegisterMaterial(runtimeMaterials[i].Value);
 
+					var desc = new RenderMeshDescription(
+						tilemapData.ShadowCastingMode,
+						receiveShadows: tilemapData.ReceiveShadows);
+					var materialMeshInfo = new MaterialMeshInfo(materialId, meshId);
+					
+					RenderMeshUtility.AddComponents(entities[i], EntityManager, desc, materialMeshInfo);
+				}
+			}
+			
 			if (meshDataSingleton.IsDirty)
 			{
 				Mesh.ApplyAndDisposeWritableMeshData(meshDataSingleton.MeshDataArray, _meshesToUpdate);
@@ -54,20 +83,14 @@ namespace KrasCore.Mosaic
 				_meshesToUpdate.Clear();
 			}
 			
-			foreach (var (tilemapDataRO, localToWorldRO, runtimeMaterialRO) in SystemAPI.Query<RefRO<TilemapData>, RefRO<LocalToWorld>, RefRO<RuntimeMaterial>>())
+			foreach (var (tilemapDataRO, renderBoundsRW) in SystemAPI.Query<RefRO<TilemapData>, RefRW<RenderBounds>>())
 			{
-				var tilemapData = tilemapDataRO.ValueRO;
-				
-				if (_meshes.TryGetValue(tilemapData.IntGridHash, out var mesh))
+				if (meshDataSingleton.UpdatedMeshBoundsMap.TryGetValue(tilemapDataRO.ValueRO.IntGridHash, out var aabb))
 				{
-					Graphics.RenderMesh(new RenderParams(runtimeMaterialRO.ValueRO.Value)
-					{
-						worldBounds = new Bounds(Vector3.zero, Vector3.one * 999999),
-						receiveShadows = tilemapData.ReceiveShadows,
-						shadowCastingMode = tilemapData.ShadowCastingMode,
-					}, mesh, 0, localToWorldRO.ValueRO.Value);
+					renderBoundsRW.ValueRW.Value = aabb;
 				}
 			}
+			meshDataSingleton.UpdatedMeshBoundsMap.Clear();
 		}
 	}
 }

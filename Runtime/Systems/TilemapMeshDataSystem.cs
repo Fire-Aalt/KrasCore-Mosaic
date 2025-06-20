@@ -6,6 +6,7 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
+using Hash128 = Unity.Entities.Hash128;
 
 namespace KrasCore.Mosaic
 {
@@ -26,10 +27,6 @@ namespace KrasCore.Mosaic
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
-	        state.RequireForUpdate<TilemapCommandBufferSingleton>();
-	        state.RequireForUpdate<TilemapMeshDataSingleton>();
-	        state.RequireForUpdate<TilemapDataSingleton>();
-	        state.RequireForUpdate<TilemapRendererSingleton>();
 	        state.EntityManager.CreateSingleton(new TilemapRendererSingleton(8, Allocator.Persistent));
 
             _layout = new NativeArray<VertexAttributeDescriptor>(3, Allocator.Persistent);
@@ -81,16 +78,18 @@ namespace KrasCore.Mosaic
 	            rendererSingleton.DirtyOffsetCounts.Add(default);
 	        }
 	        if (!meshDataSingleton.IsDirty) return;
-	        
 	        tcb.PrevCullingBounds.Value = tcb.CullingBounds.Value;
-	        meshDataSingleton.MeshDataArray = Mesh.AllocateWritableMeshData(meshDataSingleton.IntGridHashesToUpdate.Length);
+	        
+	        var meshesCount = meshDataSingleton.IntGridHashesToUpdate.Length;
+	        meshDataSingleton.MeshDataArray = Mesh.AllocateWritableMeshData(meshesCount);
 
-            var layersCount = rendererSingleton.DirtyIntGridLayers.Length;
+	        if (meshDataSingleton.UpdatedMeshBoundsMap.Capacity < meshesCount)
+				meshDataSingleton.UpdatedMeshBoundsMap.Capacity = meshesCount;
             
             var handle = new UpdateRenderedSpritesJob
             {
 	            IntGridLayers = rendererSingleton.DirtyIntGridLayers
-            }.ScheduleParallel(layersCount, 1, state.Dependency);
+            }.ScheduleParallel(meshesCount, 1, state.Dependency);
             
             handle = new ResizeLargeListsJob
             {
@@ -110,7 +109,7 @@ namespace KrasCore.Mosaic
 	            CullingBounds = rendererSingleton.CullingBounds,
 	            Positions = rendererSingleton.Positions.AsDeferredJobArray(),
 	            SpriteMeshes = rendererSingleton.SpriteMeshes.AsDeferredJobArray()
-            }.ScheduleParallel(layersCount, 1, handle);
+            }.ScheduleParallel(meshesCount, 1, handle);
             
             handle = new PatchCulledLayerPointersListJob
             {
@@ -123,13 +122,13 @@ namespace KrasCore.Mosaic
 	            Layout = _layout,
 	            Offsets = rendererSingleton.DirtyOffsetCounts,
 	            MeshDataArray = meshDataSingleton.MeshDataArray
-            }.ScheduleParallel(layersCount, 1, handle);
+            }.ScheduleParallel(meshesCount, 1, handle);
             
             handle = new PrepareLayerPointersJob
             {
 	            OffsetData = rendererSingleton.DirtyOffsetCounts,
 	            LayerPointers = rendererSingleton.LayerPointers.AsDeferredJobArray()
-            }.ScheduleParallel(layersCount, 1, handle);
+            }.ScheduleParallel(meshesCount, 1, handle);
             
             handle = new GenerateVertexDataJob
             {
@@ -149,22 +148,27 @@ namespace KrasCore.Mosaic
 	            Offsets = rendererSingleton.DirtyOffsetCounts,
 	            Vertices = rendererSingleton.Vertices.AsDeferredJobArray(),
 	            MeshDataArray = meshDataSingleton.MeshDataArray,
-            }.ScheduleParallel(layersCount, 1, meshDataHandle);
+            }.ScheduleParallel(meshesCount, 1, meshDataHandle);
             
             var indexHandle = new CopyIndexDataJob
             {
 	            Offsets = rendererSingleton.DirtyOffsetCounts,
 	            Indices = rendererSingleton.Indices.AsDeferredJobArray(),
 	            MeshDataArray = meshDataSingleton.MeshDataArray,
-            }.ScheduleParallel(layersCount, 1, meshDataHandle);
+            }.ScheduleParallel(meshesCount, 1, meshDataHandle);
             
-            handle = new SetSubMeshJob
+            var boundsHandle = new CalculateBoundsJob
+            {
+	            IntGridHashesToUpdate = meshDataSingleton.IntGridHashesToUpdate,
+	            UpdatedMeshBoundsMapWriter = meshDataSingleton.UpdatedMeshBoundsMap.AsParallelWriter(),
+	            MeshDataArray = meshDataSingleton.MeshDataArray,
+            }.ScheduleParallel(meshesCount, 1, vertexHandle);
+            
+            state.Dependency = new SetSubMeshJob
             {
 	            Offsets = rendererSingleton.DirtyOffsetCounts,
 	            MeshDataArray = meshDataSingleton.MeshDataArray,
-            }.ScheduleParallel(layersCount, 1, JobHandle.CombineDependencies(vertexHandle, indexHandle));
-            
-            state.Dependency = handle;
+            }.ScheduleParallel(meshesCount, 1, JobHandle.CombineDependencies(indexHandle, boundsHandle));
         }
 
         [BurstCompile]
@@ -511,6 +515,38 @@ namespace KrasCore.Mosaic
 			        3 => math.mul(orientation == Orientation.XY ? RotZ270 : RotY270, direction),
 			        _ => default
 		        };
+	        }
+        }
+        
+        [BurstCompile(FloatPrecision.Low, FloatMode.Fast)]
+        private struct CalculateBoundsJob : IJobFor
+        {
+	        [ReadOnly]
+	        public NativeList<Hash128> IntGridHashesToUpdate;
+	        
+	        public Mesh.MeshDataArray MeshDataArray;
+	        public NativeParallelHashMap<Hash128, AABB>.ParallelWriter UpdatedMeshBoundsMapWriter;
+
+	        public void Execute(int index)
+	        {
+		        var meshData = MeshDataArray[index];
+		        var vertices = meshData.GetVertexData<Vertex>();
+		        
+		        var minPos = new float3(float.MaxValue, float.MaxValue, float.MaxValue);
+		        var maxPos = new float3(float.MinValue, float.MinValue, float.MinValue);
+
+		        for (int i = 0; i < vertices.Length; i++)
+		        {
+			        var position = vertices[i].position;
+			        minPos = math.min(minPos, position);
+			        maxPos = math.max(maxPos, position);
+		        }
+		        
+		        UpdatedMeshBoundsMapWriter.TryAdd(IntGridHashesToUpdate[index], new AABB
+		        {
+			        Center = (maxPos + minPos) * 0.5f,
+			        Extents = (maxPos - minPos) * 0.5f,
+		        });
 	        }
         }
     }

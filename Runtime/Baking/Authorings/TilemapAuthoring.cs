@@ -13,11 +13,11 @@ namespace KrasCore.Mosaic
     {
         [SerializeField] private IntGrid _intGrid;
         [SerializeField] private Orientation _orientation;
-        
+
         [SerializeField] private Material _material;
         [SerializeField] private ShadowCastingMode _shadowCastingMode = ShadowCastingMode.TwoSided;
         [SerializeField] private bool _receiveShadows = true;
-
+        
         public IntGrid IntGrid => _intGrid;
 
 #if UNITY_EDITOR
@@ -66,7 +66,7 @@ namespace KrasCore.Mosaic
 
                 AddComponent(entity, new RuntimeMaterialLookup(authoring._material, refTexture));
                 AddComponent<RuntimeMaterial>(entity);
-
+                
                 var refreshPositionsBuffer = AddBuffer<RefreshPositionElement>(entity);
                 refreshPositionsBuffer.AddRange(refreshPositions.ToNativeArray(Allocator.Temp).Reinterpret<RefreshPositionElement>());
             }
@@ -157,7 +157,7 @@ namespace KrasCore.Mosaic
             return false;
         }
     }
-
+    
     public struct TilemapData : IComponentData, IEnableableComponent
     {
         public Hash128 IntGridHash;
