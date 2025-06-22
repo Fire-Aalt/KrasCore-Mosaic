@@ -1,22 +1,18 @@
 using System.Collections.Generic;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
-using Unity.Entities.Graphics;
+using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Rendering;
-using Unity.Transforms;
-using UnityEngine;
-using Hash128 = Unity.Entities.Hash128;
-using Object = UnityEngine.Object;
 
 namespace KrasCore.Mosaic
 {
-	[RequireMatchingQueriesForUpdate]
-	[UpdateInGroup(typeof(PresentationSystemGroup))]
-	public partial class TilemapRendererSystem : SystemBase
+	[UpdateInGroup(typeof(PresentationSystemGroup), OrderFirst = true)]
+	public partial class TilemapPresentationSystem : SystemBase
 	{
-		private readonly Dictionary<Hash128, Mesh> _meshes = new();
-		private readonly List<Mesh> _meshesToUpdate = new();
+		private readonly Dictionary<Hash128, UnityEngine.Mesh> _meshMap = new();
+		private readonly List<UnityEngine.Mesh> _meshesToUpdate = new();
 		
 		protected override void OnCreate()
 		{
@@ -30,9 +26,9 @@ namespace KrasCore.Mosaic
 		protected override void OnDestroy()
 		{
 			SystemAPI.GetSingleton<TilemapMeshDataSingleton>().Dispose();
-			foreach (var kvp in _meshes)
+			foreach (var kvp in _meshMap)
 			{
-				Object.Destroy(kvp.Value);
+				UnityEngine.Object.Destroy(kvp.Value);
 			}
 		}
  
@@ -43,11 +39,11 @@ namespace KrasCore.Mosaic
 
 			foreach (var intGridHash in meshDataSingleton.IntGridHashesToUpdate)
 			{
-				if (!_meshes.TryGetValue(intGridHash, out var mesh))
+				if (!_meshMap.TryGetValue(intGridHash, out var mesh))
 				{
-					mesh = new Mesh { name = "Mosaic.TilemapMesh" };
+					mesh = new UnityEngine.Mesh { name = "Mosaic.TilemapMesh" };
 					mesh.MarkDynamic();
-					_meshes.Add(intGridHash, mesh);
+					_meshMap.Add(intGridHash, mesh);
 				}
 				_meshesToUpdate.Add(mesh);
 			}
@@ -64,7 +60,7 @@ namespace KrasCore.Mosaic
 				for (int i = 0; i < entities.Length; i++)
 				{
 					var tilemapData = tilemapsData[i];
-					var meshId = entitiesGraphicsSystem.RegisterMesh(_meshes[tilemapData.IntGridHash]);
+					var meshId = entitiesGraphicsSystem.RegisterMesh(_meshMap[tilemapData.IntGridHash]);
 					var materialId = entitiesGraphicsSystem.RegisterMaterial(runtimeMaterials[i].Value);
 
 					var desc = new RenderMeshDescription(
@@ -78,19 +74,48 @@ namespace KrasCore.Mosaic
 			
 			if (meshDataSingleton.IsDirty)
 			{
-				Mesh.ApplyAndDisposeWritableMeshData(meshDataSingleton.MeshDataArray, _meshesToUpdate);
+				UnityEngine.Mesh.ApplyAndDisposeWritableMeshData(meshDataSingleton.MeshDataArray, _meshesToUpdate);
 				meshDataSingleton.IntGridHashesToUpdate.Clear();
 				_meshesToUpdate.Clear();
 			}
-			
-			foreach (var (tilemapDataRO, renderBoundsRW) in SystemAPI.Query<RefRO<TilemapData>, RefRW<RenderBounds>>())
+
+			if (!meshDataSingleton.UpdatedMeshBoundsMap.IsEmpty)
 			{
-				if (meshDataSingleton.UpdatedMeshBoundsMap.TryGetValue(tilemapDataRO.ValueRO.IntGridHash, out var aabb))
+				Dependency = new UpdateBoundsJob
 				{
-					renderBoundsRW.ValueRW.Value = aabb;
+					UpdatedMeshBoundsMap = meshDataSingleton.UpdatedMeshBoundsMap
+				}.Schedule(Dependency);
+				Dependency = new ClearJob
+				{
+					UpdatedMeshBoundsMap = meshDataSingleton.UpdatedMeshBoundsMap
+				}.Schedule(Dependency);
+			}
+		}
+
+		[BurstCompile]
+		private partial struct UpdateBoundsJob : IJobEntity
+		{
+			[ReadOnly]
+			public NativeParallelHashMap<Hash128, AABB> UpdatedMeshBoundsMap;
+			
+			private void Execute(in TilemapData tilemapData, ref RenderBounds renderBounds)
+			{
+				if (UpdatedMeshBoundsMap.TryGetValue(tilemapData.IntGridHash, out var aabb))
+				{
+					renderBounds.Value = aabb;
 				}
 			}
-			meshDataSingleton.UpdatedMeshBoundsMap.Clear();
+		}
+
+		[BurstCompile]
+		private struct ClearJob : IJob
+		{
+			public NativeParallelHashMap<Hash128, AABB> UpdatedMeshBoundsMap;
+			
+			public void Execute()
+			{
+				UpdatedMeshBoundsMap.Clear();
+			}
 		}
 	}
 }

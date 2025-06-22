@@ -60,10 +60,8 @@ namespace KrasCore.Mosaic
             }
         }
         
-
-        
         [NativeDisableContainerSafetyRestriction]
-        public NativeHashMap<Hash128, IntGridLayer> Layers;
+        internal NativeHashMap<Hash128, IntGridLayer> Layers;
         [NativeDisableContainerSafetyRestriction]
         private NativeHashMap<Hash128, ParallelWriter.IntGridLayerParallelWriter> _parallelWriteLayers;
         
@@ -88,11 +86,6 @@ namespace KrasCore.Mosaic
         }
 
         public ParallelWriter AsParallelWriter() => new(ref _parallelWriteLayers);
-
-        public void SetIntGridValue(IntGrid intGrid, int2 position, int intGridValue)
-        {
-            SetIntGridValue(intGrid.Hash, position, intGridValue);
-        }
         
         public void SetIntGridValue(in Hash128 intGridHash, in int2 position, int intGridValue)
         {
@@ -108,18 +101,13 @@ namespace KrasCore.Mosaic
             }
         }
         
-        public void Clear(IntGrid intGrid)
-        {
-            Clear(intGrid.Hash);
-        }
-        
-        public void Clear(in Hash128 intGridHash)
+        public void Clear(Hash128 intGridHash)
         {
             var clearCommand = Layers[intGridHash].ClearCommand;
             clearCommand.Value = true;
         }
         
-        public void SetCullingBounds(in AABB2D bounds)
+        public void SetCullingBounds(AABB2D bounds)
         {
             CullingBounds.Value = bounds;
         }

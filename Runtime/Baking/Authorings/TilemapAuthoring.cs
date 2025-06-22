@@ -156,7 +156,7 @@ namespace KrasCore.Mosaic
             spriteMesh = default;
             return false;
         }
-    }
+    }//
     
     public struct TilemapData : IComponentData, IEnableableComponent
     {

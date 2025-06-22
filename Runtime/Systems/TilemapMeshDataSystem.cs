@@ -22,12 +22,13 @@ namespace KrasCore.Mosaic
 	    private static readonly quaternion RotZ180 = quaternion.RotateZ(180f * math.TORADIANS);
 	    private static readonly quaternion RotZ270 = quaternion.RotateZ(270f * math.TORADIANS);
 	    
+        private Data _data;
         private NativeArray<VertexAttributeDescriptor> _layout;
         
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
-	        state.EntityManager.CreateSingleton(new TilemapRendererSingleton(8, Allocator.Persistent));
+	        _data = new Data(8, Allocator.Persistent);
 
             _layout = new NativeArray<VertexAttributeDescriptor>(3, Allocator.Persistent);
             _layout[0] = new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float32, 3);
@@ -38,7 +39,7 @@ namespace KrasCore.Mosaic
         [BurstCompile]
         public void OnDestroy(ref SystemState state)
         {
-	        SystemAPI.GetSingleton<TilemapRendererSingleton>().Dispose();
+	        _data.Dispose();
 	        _layout.Dispose();
         }
 
@@ -47,19 +48,16 @@ namespace KrasCore.Mosaic
         {
 	        state.EntityManager.CompleteDependencyBeforeRW<TilemapDataSingleton>();
 	        state.EntityManager.CompleteDependencyBeforeRW<TilemapMeshDataSingleton>();
-	        state.EntityManager.CompleteDependencyBeforeRW<TilemapRendererSingleton>();
 	        
             ref var dataSingleton = ref SystemAPI.GetSingletonRW<TilemapDataSingleton>().ValueRW;
             ref var meshDataSingleton = ref SystemAPI.GetSingletonRW<TilemapMeshDataSingleton>().ValueRW;
-	        ref var rendererSingleton = ref SystemAPI.GetSingletonRW<TilemapRendererSingleton>().ValueRW;
 	        
 	        // Set Culling Bounds
 	        var tcb = SystemAPI.GetSingleton<TilemapCommandBufferSingleton>();
-	        rendererSingleton.CullingBounds = tcb.CullingBounds.Value;
             
-	        rendererSingleton.DirtyIntGridLayers.Clear();
-	        rendererSingleton.DirtyTilemapsRendererData.Clear();
-	        rendererSingleton.DirtyOffsetCounts.Clear();
+	        _data.DirtyIntGridLayers.Clear();
+	        _data.DirtyTilemapsRendererData.Clear();
+	        _data.DirtyOffsetCounts.Clear();
 	        
 	        foreach (var kvp in dataSingleton.IntGridLayers)
 	        {
@@ -73,9 +71,9 @@ namespace KrasCore.Mosaic
 			        continue;
 		        }
 		        meshDataSingleton.IntGridHashesToUpdate.Add(intGridHash);
-	            rendererSingleton.DirtyIntGridLayers.Add(dataLayer);
-	            rendererSingleton.DirtyTilemapsRendererData.Add(new TilemapRendererData(dataLayer.TilemapData));
-	            rendererSingleton.DirtyOffsetCounts.Add(default);
+		        _data.DirtyIntGridLayers.Add(dataLayer);
+		        _data.DirtyTilemapsRendererData.Add(new TilemapRendererData(dataLayer.TilemapData));
+		        _data.DirtyOffsetCounts.Add(default);
 	        }
 	        if (!meshDataSingleton.IsDirty) return;
 	        tcb.PrevCullingBounds.Value = tcb.CullingBounds.Value;
@@ -88,72 +86,72 @@ namespace KrasCore.Mosaic
             
             var handle = new UpdateRenderedSpritesJob
             {
-	            IntGridLayers = rendererSingleton.DirtyIntGridLayers
+	            IntGridLayers = _data.DirtyIntGridLayers
             }.ScheduleParallel(meshesCount, 1, state.Dependency);
             
             handle = new ResizeLargeListsJob
             {
-	            IntGridLayers = rendererSingleton.DirtyIntGridLayers,
-	            Offsets = rendererSingleton.DirtyOffsetCounts,
-	            Positions = rendererSingleton.Positions,
-	            SpriteMeshes = rendererSingleton.SpriteMeshes,
-	            Vertices = rendererSingleton.Vertices,
-	            Indices = rendererSingleton.Indices,
-	            LayerPointers = rendererSingleton.LayerPointers,
+	            IntGridLayers = _data.DirtyIntGridLayers,
+	            Offsets = _data.DirtyOffsetCounts,
+	            Positions = _data.Positions,
+	            SpriteMeshes = _data.SpriteMeshes,
+	            Vertices = _data.Vertices,
+	            Indices = _data.Indices,
+	            LayerPointers = _data.LayerPointers,
             }.Schedule(handle);
             
             handle = new PrepareAndCullSpriteMeshDataJob
             {
-	            IntGridLayers = rendererSingleton.DirtyIntGridLayers,
-	            OffsetData = rendererSingleton.DirtyOffsetCounts,
-	            CullingBounds = rendererSingleton.CullingBounds,
-	            Positions = rendererSingleton.Positions.AsDeferredJobArray(),
-	            SpriteMeshes = rendererSingleton.SpriteMeshes.AsDeferredJobArray()
+	            IntGridLayers = _data.DirtyIntGridLayers,
+	            OffsetData = _data.DirtyOffsetCounts,
+	            CullingBounds = tcb.CullingBounds.Value,
+	            Positions = _data.Positions.AsDeferredJobArray(),
+	            SpriteMeshes = _data.SpriteMeshes.AsDeferredJobArray()
             }.ScheduleParallel(meshesCount, 1, handle);
             
             handle = new PatchCulledLayerPointersListJob
             {
-	            OffsetData = rendererSingleton.DirtyOffsetCounts,
-	            LayerPointers = rendererSingleton.LayerPointers
+	            OffsetData = _data.DirtyOffsetCounts,
+	            LayerPointers = _data.LayerPointers
             }.Schedule(handle);
             
             var setBufferParamsHandle = new SetBufferParamsJob
             {
 	            Layout = _layout,
-	            Offsets = rendererSingleton.DirtyOffsetCounts,
+	            Offsets = _data.DirtyOffsetCounts,
 	            MeshDataArray = meshDataSingleton.MeshDataArray
             }.ScheduleParallel(meshesCount, 1, handle);
             
             handle = new PrepareLayerPointersJob
             {
-	            OffsetData = rendererSingleton.DirtyOffsetCounts,
-	            LayerPointers = rendererSingleton.LayerPointers.AsDeferredJobArray()
+	            OffsetData = _data.DirtyOffsetCounts,
+	            LayerPointers = _data.LayerPointers.AsDeferredJobArray()
             }.ScheduleParallel(meshesCount, 1, handle);
             
             handle = new GenerateVertexDataJob
             {
-	            LayerData = rendererSingleton.DirtyTilemapsRendererData,
-	            OffsetCount = rendererSingleton.DirtyOffsetCounts,
-	            Positions = rendererSingleton.Positions.AsDeferredJobArray(),
-	            SpriteMeshes = rendererSingleton.SpriteMeshes.AsDeferredJobArray(),
-	            LayerPointer = rendererSingleton.LayerPointers.AsDeferredJobArray(),
-	            Vertices = rendererSingleton.Vertices.AsDeferredJobArray(),
-	            Indices = rendererSingleton.Indices.AsDeferredJobArray(),
-            }.Schedule(rendererSingleton.LayerPointers, 32, handle);
+	            LayerData = _data.DirtyTilemapsRendererData,
+	            OffsetCount = _data.DirtyOffsetCounts,
+	            Positions = _data.Positions.AsDeferredJobArray(),
+	            SpriteMeshes = _data.SpriteMeshes.AsDeferredJobArray(),
+	            LayerPointer = _data.LayerPointers.AsDeferredJobArray(),
+	            Vertices = _data.Vertices.AsDeferredJobArray(),
+	            Indices = _data.Indices.AsDeferredJobArray(),
+            }.Schedule(_data.LayerPointers, 32, handle);
 
             var meshDataHandle = JobHandle.CombineDependencies(setBufferParamsHandle, handle);
 			
             var vertexHandle = new CopyVertexDataJob
             {
-	            Offsets = rendererSingleton.DirtyOffsetCounts,
-	            Vertices = rendererSingleton.Vertices.AsDeferredJobArray(),
+	            Offsets = _data.DirtyOffsetCounts,
+	            Vertices = _data.Vertices.AsDeferredJobArray(),
 	            MeshDataArray = meshDataSingleton.MeshDataArray,
             }.ScheduleParallel(meshesCount, 1, meshDataHandle);
             
             var indexHandle = new CopyIndexDataJob
             {
-	            Offsets = rendererSingleton.DirtyOffsetCounts,
-	            Indices = rendererSingleton.Indices.AsDeferredJobArray(),
+	            Offsets = _data.DirtyOffsetCounts,
+	            Indices = _data.Indices.AsDeferredJobArray(),
 	            MeshDataArray = meshDataSingleton.MeshDataArray,
             }.ScheduleParallel(meshesCount, 1, meshDataHandle);
             
@@ -166,7 +164,7 @@ namespace KrasCore.Mosaic
             
             state.Dependency = new SetSubMeshJob
             {
-	            Offsets = rendererSingleton.DirtyOffsetCounts,
+	            Offsets = _data.DirtyOffsetCounts,
 	            MeshDataArray = meshDataSingleton.MeshDataArray,
             }.ScheduleParallel(meshesCount, 1, JobHandle.CombineDependencies(indexHandle, boundsHandle));
         }
