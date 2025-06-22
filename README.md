@@ -43,14 +43,12 @@ Next add `GridAuthoring` component to a GameObject in a SubScene and add a `Tile
 ### Code
 Reference to an `IntGrid` or it's IntGridHash is required to send commands to `TilemapCommandBufferSystem`. 
 
-1. Get a reference to `TilemapCommandBuffer`
+1. Get a reference to `TilemapCommandBufferSingleton`
 ```csharp
-var em = Unity.Entities.World.DefaultGameObjectInjectionWorld.EntityManager;
-var singleton = em.GetSingleton<TilemapCommandBufferSingleton>();
-_tcb = singleton.Tcb;
+var singleton = SystemAPI.GetSingleton<TilemapCommandBufferSingleton>();
 
 // You can also set global seed here or do it later
-_tcb.SetGlobalSeed(seed);
+singleton.SetGlobalSeed(seed);
 ```
 
 2. Use `SetIntGridValue()` to update a referenced `IntGrid`
