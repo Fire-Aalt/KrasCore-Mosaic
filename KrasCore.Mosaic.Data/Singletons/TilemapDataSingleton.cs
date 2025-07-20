@@ -14,7 +14,7 @@ namespace KrasCore.Mosaic.Data
     {
         public struct IntGridLayer : IDisposable
         {
-            public NativeParallelHashMap<int2, int> IntGrid;
+            public NativeParallelHashMap<int2, IntGridValue> IntGrid;
             public NativeParallelHashMap<int2, int> RuleGrid;
             public NativeHashSet<int2> ChangedPositions;
             public NativeHashSet<int2> PositionsToRefresh;
@@ -33,7 +33,7 @@ namespace KrasCore.Mosaic.Data
             
             public IntGridLayer(int capacity, Allocator allocator)
             {
-                IntGrid = new NativeParallelHashMap<int2, int>(capacity, allocator);
+                IntGrid = new NativeParallelHashMap<int2, IntGridValue>(capacity, allocator);
                 RuleGrid = new NativeParallelHashMap<int2, int>(capacity, allocator);
                 
                 ChangedPositions = new NativeHashSet<int2>(capacity, allocator);

@@ -15,7 +15,7 @@ namespace KrasCore.Mosaic.Authoring
     {
         [ReadOnly]
         [Title("Bound IntGrid")]
-        public IntGrid intGrid;
+        public IntGridDefinition intGrid;
         
         [Title("Tile Rules")]
         public List<Rule> rules = new();
@@ -55,8 +55,8 @@ namespace KrasCore.Mosaic.Authoring
             public Enabled enabled = Enabled.Enabled;
 
             [HorizontalGroup("Split", 0.2f)]
-            [Matrix("DrawMatrixCell", MatrixRectMethod = "MatrixControlRect")]
-            public int[] ruleMatrix = new int[MatrixSize * MatrixSize];
+            [IntGridMatrix(MatrixRectMethod = nameof(MatrixControlRect), IsReadonly = true)]
+            public IntGridMatrix ruleMatrix = new(MatrixSize);
             
             [HorizontalGroup("Split", 0.33f), BoxGroup("Split/Rule", centerLabel: true)] 
             [LabelText("", SdfIconType.Dice6Fill)]
@@ -74,13 +74,14 @@ namespace KrasCore.Mosaic.Authoring
 
             [field: SerializeField, HideInInspector] public List<SpriteResult> TileSprites { get; set; }
             [field: SerializeField, HideInInspector] public List<EntityResult> TileEntities { get; set; }
-            [field: SerializeField, HideInInspector] public IntGrid BoundIntGrid { get; private set; }
+            [field: SerializeField, HideInInspector] public IntGridDefinition BoundIntGridDefinition { get; private set; }
             [field: SerializeField, HideInInspector] public RuleGroup RuleGroup { get; private set; }
 
             public void Bind(RuleGroup ruleGroup)
             {
-                BoundIntGrid = ruleGroup.intGrid;
+                BoundIntGridDefinition = ruleGroup.intGrid;
                 RuleGroup = ruleGroup;
+                ruleMatrix.intGrid = BoundIntGridDefinition;
             }
 
             public void Validate()
@@ -96,12 +97,6 @@ namespace KrasCore.Mosaic.Authoring
                 {
                     RuleGroupMatrixWindow.OpenWindow(this);
                 }
-            }
-            
-            private int DrawMatrixCell(Rect rect, int index, int value)
-            {
-                RuleGroupEditorHelper.DrawMatrixCell(rect, index, value, BoundIntGrid, true);
-                return value;
             }
             
             public static int2 GetOffsetFromCenterMirrored(int index, bool2 mirror)
@@ -126,9 +121,9 @@ namespace KrasCore.Mosaic.Authoring
             {
                 var x = index % MatrixSize;
                 var y = index / MatrixSize;
-
+                
                 var offset = new int2(x - MatrixSizeHalf, MatrixSizeHalf - y);
-
+                
                 return rotation switch
                 {
                     0 => offset,

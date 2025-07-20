@@ -15,6 +15,7 @@ namespace KrasCore.Mosaic.Authoring
             root.Chance = rule.ruleChance;
             root.RuleTransform = rule.ruleTransform;
             root.ResultTransform = rule.resultTransform;
+            root.UsesDualGrid = rule.BoundIntGridDefinition.useDualGrid;
             
             AddPatterns(ref root, rule, refreshPositions, builder);
             AddResults(ref root, rule, entityCount, builder);
@@ -25,9 +26,9 @@ namespace KrasCore.Mosaic.Authoring
         private static void AddPatterns(ref RuleBlob root, RuleGroup.Rule rule, NativeHashSet<int2> refreshPositions, BlobBuilder builder)
         {
             var usedCellCount = 0;
-            foreach (var intGridValue in rule.ruleMatrix)
+            foreach (var intGridValue in rule.ruleMatrix.matrix)
             {
-                usedCellCount += intGridValue == 0 ? 0 : 1;
+                usedCellCount += intGridValue.IsEmpty ? 0 : 1;
             }
             
             var combinedMirroredCellCount = usedCellCount * MosaicUtils.GetCellsToCheckBucketsCount(rule.ruleTransform);
@@ -79,10 +80,10 @@ namespace KrasCore.Mosaic.Authoring
         private static void AddMirrorPattern(RuleGroup.Rule rule, BlobBuilderArray<RuleCell> cells,
             NativeHashSet<int2> refreshPositions, ref int cnt, bool2 mirror)
         {
-            for (var index = 0; index < rule.ruleMatrix.Length; index++)
+            for (var index = 0; index < rule.ruleMatrix.matrix.Length; index++)
             {
-                var intGridValue = rule.ruleMatrix[index];
-                if (intGridValue == 0) continue;
+                var intGridValue = rule.ruleMatrix.matrix[index];
+                if (intGridValue.IsEmpty) continue;
                 ref var cell = ref cells[cnt];
                 
                 var pos = RuleGroup.Rule.GetOffsetFromCenterMirrored(index, mirror);
@@ -102,10 +103,10 @@ namespace KrasCore.Mosaic.Authoring
         {
             for (int rotation = 1; rotation < 4; rotation++)
             {
-                for (var index = 0; index < rule.ruleMatrix.Length; index++)
+                for (var index = 0; index < rule.ruleMatrix.matrix.Length; index++)
                 {
-                    var intGridValue = rule.ruleMatrix[index];
-                    if (intGridValue == 0) continue;
+                    var intGridValue = rule.ruleMatrix.matrix[index];
+                    if (intGridValue.IsEmpty) continue;
                     ref var cell = ref cells[cnt];
 
                     var pos = RuleGroup.Rule.GetOffsetFromCenterRotated(index, rotation);

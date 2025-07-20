@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using KrasCore.Mosaic.Data;
 using Sirenix.OdinInspector;
 using Sirenix.OdinInspector.Editor;
 using Sirenix.Utilities.Editor;
@@ -13,12 +14,12 @@ namespace KrasCore.Mosaic.Authoring
         
         [HorizontalGroup("Split", width: 0.2f)]
         [BoxGroup("Split/Select", centerLabel: true, LabelText = "Select IntGrid Value")]
-        [CustomValueDrawer("IntGridValueDrawer")]
-        [SerializeField] private int _selectedIntGridValue;
+        [CustomValueDrawer(nameof(IntGridValueDrawer))]
+        [SerializeField] private short _selectedIntGridValue;
         
         [HorizontalGroup("Split", width: 0.4f)]
-        [Matrix(nameof(DrawMatrixCell))]
-        [SerializeField] private int[] _matrix;
+        [IntGridMatrix(nameof(OnBeforeDrawMatrixCell))]
+        [SerializeField] private IntGridMatrix _matrix;
         
         [HorizontalGroup("Split", width: 0.2f)]
         [VerticalGroup("Split/Sprites")]
@@ -42,7 +43,7 @@ namespace KrasCore.Mosaic.Authoring
         [AssetsOnly]
         [SerializeField] private List<GameObject> _convertPrefabs = new();
         
-        private IntGrid _intGrid;
+        private IntGridDefinition _intGrid;
         private RuleGroup.Rule _target;
         
         public static void OpenWindow(RuleGroup.Rule target)
@@ -93,7 +94,7 @@ namespace KrasCore.Mosaic.Authoring
             _tileEntities = target.TileEntities;
             _tileSprites = target.TileSprites;
             
-            _intGrid = target.BoundIntGrid;
+            _intGrid = target.BoundIntGridDefinition;
             _target = target;
             _selectedIntGridValue = 1;
         }
@@ -101,6 +102,8 @@ namespace KrasCore.Mosaic.Authoring
         public override void SaveChanges()
         {
             base.SaveChanges();
+            
+            _target.ruleMatrix.matrix = (IntGridValue[])_matrix.matrix.Clone();
             
             if (_target != null)
             {
@@ -115,28 +118,42 @@ namespace KrasCore.Mosaic.Authoring
                 Close();
         }
 
-        private int IntGridValueDrawer(int intGridValue)
+        private short IntGridValueDrawer(short intGridValue)
         {
-            return RuleGroupEditorHelper.IntGridValueDrawer(intGridValue, _intGrid.intGridValues);
+            return EditorHelper.IntGridValueDrawer(intGridValue, _intGrid.intGridValues);
         }
         
-        private int DrawMatrixCell(Rect rect, int index, int value)
+        private IntGridValue OnBeforeDrawMatrixCell(Rect rect, IntGridValue value)
+        {
+            if (!_intGrid.useDualGrid)
+            {
+                UpdateIntGridValue(rect, ref value.Solid);
+            }
+            else
+            {
+                rect.Subdivide(out var leftBottom, out var rightBottom, out var leftTop, out var rightTop);
+                UpdateIntGridValue(leftBottom, ref value.LeftBottom);
+                UpdateIntGridValue(rightBottom, ref value.RightBottom);
+                UpdateIntGridValue(leftTop, ref value.LeftTop);
+                UpdateIntGridValue(rightTop, ref value.RightTop);
+            }
+            return value;
+        }
+
+        private void UpdateIntGridValue(Rect rect, ref short slot)
         {
             if (Event.current.OnMouseDown(rect, 0))
             {
-                value = _selectedIntGridValue;
+                slot = _selectedIntGridValue;
                 GUI.changed = true;
             }
             else if (Event.current.OnMouseDown(rect, 1))
             {
-                if (value == 0) value = -_selectedIntGridValue;
-                else if (value == _selectedIntGridValue) value = -_selectedIntGridValue;
-                else value = 0;
+                if (slot == 0) slot = (short)-_selectedIntGridValue;
+                else if (slot == _selectedIntGridValue) slot = (short)-_selectedIntGridValue;
+                else slot = 0;
                 GUI.changed = true;
             }
-
-            RuleGroupEditorHelper.DrawMatrixCell(rect, index, value, _intGrid, false);
-            return value;
         }
     }
 }

@@ -1,5 +1,6 @@
 using Unity.Entities;
 using Unity.Mathematics;
+using Random = Unity.Mathematics.Random;
 
 namespace KrasCore.Mosaic.Data
 {
@@ -19,6 +20,7 @@ namespace KrasCore.Mosaic.Data
         public float Chance;
         public RuleTransform RuleTransform;
         public ResultTransform ResultTransform;
+        public bool UsesDualGrid;
 
         public bool TryGetEntity(ref Random random, in DynamicBuffer<WeightedEntityElement> entityBuffer, out Entity entity)
         {
@@ -48,6 +50,6 @@ namespace KrasCore.Mosaic.Data
     public struct RuleCell
     {
         public int2 Offset;
-        public int IntGridValue;
+        public IntGridValue IntGridValue;
     }
 }

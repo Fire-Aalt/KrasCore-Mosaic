@@ -8,20 +8,21 @@ using KrasCore.Editor;
 namespace KrasCore.Mosaic.Authoring
 {
     [CreateAssetMenu(menuName = "Mosaic/IntGrid")]
-    public class IntGrid : ScriptableObject
+    public class IntGridDefinition : ScriptableObject
     {
         [field: SerializeField, HideInInspector] public Hash128 Hash { get; private set; }
-        
-        public List<IntGridValue> intGridValues = new();
 
-        public readonly Dictionary<int, IntGridValue> IntGridValuesDict = new();
+        public bool useDualGrid;
+        public List<IntGridValueDefinition> intGridValues = new();
 
         //[ReadOnly]
         public List<RuleGroup> ruleGroups = new();
         
         [SerializeField, HideInInspector]
-        private int _counter = 1;
+        private short _counter = 1;
 
+        public readonly Dictionary<int, IntGridValueDefinition> IntGridValuesDict = new();
+        
         [Button]
         private void CreateRuleGroup()
         {
@@ -65,10 +66,10 @@ namespace KrasCore.Mosaic.Authoring
     }
     
     [Serializable]
-    public class IntGridValue
+    public class IntGridValueDefinition
     {
         [ReadOnly]
-        public int value = -1;
+        public short value = -1;
         public string name;
         public Color color;
         public Texture texture;

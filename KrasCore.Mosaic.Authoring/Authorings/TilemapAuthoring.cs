@@ -10,7 +10,7 @@ namespace KrasCore.Mosaic.Authoring
 {
     public class TilemapAuthoring : MonoBehaviour
     {
-        [SerializeField] private IntGrid _intGrid;
+        [SerializeField] private IntGridDefinition intGrid;
         [SerializeField] private Orientation _orientation;
 
         [SerializeField] private Material _material;
@@ -29,7 +29,7 @@ namespace KrasCore.Mosaic.Authoring
                 Texture2D refTexture = null;
                 
                 var entityCount = 0;
-                foreach (var group in authoring._intGrid.ruleGroups)
+                foreach (var group in authoring.intGrid.ruleGroups)
                 {
                     DependsOn(group);
                     
@@ -52,7 +52,7 @@ namespace KrasCore.Mosaic.Authoring
                 
                 AddComponent(entity, new TilemapData
                 {
-                    IntGridHash = authoring._intGrid.Hash,
+                    IntGridHash = authoring.intGrid.Hash,
                     Orientation = authoring._orientation,
                     GridEntity = GetEntity(authoring.GetComponentInParent<GridAuthoring>(), TransformUsageFlags.None),
                     ShadowCastingMode = authoring._shadowCastingMode,

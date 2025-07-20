@@ -11,18 +11,18 @@ namespace KrasCore.Mosaic.Data
     {
         public struct IntGridLayer : IDisposable
         {
-            public ParallelToListMapper<SetCommand> SetCommandsMapper;
+            public ParallelList<SetCommand> SetCommands;
             public NativeReference<bool> ClearCommand;
 
             public IntGridLayer(int capacity, Allocator allocator)
             {
-                SetCommandsMapper = new ParallelToListMapper<SetCommand>(capacity, allocator);
+                SetCommands = new ParallelList<SetCommand>(capacity, allocator);
                 ClearCommand = new NativeReference<bool>(allocator);
             }
 
             public void Dispose()
             {
-                SetCommandsMapper.Dispose();
+                SetCommands.Dispose();
                 ClearCommand.Dispose();
             }
         }
@@ -35,7 +35,7 @@ namespace KrasCore.Mosaic.Data
                 
                 internal IntGridLayerParallelWriter(ref IntGridLayer layer)
                 {
-                    SetCommands = layer.SetCommandsMapper.AsThreadWriter();
+                    SetCommands = layer.SetCommands.AsThreadWriter();
                 }
             }
 
@@ -51,7 +51,7 @@ namespace KrasCore.Mosaic.Data
                 _threadIndex = 0;
             }
             
-            public void SetIntGridValue(in Hash128 intGridHash, in int2 position, int intGridValue)
+            public void SetIntGridValue(in Hash128 intGridHash, in int2 position, short intGridValue)
             {
                 var layer = _layers[intGridHash].SetCommands;
                 layer.Begin(_threadIndex);
@@ -87,9 +87,9 @@ namespace KrasCore.Mosaic.Data
 
         public ParallelWriter AsParallelWriter() => new(ref _parallelWriteLayers);
         
-        public void SetIntGridValue(in Hash128 intGridHash, in int2 position, int intGridValue)
+        public void SetIntGridValue(in Hash128 intGridHash, in int2 position, short intGridValue)
         {
-            var layerList = Layers[intGridHash].SetCommandsMapper.ParallelList.GetUnsafeList(0);
+            var layerList = Layers[intGridHash].SetCommands.GetUnsafeList(0);
             layerList.Add(new SetCommand { Position = position, IntGridValue = intGridValue });
         }
 

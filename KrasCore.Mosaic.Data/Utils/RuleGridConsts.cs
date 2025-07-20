@@ -1,7 +1,8 @@
 namespace KrasCore.Mosaic.Data
 {
-    public class RuleGridConsts
+    public static class RuleGridConsts
     {
-        public const int AnyIntGridValue = 999;
+        public const short AnyIntGridValue = short.MaxValue;
+        public static readonly IntGridValue AnyIntGridValueAll = new(AnyIntGridValue);
     }
 }

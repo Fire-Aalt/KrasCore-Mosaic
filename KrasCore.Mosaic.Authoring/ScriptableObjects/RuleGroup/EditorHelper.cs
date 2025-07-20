@@ -8,7 +8,7 @@ using UnityEngine;
 namespace KrasCore.Mosaic.Authoring
 {
     [InitializeOnLoad]
-    public static class RuleGroupEditorHelper
+    public static class EditorHelper
     {
         public static readonly Color BackgroundCellColor = new(0f, 0f, 0f, 0.5f);
         
@@ -18,7 +18,7 @@ namespace KrasCore.Mosaic.Authoring
         public static readonly Texture AnyTexture;
         public static readonly Texture MatrixCenterTexture;
         
-        static RuleGroupEditorHelper()
+        static EditorHelper()
         {
             TextureMat = Resources.Load("default") as Material;
             
@@ -27,7 +27,7 @@ namespace KrasCore.Mosaic.Authoring
             MatrixCenterTexture = Resources.Load("matrixCenter") as Texture;
         }
         
-        public static int IntGridValueDrawer(int intGridValue, List<IntGridValue> intGridValues)
+        public static short IntGridValueDrawer(short intGridValue, List<IntGridValueDefinition> intGridValues)
         {
             SirenixEditorGUI.BeginBox();
             for (int i = 0; i < intGridValues.Count; i++)
@@ -86,73 +86,6 @@ namespace KrasCore.Mosaic.Authoring
             GUILayout.Label(new GUIContent(text), style);
             EditorGUILayout.EndHorizontal();
             return flag1;
-        }
-
-        
-        
-        public static void DrawMatrixCell(Rect rect, int index, int matrixValue, IntGrid intGrid, bool isReadOnly)
-        {
-            DrawIntGridValue(rect, matrixValue, intGrid);
-            DrawNotTextureIfNeeded(rect, matrixValue);
-            
-            if (index == RuleGroup.Rule.MatrixSize / 2 * RuleGroup.Rule.MatrixSize + RuleGroup.Rule.MatrixSize / 2)
-            {
-                EditorGUI.DrawPreviewTexture(rect, MatrixCenterTexture, TextureMat, ScaleMode.ScaleToFit);
-            }
-            
-            if (isReadOnly)
-            {
-                EditorGUI.DrawRect(rect, new Color(0f, 0f, 0f, 0.2f));
-            }
-        }
-
-        private static void DrawIntGridValue(Rect rect, int matrixValue, IntGrid intGrid)
-        {
-            if (Mathf.Abs(matrixValue) == RuleGridConsts.AnyIntGridValue)
-            {
-                EditorGUI.DrawRect(rect.Padding(1), BackgroundCellColor);
-                DrawBuiltInCellTexture(rect, AnyTexture, Color.white);
-                return;
-            }
-
-            if (matrixValue == 0)
-            {
-                EditorGUI.DrawRect(rect.Padding(1), BackgroundCellColor);
-                return;
-            }
-            
-            var intGridValue = IntGridToIndex(matrixValue, intGrid);
-            if (intGridValue.texture == null)
-            {
-                EditorGUI.DrawRect(rect.Padding(1), intGridValue.color);
-            }
-            else
-            {
-                EditorGUI.DrawRect(rect.Padding(1), BackgroundCellColor);
-                EditorGUI.DrawPreviewTexture(rect, intGridValue.texture, TextureMat, ScaleMode.ScaleToFit);
-            }
-        }
-        
-        private static void DrawNotTextureIfNeeded(Rect rect, int value)
-        {
-            if (value < 0)
-            {
-                DrawBuiltInCellTexture(rect, NotTexture, Color.red);
-            }
-        }
-
-        private static void DrawBuiltInCellTexture(Rect rect, Texture texture, Color borderColor)
-        {
-            SirenixEditorGUI.DrawBorders(rect.Padding(4f), 2, 2, 2, 2, borderColor);
-            var size = rect.size;
-            rect.size *= 0.6f;
-            rect.position += (size - rect.size) * 0.5f;
-            EditorGUI.DrawPreviewTexture(rect, texture, TextureMat, ScaleMode.ScaleToFit);
-        }
-        
-        public static IntGridValue IntGridToIndex(int intGridValue, IntGrid intGrid)
-        {
-            return intGridValue != 0 ? intGrid.IntGridValuesDict[Mathf.Abs(intGridValue)] : null;
         }
     }
 }

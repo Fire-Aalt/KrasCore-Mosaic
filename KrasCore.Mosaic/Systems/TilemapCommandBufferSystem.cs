@@ -1,3 +1,5 @@
+using BovineLabs.Core.Collections;
+using BovineLabs.Core.Extensions;
 using KrasCore.Mosaic.Data;
 using KrasCore.NZCore;
 using Unity.Burst;
@@ -67,20 +69,19 @@ namespace KrasCore.Mosaic
                 var commandsLayer = tcb.Layers[intGridHash];
                 
                 if (TryClearAll(ref commandsLayer, ref dataLayer, refreshPositionsBuffer)
-                    || commandsLayer.SetCommandsMapper.ParallelList.Length == 0)
+                    || commandsLayer.SetCommands.Length == 0)
                 {
                     continue;
                 }
-                
-                var jobDependency = commandsLayer.SetCommandsMapper.CopyParallelToListSingle(state.Dependency);
-                
+
                 // ProcessCommandsJob
-                jobDependency = new ProcessCommandsJob
+                var jobDependency = new ProcessCommandsJob
                 {
                     IntGrid = dataLayer.IntGrid,
                     ChangedPositions = dataLayer.ChangedPositions,
-                    CommandsMapper = commandsLayer.SetCommandsMapper,
-                }.Schedule(jobDependency);
+                    SetCommands = commandsLayer.SetCommands,
+                    DualGrid = false // TODO: better set
+                }.Schedule(state.Dependency);
                 
                 // Find and filter refresh positions
                 jobDependency = new FindRefreshPositionsJob
@@ -104,6 +105,7 @@ namespace KrasCore.Mosaic
                     SpriteCommands = dataLayer.SpriteCommands.AsThreadWriter(),
                     PositionsToRemove = dataLayer.PositionToRemove.AsThreadWriter(),
                     IntGridHash = intGridHash,
+                    DualGrid = false, // TODO: better set
                     Seed = tcb.GlobalSeed.Value
                 }.Schedule(dataLayer.PositionsToRefreshList, 16, jobDependency);
                 
@@ -175,18 +177,40 @@ namespace KrasCore.Mosaic
         [BurstCompile]
         private struct ProcessCommandsJob : IJob
         {
-            public ParallelToListMapper<SetCommand> CommandsMapper;
-            public NativeParallelHashMap<int2, int> IntGrid;
+            public ParallelList<SetCommand> SetCommands;
+            public NativeParallelHashMap<int2, IntGridValue> IntGrid;
             public NativeHashSet<int2> ChangedPositions;
+            
+            public bool DualGrid;
             
             public void Execute()
             {
-                foreach (var command in CommandsMapper.List)
+                foreach (var command in SetCommands)
                 {
-                    IntGrid[command.Position] = command.IntGridValue;
+                    if (DualGrid)
+                    {
+                        ref var lb = ref GetCorner(command.Position);
+                        lb.RightTop = command.IntGridValue;
+                        ref var rb = ref GetCorner(command.Position + new int2(1, 0));
+                        rb.LeftTop = command.IntGridValue;
+                        ref var lt = ref GetCorner(command.Position + new int2(0, 1));
+                        lt.RightBottom = command.IntGridValue;
+                        ref var rt = ref GetCorner(command.Position + new int2(1, 1));
+                        rt.LeftBottom = command.IntGridValue;
+                    }
+                    else
+                    {
+                        IntGrid[command.Position] = new IntGridValue(command.IntGridValue);
+                    }
                     ChangedPositions.Add(command.Position);
                 }
-                CommandsMapper.Clear();
+                SetCommands.Clear();
+            }
+
+            private ref IntGridValue GetCorner(in int2 position)
+            {
+                ChangedPositions.Add(position);
+                return ref IntGrid.GetOrAddRef(position);
             }
         }
         
@@ -221,7 +245,7 @@ namespace KrasCore.Mosaic
         private struct ProcessRulesJob : IJobParallelForDefer
         {
             [ReadOnly]
-            public NativeParallelHashMap<int2, int> IntGrid;
+            public NativeParallelHashMap<int2, IntGridValue> IntGrid;
             [ReadOnly]
             public NativeParallelHashMap<int2, int> RuleGrid;
             [ReadOnly]
@@ -242,6 +266,7 @@ namespace KrasCore.Mosaic
             public ParallelList<RemoveCommand>.ThreadWriter PositionsToRemove;
 
             public Hash128 IntGridHash;
+            public bool DualGrid;
             public uint Seed;
             
             public void Execute(int index)
@@ -396,14 +421,32 @@ namespace KrasCore.Mosaic
                 return hash;
             }
             
-            private static bool CanPlace(in RuleCell cell, int value)
+            private bool CanPlace(in RuleCell cell, IntGridValue value)
             {
-                if (cell.IntGridValue == -RuleGridConsts.AnyIntGridValue) 
+                if (!DualGrid)
+                {
+                    return CanPlace(cell.IntGridValue.Solid, value.Solid);
+                }
+                
+                var passed = CanPlace(cell.IntGridValue.LeftBottom, value.LeftBottom);
+                if (!passed) return false;
+                passed = CanPlace(cell.IntGridValue.RightBottom, value.RightBottom);
+                if (!passed) return false;
+                passed = CanPlace(cell.IntGridValue.LeftTop, value.LeftTop);
+                if (!passed) return false;
+                passed = CanPlace(cell.IntGridValue.RightTop, value.RightTop);
+                if (!passed) return false;
+                return true;
+            }
+            
+            private bool CanPlace(short ruleIntGridValue, short valueIntGridValue)
+            {
+                if (ruleIntGridValue == -RuleGridConsts.AnyIntGridValue) 
                     return false;
-                if (cell.IntGridValue < 0 && -cell.IntGridValue == value) 
+                if (ruleIntGridValue < 0 && -ruleIntGridValue == valueIntGridValue) 
                     return false;
-                if (cell.IntGridValue != RuleGridConsts.AnyIntGridValue &&
-                         (cell.IntGridValue > 0 && cell.IntGridValue != value)) 
+                if (ruleIntGridValue != RuleGridConsts.AnyIntGridValue &&
+                    (ruleIntGridValue > 0 && ruleIntGridValue != valueIntGridValue)) 
                     return false;
                 return true;
             }
