@@ -22,13 +22,12 @@ namespace KrasCore.Mosaic.Data
         
             public NativeParallelHashMap<int2, Entity> SpawnedEntities;
             public NativeParallelHashMap<int2, SpriteMesh> RenderedSprites;
-            public NativeReference<int> RenderedSpritesCount;
         
             public ParallelToListMapper<RuleCommand> RuleCommands;
             public ParallelToListMapper<SpriteCommand> SpriteCommands;
             public ParallelToListMapper<RemoveCommand> PositionToRemove;
 
-            public bool DualGrid;
+            public readonly bool DualGrid;
             
             // Store data locally to simplify lookups
             public TilemapData TilemapData;
@@ -44,7 +43,6 @@ namespace KrasCore.Mosaic.Data
             
                 SpawnedEntities = new NativeParallelHashMap<int2, Entity>(capacity, allocator);
                 RenderedSprites = new NativeParallelHashMap<int2, SpriteMesh>(capacity, allocator);
-                RenderedSpritesCount = new NativeReference<int>(allocator);
 
                 RuleCommands = new ParallelToListMapper<RuleCommand>(capacity, allocator);
                 SpriteCommands = new ParallelToListMapper<SpriteCommand>(capacity, allocator);
@@ -71,14 +69,12 @@ namespace KrasCore.Mosaic.Data
                 RuleCommands.Dispose();
                 SpawnedEntities.Dispose();
                 RenderedSprites.Dispose();
-                RenderedSpritesCount.Dispose();
             
                 SpriteCommands.Dispose();
                 PositionToRemove.Dispose();
             }
         }
         
-        [NativeDisableContainerSafetyRestriction]
         public NativeHashMap<Hash128, IntGridLayer> IntGridLayers;
 
         // Store entity commands on a singleton to sort it later and instantiate using batch API

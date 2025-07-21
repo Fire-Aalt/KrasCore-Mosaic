@@ -6,6 +6,7 @@
         "KrasCore.Mosaic.Data",
         "BovineLabs.Core",
         "BovineLabs.Core.Extensions",
+        "BovineLabs.Quill",
         "Unity.Burst",
         "Unity.Collections",
         "Unity.Entities",

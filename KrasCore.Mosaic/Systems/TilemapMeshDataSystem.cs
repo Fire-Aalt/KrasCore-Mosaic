@@ -189,8 +189,6 @@ namespace KrasCore.Mosaic
 		        {
 			        data.RenderedSprites[command.Position] = command.SpriteMesh;
 		        }
-
-		        data.RenderedSpritesCount.Value = data.RenderedSprites.Count();
 	        }
         }
         
@@ -217,7 +215,7 @@ namespace KrasCore.Mosaic
 			        var data = IntGridLayers[i];
 
 			        var offset = meshesCount;
-			        var count = data.RenderedSpritesCount.Value;
+			        var count = data.RenderedSprites.Count();
 			        meshesCount += count;
 			        
 			        Offsets[i] = new OffsetData

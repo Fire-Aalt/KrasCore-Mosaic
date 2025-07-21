@@ -32,6 +32,7 @@ namespace KrasCore.Mosaic
         private partial struct RegisterJob : IJobEntity
         {
             public TilemapCommandBufferSingleton Tcb;
+            [NativeDisableContainerSafetyRestriction]
             public TilemapDataSingleton DataSingleton;
             
             private void Execute(ref TilemapData tilemapData, EnabledRefRW<TilemapData> enabled)
