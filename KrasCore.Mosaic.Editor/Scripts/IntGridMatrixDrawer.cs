@@ -14,12 +14,20 @@ namespace KrasCore.Mosaic.Editor
 {
     public class IntGridMatrixDrawer : OdinAttributeDrawer<IntGridMatrixAttribute, IntGridMatrix>
     {
-        private IntGridValue[] MatrixArray => ValueEntry.SmartValue.matrix;
-        private IntGridDefinition IntGrid => ValueEntry.SmartValue.intGrid;
+        private IntGridMatrix Matrix => ValueEntry.SmartValue;
+        private IntGridDefinition IntGrid => Matrix.intGrid;
         
         private object _targetObject;
         private MethodInfo _matrixRectMethod;
         private MethodInfo _onBeforeDrawCellMethod;
+        
+        private int _singleGridMatrixSize;
+        private float _matrixSizePixels;
+        private float _squareSizePixels;
+        private float _paddingPixels;
+        
+        private IntGridValue[] _currentGridMatrix;
+        private int _currentGridMatrixSize;
         
         protected override void Initialize()
         {
@@ -33,10 +41,10 @@ namespace KrasCore.Mosaic.Editor
 
         protected override void DrawPropertyLayout(GUIContent label)
         {
-            GetProperties(out var matrixWidth, out var matrixSize, out var squareSize, out var padding);
+            SetProperties();
             
-            var matrixRect = EditorGUILayout.GetControlRect(GUILayout.Height(matrixWidth));
-            matrixRect.size = new Vector2(matrixWidth, matrixWidth);
+            var matrixRect = EditorGUILayout.GetControlRect(false, _matrixSizePixels);
+            matrixRect.size = new Vector2(_matrixSizePixels, _matrixSizePixels);
             
             if (_matrixRectMethod != null)
             {
@@ -44,192 +52,88 @@ namespace KrasCore.Mosaic.Editor
             }
 
             var parameters = new object[2];
+
+            var currentMatrixRect = IntGrid.useDualGrid
+                ? matrixRect.Expand(_squareSizePixels / 2f)
+                : matrixRect;
             
-            // Draw each square
-            for (int i = 0; i < matrixSize; i++)
+            for (int i = 0; i < _currentGridMatrixSize; i++)
             {
-                for (int j = 0; j < matrixSize; j++)
+                for (int j = 0; j < _currentGridMatrixSize; j++)
                 {
-                    int index = i * matrixSize + j;
+                    var index = i * _currentGridMatrixSize + j;
 
                     var squareRect = new Rect(
-                        matrixRect.x + j * (squareSize + padding),
-                        matrixRect.y + i * (squareSize + padding),
-                        squareSize,
-                        squareSize
+                        currentMatrixRect.x + j * (_squareSizePixels + _paddingPixels),
+                        currentMatrixRect.y + i * (_squareSizePixels + _paddingPixels),
+                        _squareSizePixels,
+                        _squareSizePixels
                     );
+
+                    if (IntGrid.useDualGrid)
+                    {
+                        squareRect = squareRect.EncapsulateWithin(matrixRect);
+                    }
 
                     if (_onBeforeDrawCellMethod != null)
                     {
                         parameters[0] = squareRect;
-                        parameters[1] = MatrixArray[index];
-                        MatrixArray[index] = (IntGridValue)_onBeforeDrawCellMethod.Invoke(_targetObject, parameters);
+                        parameters[1] = _currentGridMatrix[index];
+                        _currentGridMatrix[index] = (IntGridValue)_onBeforeDrawCellMethod.Invoke(_targetObject, parameters);
                     }
+
+                    DrawMatrixCell(squareRect, _currentGridMatrix[index]);
                 }
             }
 
-            if (IntGrid.useDualGrid)
-            {
-                var values = new List<short>(4); 
-                var secondGridRect = matrixRect.Expand(squareSize / 2f);
-                
-                for (int i = 0; i < matrixSize + 1; i++)
-                {
-                    for (int j = 0; j < matrixSize + 1; j++)
-                    {
-                        var squareRect = new Rect(
-                            secondGridRect.x + j * (squareSize + padding),
-                            secondGridRect.y + i * (squareSize + padding),
-                            squareSize,
-                            squareSize
-                        );
-                        squareRect = squareRect.EncapsulateWithin(matrixRect);
-                        
-                        values.Clear();
-                        if (ValidIndex(i - 1, j - 1, out var newIndex) 
-                            && Filter(MatrixArray[newIndex].RightTop, out var filteredValue))
-                            values.Add(filteredValue);
-                        
-                        if (ValidIndex(i - 1, j, out newIndex) 
-                            && Filter(MatrixArray[newIndex].LeftTop, out filteredValue))
-                            values.Add(filteredValue);
-                        
-                        if (ValidIndex(i, j - 1, out newIndex) 
-                            && Filter(MatrixArray[newIndex].RightBottom, out filteredValue))
-                            values.Add(filteredValue);
-                        
-                        if (ValidIndex(i, j, out newIndex) 
-                            && Filter(MatrixArray[newIndex].LeftBottom, out filteredValue))
-                            values.Add(filteredValue);
-
-                        short initialValue = 0;
-                        var allIdentical = true;
-                        foreach (var value in values)
-                        {
-                            if (initialValue == 0)
-                            {
-                                initialValue = value;
-                            }
-                            else if (initialValue != value)
-                            {
-                                allIdentical = false;
-                                break;
-                            }
-                        }
-
-                        if (allIdentical)
-                        {
-                            DrawIntGridCell(squareRect, initialValue);
-                        }
-                    }
-                }
-
-                bool ValidIndex(int iIndex, int jIndex, out int newIndex)
-                {
-                    if (iIndex >= 0 && iIndex < matrixSize && jIndex >= 0 && jIndex < matrixSize)
-                    {
-                        newIndex = iIndex * matrixSize + jIndex;
-                        return true;
-                    }
-                    newIndex = -1;
-                    return false;
-                }
-                
-                
-                bool Filter(short value, out short filteredValue)
-                {
-                    if (value != 0)
-                    {
-                        filteredValue = value;
-                        return true;
-                    }
-                    filteredValue = 0;
-                    return false;
-                }
-            }
-            
-            // Draw each square
-            for (int i = 0; i < matrixSize; i++)
-            {
-                for (int j = 0; j < matrixSize; j++)
-                {
-                    int index = i * matrixSize + j;
-
-                    var squareRect = new Rect(
-                        matrixRect.x + j * (squareSize + padding),
-                        matrixRect.y + i * (squareSize + padding),
-                        squareSize,
-                        squareSize
-                    );
-                    
-                    
-                    DrawMatrixCell(squareRect, index, MatrixArray[index]);
-                }
-            }
-        }
-
-        private void GetProperties(out float matrixWidth, out int matrixSize, out float squareSize, out float padding)
-        {
-            matrixSize = (int)Mathf.Sqrt(MatrixArray.Length);
-            if (matrixSize * matrixSize != MatrixArray.Length)
-                throw new Exception("A collection has a non square size. Matrix cannot be drawn");
-        
-            squareSize = EditorGUILayout.GetControlRect(false, 0f).size.x / matrixSize;
-            padding = squareSize * Attribute.Padding;
-            matrixWidth = matrixSize * (squareSize + padding);
-        }
-        
-        private void DrawMatrixCell(Rect rect, int index, IntGridValue matrixValue)
-        {
-            if (!IntGrid.useDualGrid)
-            {
-                DrawIntGridCell(rect, matrixValue.Solid);
-            }
-            else
-            {
-                rect.Subdivide(out var leftBottom, out var rightBottom, out var leftTop, out var rightTop);
-                DrawIntGridCell(leftBottom, matrixValue.LeftBottom);
-                DrawIntGridCell(rightBottom, matrixValue.RightBottom);
-                DrawIntGridCell(leftTop, matrixValue.LeftTop);
-                DrawIntGridCell(rightTop, matrixValue.RightTop);
-            }
-            
-            if (index == RuleGroup.Rule.MatrixSizeHalf * RuleGroup.Rule.MatrixSize + RuleGroup.Rule.MatrixSizeHalf)
-            {
-                EditorGUI.DrawPreviewTexture(rect, EditorHelper.MatrixCenterTexture, EditorHelper.TextureMat, ScaleMode.ScaleToFit);
-            }
+            var centerSquare = matrixRect.Padding(_matrixSizePixels / 2f - _squareSizePixels / 2f);
+            EditorGUI.DrawPreviewTexture(centerSquare, EditorHelper.MatrixCenterTexture, EditorHelper.TextureMat, ScaleMode.ScaleToFit);
             
             if (Attribute.IsReadonly)
             {
-                EditorGUI.DrawRect(rect, new Color(0f, 0f, 0f, 0.2f));
+                EditorGUI.DrawRect(matrixRect, new Color(0f, 0f, 0f, 0.3f));
             }
         }
-        
-        private void DrawIntGridCell(Rect rect, short slotValue)
+
+        private void SetProperties()
         {
-            DrawIntGridValue(rect, slotValue);
-            if (slotValue < 0)
+            _singleGridMatrixSize = (int)Mathf.Sqrt(Matrix.singleGridMatrix.Length);
+            if (_singleGridMatrixSize * _singleGridMatrixSize != Matrix.singleGridMatrix.Length)
+                throw new Exception("A collection has a non square size. Matrix cannot be drawn");
+        
+            _squareSizePixels = EditorGUILayout.GetControlRect(false, 0f).size.x / _singleGridMatrixSize;
+            _paddingPixels = _squareSizePixels * Attribute.Padding;
+            _matrixSizePixels = _singleGridMatrixSize * (_squareSizePixels + _paddingPixels);
+
+            _currentGridMatrix = Matrix.GetCurrentMatrix();
+            _currentGridMatrixSize = Matrix.GetCurrentSize();
+        }
+        
+        private void DrawMatrixCell(Rect rect, IntGridValue matrixValue)
+        {
+            DrawIntGridValue(rect, matrixValue);
+            if (matrixValue < 0)
             {
                 DrawBuiltInCellTexture(rect, EditorHelper.NotTexture, Color.red);
             }
         }
 
-        private void DrawIntGridValue(Rect rect, short slotValue)
+        private void DrawIntGridValue(Rect rect, IntGridValue value)
         {
-            if (Mathf.Abs(slotValue) == RuleGridConsts.AnyIntGridValue)
+            if (Mathf.Abs(value) == RuleGridConsts.AnyIntGridValue)
             {
                 EditorGUI.DrawRect(rect.Padding(1), EditorHelper.BackgroundCellColor);
                 DrawBuiltInCellTexture(rect, EditorHelper.AnyTexture, Color.white);
                 return;
             }
 
-            if (slotValue == 0)
+            if (value == 0)
             {
                 EditorGUI.DrawRect(rect.Padding(1), EditorHelper.BackgroundCellColor);
                 return;
             }
             
-            var intGridValue = IntGridToIndex(slotValue);
+            var intGridValue = IntGridToIndex(value);
             if (intGridValue.texture == null)
             {
                 EditorGUI.DrawRect(rect.Padding(1), intGridValue.color);
@@ -250,7 +154,7 @@ namespace KrasCore.Mosaic.Editor
             EditorGUI.DrawPreviewTexture(rect, texture, EditorHelper.TextureMat, ScaleMode.ScaleToFit);
         }
 
-        private IntGridValueDefinition IntGridToIndex(short intGridValue)
+        private IntGridValueDefinition IntGridToIndex(IntGridValue intGridValue)
         {
             return intGridValue != 0 ? IntGrid.IntGridValuesDict[Mathf.Abs(intGridValue)] : null;
         }

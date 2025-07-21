@@ -80,7 +80,7 @@ namespace KrasCore.Mosaic
                     IntGrid = dataLayer.IntGrid,
                     ChangedPositions = dataLayer.ChangedPositions,
                     SetCommands = commandsLayer.SetCommands,
-                    DualGrid = false // TODO: better set
+                    DualGrid = dataLayer.DualGrid
                 }.Schedule(state.Dependency);
                 
                 // Find and filter refresh positions
@@ -105,7 +105,6 @@ namespace KrasCore.Mosaic
                     SpriteCommands = dataLayer.SpriteCommands.AsThreadWriter(),
                     PositionsToRemove = dataLayer.PositionToRemove.AsThreadWriter(),
                     IntGridHash = intGridHash,
-                    DualGrid = false, // TODO: better set
                     Seed = tcb.GlobalSeed.Value
                 }.Schedule(dataLayer.PositionsToRefreshList, 16, jobDependency);
                 
@@ -187,30 +186,22 @@ namespace KrasCore.Mosaic
             {
                 foreach (var command in SetCommands)
                 {
+                    SetPosition(command.Position, command.IntGridValue);
+                    
                     if (DualGrid)
                     {
-                        ref var lb = ref GetCorner(command.Position);
-                        lb.RightTop = command.IntGridValue;
-                        ref var rb = ref GetCorner(command.Position + new int2(1, 0));
-                        rb.LeftTop = command.IntGridValue;
-                        ref var lt = ref GetCorner(command.Position + new int2(0, 1));
-                        lt.RightBottom = command.IntGridValue;
-                        ref var rt = ref GetCorner(command.Position + new int2(1, 1));
-                        rt.LeftBottom = command.IntGridValue;
+                        SetPosition(command.Position + new int2(1, 0), command.IntGridValue);
+                        SetPosition(command.Position + new int2(0, 1), command.IntGridValue);
+                        SetPosition(command.Position + new int2(1, 1), command.IntGridValue);
                     }
-                    else
-                    {
-                        IntGrid[command.Position] = new IntGridValue(command.IntGridValue);
-                    }
-                    ChangedPositions.Add(command.Position);
                 }
                 SetCommands.Clear();
             }
 
-            private ref IntGridValue GetCorner(in int2 position)
+            private void SetPosition(int2 position, IntGridValue value)
             {
                 ChangedPositions.Add(position);
-                return ref IntGrid.GetOrAddRef(position);
+                IntGrid[position] = value;
             }
         }
         
@@ -266,7 +257,6 @@ namespace KrasCore.Mosaic
             public ParallelList<RemoveCommand>.ThreadWriter PositionsToRemove;
 
             public Hash128 IntGridHash;
-            public bool DualGrid;
             public uint Seed;
             
             public void Execute(int index)
@@ -395,7 +385,7 @@ namespace KrasCore.Mosaic
                     var posToCheck = posToRefresh + cell.Offset;
                             
                     IntGrid.TryGetValue(posToCheck, out var value);
-                    passedCheck = CanPlace(cell, value);
+                    passedCheck = CanPlace(cell.IntGridValue, value);
 
                     if (!passedCheck)
                         break;
@@ -419,24 +409,6 @@ namespace KrasCore.Mosaic
                 hash = (hash * 431) + mirrorHash;
                 hash = (hash * 701) + rotation;
                 return hash;
-            }
-            
-            private bool CanPlace(in RuleCell cell, IntGridValue value)
-            {
-                if (!DualGrid)
-                {
-                    return CanPlace(cell.IntGridValue.Solid, value.Solid);
-                }
-                
-                var passed = CanPlace(cell.IntGridValue.LeftBottom, value.LeftBottom);
-                if (!passed) return false;
-                passed = CanPlace(cell.IntGridValue.RightBottom, value.RightBottom);
-                if (!passed) return false;
-                passed = CanPlace(cell.IntGridValue.LeftTop, value.LeftTop);
-                if (!passed) return false;
-                passed = CanPlace(cell.IntGridValue.RightTop, value.RightTop);
-                if (!passed) return false;
-                return true;
             }
             
             private bool CanPlace(short ruleIntGridValue, short valueIntGridValue)

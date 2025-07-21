@@ -2,6 +2,7 @@ using KrasCore.Mosaic.Data;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using UnityEngine;
 
 namespace KrasCore.Mosaic.Authoring
 {
@@ -15,7 +16,6 @@ namespace KrasCore.Mosaic.Authoring
             root.Chance = rule.ruleChance;
             root.RuleTransform = rule.ruleTransform;
             root.ResultTransform = rule.resultTransform;
-            root.UsesDualGrid = rule.BoundIntGridDefinition.useDualGrid;
             
             AddPatterns(ref root, rule, refreshPositions, builder);
             AddResults(ref root, rule, entityCount, builder);
@@ -26,9 +26,9 @@ namespace KrasCore.Mosaic.Authoring
         private static void AddPatterns(ref RuleBlob root, RuleGroup.Rule rule, NativeHashSet<int2> refreshPositions, BlobBuilder builder)
         {
             var usedCellCount = 0;
-            foreach (var intGridValue in rule.ruleMatrix.matrix)
+            foreach (var intGridValue in rule.ruleMatrix.GetCurrentMatrix())
             {
-                usedCellCount += intGridValue.IsEmpty ? 0 : 1;
+                usedCellCount += intGridValue == 0 ? 0 : 1;
             }
             
             var combinedMirroredCellCount = usedCellCount * MosaicUtils.GetCellsToCheckBucketsCount(rule.ruleTransform);
@@ -80,13 +80,17 @@ namespace KrasCore.Mosaic.Authoring
         private static void AddMirrorPattern(RuleGroup.Rule rule, BlobBuilderArray<RuleCell> cells,
             NativeHashSet<int2> refreshPositions, ref int cnt, bool2 mirror)
         {
-            for (var index = 0; index < rule.ruleMatrix.matrix.Length; index++)
+            var matrix = rule.ruleMatrix.GetCurrentMatrix();
+            for (var index = 0; index < matrix.Length; index++)
             {
-                var intGridValue = rule.ruleMatrix.matrix[index];
-                if (intGridValue.IsEmpty) continue;
+                var intGridValue = matrix[index];
+                if (intGridValue == 0) continue;
                 ref var cell = ref cells[cnt];
                 
-                var pos = RuleGroup.Rule.GetOffsetFromCenterMirrored(index, mirror);
+                var pos = rule.GetOffsetFromCenterMirrored(index, mirror);
+                if (rule.BoundIntGridDefinition.useDualGrid) //pos += new int2(1, 1);
+                    Debug.Log(pos.ToString() + " " + mirror.ToString());
+                
                 refreshPositions.Add(pos);
                 
                 cell = new RuleCell
@@ -101,15 +105,19 @@ namespace KrasCore.Mosaic.Authoring
         private static void AddRotatedPattern(RuleGroup.Rule rule, BlobBuilderArray<RuleCell> cells,
             NativeHashSet<int2> refreshPositions, ref int cnt)
         {
+            var matrix = rule.ruleMatrix.GetCurrentMatrix();
             for (int rotation = 1; rotation < 4; rotation++)
             {
-                for (var index = 0; index < rule.ruleMatrix.matrix.Length; index++)
+                for (var index = 0; index < matrix.Length; index++)
                 {
-                    var intGridValue = rule.ruleMatrix.matrix[index];
-                    if (intGridValue.IsEmpty) continue;
+                    var intGridValue = matrix[index];
+                    if (intGridValue == 0) continue;
                     ref var cell = ref cells[cnt];
 
-                    var pos = RuleGroup.Rule.GetOffsetFromCenterRotated(index, rotation);
+                    var pos = rule.GetOffsetFromCenterRotated(index, rotation);
+                    if (rule.BoundIntGridDefinition.useDualGrid) //pos += new int2(1, 1);
+                        Debug.Log(pos.ToString() + " " + rotation);
+                    //if (rule.BoundIntGridDefinition.useDualGrid) pos += new int2(1, 1);
                     refreshPositions.Add(pos);
                     
                     cell = new RuleCell

@@ -13,20 +13,11 @@ namespace KrasCore.Mosaic.Authoring
             leftTop = new Rect(rect.min + new Vector2(0, size.y), size);
             rightTop = new Rect(rect.min + size, size);
         }
-        
-        /// <summary>
-        /// Returns a new Rect based on <paramref name="inner"/> that is guaranteed to lie fully
-        /// within <paramref name="outer"/>. If <paramref name="inner"/> is larger than <paramref name="outer"/>,
-        /// its width/height will be reduced; if it's partially or fully outside, it will be shifted inside.
-        /// </summary>
+
         public static Rect EncapsulateWithin(this Rect inner, Rect outer)
         {
-            // Start with original
-            Rect result = inner;
+            var result = inner;
 
-            // 2) Clamp position so it never leaves the outer bounds
-            //    We clamp the min (x/y) between outer.xMin and (outer.xMax - result.width),
-            //    so the max edge never goes beyond outer.xMax
             result.xMin = Mathf.Clamp(result.xMin, outer.xMin, outer.xMax);
             result.yMin = Mathf.Clamp(result.yMin, outer.yMin, outer.yMax);
              

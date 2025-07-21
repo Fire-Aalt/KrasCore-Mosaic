@@ -1,3 +1,4 @@
+using System;
 using KrasCore.Mosaic.Authoring;
 using Sirenix.OdinInspector.Editor;
 using UnityEditor;
@@ -10,7 +11,7 @@ namespace KrasCore.Mosaic.Editor
         protected override void OnEnable()
         {
             base.OnEnable();
-
+            
             RuleGroupMatrixWindow.NumberOfActiveInspectorWindows++;
         }
 
