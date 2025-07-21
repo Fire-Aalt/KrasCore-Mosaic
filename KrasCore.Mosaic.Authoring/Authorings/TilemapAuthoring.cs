@@ -55,6 +55,7 @@ namespace KrasCore.Mosaic.Authoring
                     IntGridHash = authoring.intGrid.Hash,
                     Orientation = authoring._orientation,
                     GridEntity = GetEntity(authoring.GetComponentInParent<GridAuthoring>(), TransformUsageFlags.None),
+                    DualGrid = authoring.intGrid.useDualGrid,
                     ShadowCastingMode = authoring._shadowCastingMode,
                     ReceiveShadows = authoring._receiveShadows
                 });

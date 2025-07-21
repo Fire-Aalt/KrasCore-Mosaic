@@ -20,7 +20,6 @@ namespace KrasCore.Mosaic.Data
         public float Chance;
         public RuleTransform RuleTransform;
         public ResultTransform ResultTransform;
-        public bool UsesDualGrid;
 
         public bool TryGetEntity(ref Random random, in DynamicBuffer<WeightedEntityElement> entityBuffer, out Entity entity)
         {

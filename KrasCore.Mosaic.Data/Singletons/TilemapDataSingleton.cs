@@ -27,11 +27,13 @@ namespace KrasCore.Mosaic.Data
             public ParallelToListMapper<RuleCommand> RuleCommands;
             public ParallelToListMapper<SpriteCommand> SpriteCommands;
             public ParallelToListMapper<RemoveCommand> PositionToRemove;
-        
+
+            public bool DualGrid;
+            
             // Store data locally to simplify lookups
             public TilemapData TilemapData;
             
-            public IntGridLayer(int capacity, Allocator allocator)
+            public IntGridLayer(int capacity, Allocator allocator, bool dualGrid)
             {
                 IntGrid = new NativeParallelHashMap<int2, IntGridValue>(capacity, allocator);
                 RuleGrid = new NativeParallelHashMap<int2, int>(capacity, allocator);
@@ -48,6 +50,7 @@ namespace KrasCore.Mosaic.Data
                 SpriteCommands = new ParallelToListMapper<SpriteCommand>(capacity, allocator);
                 PositionToRemove = new ParallelToListMapper<RemoveCommand>(capacity, allocator);
             
+                DualGrid = dualGrid;
                 TilemapData = default;
             }
             
@@ -81,11 +84,11 @@ namespace KrasCore.Mosaic.Data
         // Store entity commands on a singleton to sort it later and instantiate using batch API
         public ParallelToListMapper<EntityCommand> EntityCommands;
         
-        public bool TryRegisterIntGridLayer(in Hash128 intGridHash)
+        public bool TryRegisterIntGridLayer(TilemapData tilemapData)
         {
-            if (IntGridLayers.ContainsKey(intGridHash)) return false;
+            if (IntGridLayers.ContainsKey(tilemapData.IntGridHash)) return false;
             
-            IntGridLayers.Add(intGridHash, new IntGridLayer(64, Allocator.Persistent));
+            IntGridLayers.Add(tilemapData.IntGridHash, new IntGridLayer(64, Allocator.Persistent, tilemapData.DualGrid));
             return true;
         }
         

@@ -53,6 +53,23 @@ namespace KrasCore.Mosaic.Authoring
             window.Show();
         }
 
+        protected override void OnEnable()
+        {
+            base.OnEnable();
+            AssemblyReloadEvents.beforeAssemblyReload += CloseWindowOnDomainReload;
+        }
+
+        protected override void OnDisable()
+        {
+            base.OnDisable();
+            AssemblyReloadEvents.beforeAssemblyReload -= CloseWindowOnDomainReload;
+        }
+
+        private void CloseWindowOnDomainReload()
+        {
+            Close();
+        }
+
         private void OnValidate()
         {
             if (_convertSprites.Count > 0)
@@ -103,8 +120,6 @@ namespace KrasCore.Mosaic.Authoring
         {
             base.SaveChanges();
             
-            _target.ruleMatrix.matrix = (IntGridValue[])_matrix.matrix.Clone();
-            
             if (_target != null)
             {
                 EditorUtility.SetDirty(_target.RuleGroup);
@@ -125,18 +140,7 @@ namespace KrasCore.Mosaic.Authoring
         
         private IntGridValue OnBeforeDrawMatrixCell(Rect rect, IntGridValue value)
         {
-            if (!_intGrid.useDualGrid)
-            {
-                UpdateIntGridValue(rect, ref value.Solid);
-            }
-            else
-            {
-                rect.Subdivide(out var leftBottom, out var rightBottom, out var leftTop, out var rightTop);
-                UpdateIntGridValue(leftBottom, ref value.LeftBottom);
-                UpdateIntGridValue(rightBottom, ref value.RightBottom);
-                UpdateIntGridValue(leftTop, ref value.LeftTop);
-                UpdateIntGridValue(rightTop, ref value.RightTop);
-            }
+            UpdateIntGridValue(rect, ref value.value);
             return value;
         }
 

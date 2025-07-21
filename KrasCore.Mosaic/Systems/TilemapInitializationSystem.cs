@@ -37,7 +37,7 @@ namespace KrasCore.Mosaic
             private void Execute(ref TilemapData tilemapData, EnabledRefRW<TilemapData> enabled)
             {
                 Tcb.TryRegisterIntGridLayer(tilemapData.IntGridHash);
-                DataSingleton.TryRegisterIntGridLayer(tilemapData.IntGridHash);
+                DataSingleton.TryRegisterIntGridLayer(tilemapData);
                 enabled.ValueRW = true;
             }
         }

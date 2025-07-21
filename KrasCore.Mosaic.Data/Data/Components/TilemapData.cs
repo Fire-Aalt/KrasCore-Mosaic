@@ -10,6 +10,7 @@ namespace KrasCore.Mosaic.Data
         
         // Store data locally to simplify lookups
         public Entity GridEntity;
+        public bool DualGrid;
         public GridData GridData;
         
         public ShadowCastingMode ShadowCastingMode;
