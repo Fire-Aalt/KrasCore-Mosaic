@@ -41,6 +41,8 @@ namespace KrasCore.Mosaic
                 beginBatchIndex = i + 1;
             }
             UploadBatch(ref state, beginBatchIndex, _commandsList.Length - 1, _commandsList[^1].SrcEntity);
+            
+            singleton.EntityCommands.Clear();
         }
         
         private void UploadBatch(ref SystemState state, int beginIndex, int endIndex, in Entity srcEntity)

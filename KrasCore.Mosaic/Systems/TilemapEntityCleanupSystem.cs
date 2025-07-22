@@ -18,7 +18,7 @@ namespace KrasCore.Mosaic
                 ref var dataLayer = ref kvp.Value;
                 ref var spawnedEntities = ref dataLayer.SpawnedEntities;
 
-                if (dataLayer.RuleGrid.Count == 0)
+                if (dataLayer.RuleGrid.Count == 0 && dataLayer.SpawnedEntities.Count != 0)
                 {
                     foreach (var kvPair in dataLayer.SpawnedEntities)
                     {
@@ -32,9 +32,8 @@ namespace KrasCore.Mosaic
                     {
                         spawnedEntities.TryGetValue(removedPos, out var entity);
                         
-                            state.EntityManager.DestroyEntity(entity);
-                            spawnedEntities.Remove(removedPos);
-                        
+                        state.EntityManager.DestroyEntity(entity);
+                        spawnedEntities.Remove(removedPos);
                     }
                 }
             }
