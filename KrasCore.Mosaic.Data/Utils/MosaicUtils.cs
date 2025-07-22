@@ -45,6 +45,24 @@ namespace KrasCore.Mosaic.Data
             return hash;
         }
         
+        public static bool CanPlace(short rule, short value)
+        {
+            // "never place"
+            if (rule == -RuleGridConsts.AnyIntGridValue) 
+                return false;
+                
+            // "always place"
+            if (rule == RuleGridConsts.AnyIntGridValue) 
+                return true;
+    
+            // negative => "must not match this exact value"
+            if (rule < 0) 
+                return -rule != value;
+    
+            // positive => "must match exactly"
+            return rule == value;
+        }
+        
         public static void GetSpriteMeshTranslation(in SpriteMesh spriteMesh, out float2 translation)
         {
             var pivot = spriteMesh.NormalizedPivot;
