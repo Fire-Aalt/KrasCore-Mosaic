@@ -1,4 +1,5 @@
 using Unity.Mathematics;
+using UnityEngine;
 
 namespace KrasCore.Mosaic.Data
 {
@@ -33,6 +34,15 @@ namespace KrasCore.Mosaic.Data
             hash ^= hash >> 16;
 
             return hash + 1;
+        }
+        
+        public static int Hash(int ruleIndex, in bool2 mirror, int rotation)
+        {
+            var mirrorHash = (mirror.x ? 1 : 0) | ((mirror.y ? 1 : 0) << 1);
+            var hash = ruleIndex + 531;
+            hash = (hash * 431) + mirrorHash;
+            hash = (hash * 701) + rotation;
+            return hash;
         }
         
         public static void GetSpriteMeshTranslation(in SpriteMesh spriteMesh, out float2 translation)

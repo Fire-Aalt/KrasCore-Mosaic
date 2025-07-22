@@ -1,3 +1,4 @@
+using BovineLabs.Core.Extensions;
 using KrasCore.Mosaic.Data;
 using Unity.Burst;
 using Unity.Collections;
@@ -59,16 +60,16 @@ namespace KrasCore.Mosaic
                     
                 var position = currentCommand.Position;
 
-                var layer = _intGridLayers[currentCommand.IntGridHash];
+                ref var dataLayer = ref _intGridLayers.GetOrAddRef(currentCommand.IntGridHash);
                 
                 state.EntityManager.SetComponentData(instance, new LocalTransform
                 {
-                    Position = MosaicUtils.ApplySwizzle(position, layer.TilemapData.Swizzle) * layer.TilemapData.GridData.CellSize + srcTransform.Position, 
+                    Position = MosaicUtils.ApplySwizzle(position, dataLayer.TilemapData.Swizzle) * dataLayer.TilemapData.GridData.CellSize + srcTransform.Position, 
                     Scale = srcTransform.Scale,
                     Rotation = srcTransform.Rotation
                 });
                 
-                layer.SpawnedEntities[position] = instance;
+                dataLayer.SpawnedEntities[position] = instance;
             }
         }
     }
