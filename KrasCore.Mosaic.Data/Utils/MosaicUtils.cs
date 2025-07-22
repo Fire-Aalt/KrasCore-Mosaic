@@ -20,7 +20,7 @@ namespace KrasCore.Mosaic.Data
         /// <summary>
         /// Hash function for seeded random seeds, unique for each position
         /// </summary>
-        public static uint Hash(uint seed, in int2 pos)
+        public static uint Hash(uint seed, int2 pos)
         {
             // Combine position into a single 64-bit value for better hash distribution
             ulong combined = ((ulong)pos.x << 32) | (uint)pos.y;
@@ -36,7 +36,7 @@ namespace KrasCore.Mosaic.Data
             return hash + 1;
         }
         
-        public static int Hash(int ruleIndex, in bool2 mirror, int rotation)
+        public static int Hash(int ruleIndex, bool2 mirror, int rotation)
         {
             var mirrorHash = (mirror.x ? 1 : 0) | ((mirror.y ? 1 : 0) << 1);
             var hash = ruleIndex + 531;
@@ -63,7 +63,7 @@ namespace KrasCore.Mosaic.Data
             return rule == value;
         }
         
-        public static void GetSpriteMeshTranslation(in SpriteMesh spriteMesh, out float2 translation)
+        public static void GetSpriteMeshTranslation(SpriteMesh spriteMesh, out float2 translation)
         {
             var pivot = spriteMesh.NormalizedPivot;
             
@@ -76,7 +76,9 @@ namespace KrasCore.Mosaic.Data
         
         public static float3 ApplyOrientation(float2 pos, Orientation orientation)
         {
-            return orientation == Orientation.XZ ? new float3(pos.x, 0f, pos.y) : new float3(pos.x, pos.y, 0f);
+            return orientation == Orientation.XZ 
+                ? new float3(pos.x, 0f, pos.y) 
+                : new float3(pos.x, pos.y, 0f);
         }
         
         public static float3 ApplyOrientation(float3 pos, Orientation orientation)
@@ -89,12 +91,12 @@ namespace KrasCore.Mosaic.Data
             };
         }
         
-        public static float3 ToWorldSpace(in float2 pos, in float3 gridCellSize, in Swizzle swizzle)
+        public static float3 ToWorldSpace(float2 pos, TilemapRendererData rendererData)
         {
-            return ApplySwizzle(pos, swizzle) * ApplySwizzle(gridCellSize, swizzle);
+            return ApplySwizzle(pos, rendererData.Swizzle) * ApplySwizzle(rendererData.CellSize, rendererData.Swizzle);
         }
         
-        public static float3 ApplySwizzle(in float2 pos, in Swizzle swizzle)
+        public static float3 ApplySwizzle(float2 pos, Swizzle swizzle)
         {
             return swizzle switch
             {
@@ -104,7 +106,7 @@ namespace KrasCore.Mosaic.Data
             };
         }
         
-        public static float3 ApplySwizzle(in float3 pos, in Swizzle swizzle)
+        public static float3 ApplySwizzle(float3 pos, Swizzle swizzle)
         {
             return swizzle switch
             {

@@ -54,7 +54,6 @@ namespace KrasCore.Mosaic.Authoring
                 {
                     IntGridHash = authoring.intGrid.Hash,
                     DebugName = authoring.intGrid.name,
-                    Orientation = authoring._orientation,
                     GridEntity = GetEntity(authoring.GetComponentInParent<GridAuthoring>(), TransformUsageFlags.None),
                     DualGrid = authoring.intGrid.useDualGrid,
                     ShadowCastingMode = authoring._shadowCastingMode,
@@ -62,6 +61,11 @@ namespace KrasCore.Mosaic.Authoring
                 });
                 SetComponentEnabled<TilemapData>(entity, false);
 
+                AddComponent(entity, new TilemapRendererData
+                {
+                    Orientation = authoring._orientation,
+                });
+                
                 AddComponent(entity, new RuntimeMaterialLookup(authoring._material, refTexture));
                 AddComponent<RuntimeMaterial>(entity);
                 

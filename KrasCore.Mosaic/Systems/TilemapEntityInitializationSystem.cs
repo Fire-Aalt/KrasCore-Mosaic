@@ -63,10 +63,11 @@ namespace KrasCore.Mosaic
                 var position = currentCommand.Position;
 
                 ref var dataLayer = ref _intGridLayers.GetOrAddRef(currentCommand.IntGridHash);
+                var rendererData = state.EntityManager.GetComponentData<TilemapRendererData>(dataLayer.IntGridEntity);
                 
                 state.EntityManager.SetComponentData(instance, new LocalTransform
                 {
-                    Position = MosaicUtils.ApplySwizzle(position, dataLayer.TilemapData.Swizzle) * dataLayer.TilemapData.GridData.CellSize + srcTransform.Position, 
+                    Position = MosaicUtils.ToWorldSpace(position, rendererData) + srcTransform.Position, 
                     Scale = srcTransform.Scale,
                     Rotation = srcTransform.Rotation
                 });

@@ -78,6 +78,7 @@ namespace KrasCore.Mosaic.Debug
             state.Dependency = new DrawIntGridJob
             {
                 Drawer = drawer,
+                TilemapRendererDataLookup = SystemAPI.GetComponentLookup<TilemapRendererData>(true),
                 SelectedIndices = data.IntGridValues.Value.ToArray(state.WorldUpdateAllocator),
                 IntGridsBuffer = _intGridsBuffer.AsArray(),
                 IntGridLayers = singleton.IntGridLayers,
@@ -92,6 +93,9 @@ namespace KrasCore.Mosaic.Debug
             public Drawer Drawer;
 
             [ReadOnly]
+            public ComponentLookup<TilemapRendererData> TilemapRendererDataLookup;
+            
+            [ReadOnly]
             public NativeArray<int> SelectedIndices;
             [ReadOnly]
             public NativeArray<MosaicToolbarViewModel.Data.IntGridName> IntGridsBuffer;
@@ -104,10 +108,12 @@ namespace KrasCore.Mosaic.Debug
                 var key = IntGridsBuffer[SelectedIndices[index]].IntGridHash;
                 var layer = IntGridLayers[key];
 
+                var rendererData = TilemapRendererDataLookup[layer.IntGridEntity];
+
                 var rnd = new Random((uint)key.GetHashCode());
                 var rgb = rnd.NextFloat3();
                 var color = new Color(rgb.x, rgb.y, rgb.z, 1f);
-
+                    
                 foreach (var kvPair in layer.IntGrid)
                 {
                     var pos = kvPair.Key;
@@ -115,10 +121,10 @@ namespace KrasCore.Mosaic.Debug
 
                     var str = new FixedString32Bytes();
                     str.Append(value);
-
-                    var cellCenter = new float3(pos.x, 0f, pos.y) + new float3(0.5f, 0, 0.5f);
-                    Drawer.SolidRectangleXZ(cellCenter, new int2(1, 1), color);
-                    Drawer.Text32(cellCenter, str, color);
+                    
+                    var cellCenter = MosaicUtils.ToWorldSpace((float2)pos + 0.5f, rendererData);
+                    Drawer.SolidRectangleXZ(cellCenter, MosaicUtils.ApplySwizzle(rendererData.CellSize, rendererData.Swizzle).xy, color);
+                    Drawer.Text32(cellCenter, str, Color.black, size: 32f);
                 }
             }
         }

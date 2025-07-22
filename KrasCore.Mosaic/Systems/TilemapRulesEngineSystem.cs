@@ -134,9 +134,11 @@ namespace KrasCore.Mosaic
                     
                     if (dataLayer.DualGrid)
                     {
-                        SetPosition(ref dataLayer, command.Position + new int2(1, 0), command.IntGridValue);
-                        SetPosition(ref dataLayer, command.Position + new int2(0, 1), command.IntGridValue);
-                        SetPosition(ref dataLayer, command.Position + new int2(1, 1), command.IntGridValue);
+                        // Refresh position as if current is Top-Right corner.
+                        // We have to do it like this because data assumes that coordinates start in Bottom-Left corner
+                        dataLayer.ChangedPositions.Add(command.Position + new int2(-1, 0));
+                        dataLayer.ChangedPositions.Add(command.Position + new int2(0, -1));
+                        dataLayer.ChangedPositions.Add(command.Position + new int2(-1, -1));
                     }
                 }
                 commandsLayer.SetCommands.Clear();

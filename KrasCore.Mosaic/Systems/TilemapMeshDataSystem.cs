@@ -65,7 +65,7 @@ namespace KrasCore.Mosaic
 	        foreach (var kvp in dataSingleton.IntGridLayers)
 	        {
 		        var intGridHash = kvp.Key;
-		        var dataLayer = kvp.Value;
+		        ref var dataLayer = ref kvp.Value;
                 
 		        if (dataLayer.RefreshedPositions.Length == 0 
 		            && tcb.PrevCullingBounds.Value.Equals(tcb.CullingBounds.Value))
@@ -73,8 +73,9 @@ namespace KrasCore.Mosaic
 			        continue;
 		        }
 		        meshDataSingleton.IntGridHashesToUpdate.Add(intGridHash);
+		        var rendererData = state.EntityManager.GetComponentData<TilemapRendererData>(dataLayer.IntGridEntity);
 		        _data.DirtyIntGridLayers.Add(dataLayer);
-		        _data.DirtyTilemapsRendererData.Add(new TilemapRendererData(dataLayer.TilemapData));
+		        _data.DirtyTilemapsRendererData.Add(rendererData);
 		        _data.DirtyOffsetCounts.Add(default);
 	        }
 	        if (!meshDataSingleton.IsDirty) return;
@@ -408,13 +409,11 @@ namespace KrasCore.Mosaic
 		        var spriteMesh = SpriteMeshes[index];
 		        var pos = Positions[index];
 		        
-		        var gridCellSize = data.GridCellSize;
-		        var swizzle = data.Swizzle;
 		        var orientation = data.Orientation;
 		        
 		        MosaicUtils.GetSpriteMeshTranslation(spriteMesh, out var meshTranslation);
 
-		        var rotatedPos = MosaicUtils.ToWorldSpace(pos, gridCellSize, swizzle)
+		        var rotatedPos = MosaicUtils.ToWorldSpace(pos, data)
 		                         + MosaicUtils.ApplyOrientation(meshTranslation, orientation);
 
 		        var pivotPoint = MosaicUtils.ApplyOrientation(spriteMesh.RectScale * spriteMesh.NormalizedPivot, orientation);
