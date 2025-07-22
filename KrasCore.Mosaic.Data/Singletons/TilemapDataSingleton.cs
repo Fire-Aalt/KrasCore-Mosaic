@@ -10,7 +10,7 @@ using Unity.Transforms;
 
 namespace KrasCore.Mosaic.Data
 {
-    internal struct TilemapDataSingleton : IComponentData, IDisposable
+    public struct TilemapDataSingleton : IComponentData, IDisposable
     {
         public struct IntGridLayer : IDisposable
         {

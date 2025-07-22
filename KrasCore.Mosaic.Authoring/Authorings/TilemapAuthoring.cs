@@ -53,6 +53,7 @@ namespace KrasCore.Mosaic.Authoring
                 AddComponent(entity, new TilemapData
                 {
                     IntGridHash = authoring.intGrid.Hash,
+                    DebugName = authoring.intGrid.name,
                     Orientation = authoring._orientation,
                     GridEntity = GetEntity(authoring.GetComponentInParent<GridAuthoring>(), TransformUsageFlags.None),
                     DualGrid = authoring.intGrid.useDualGrid,
