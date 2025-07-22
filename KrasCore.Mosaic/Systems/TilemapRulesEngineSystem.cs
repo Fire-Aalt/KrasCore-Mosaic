@@ -369,16 +369,22 @@ namespace KrasCore.Mosaic
             }
             
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            private bool CanPlace(short ruleIntGridValue, short valueIntGridValue)
+            private bool CanPlace(short rule, short value)
             {
-                if (ruleIntGridValue == -RuleGridConsts.AnyIntGridValue) 
+                // "never place"
+                if (rule == -RuleGridConsts.AnyIntGridValue) 
                     return false;
-                if (ruleIntGridValue < 0 && -ruleIntGridValue == valueIntGridValue) 
-                    return false;
-                if (ruleIntGridValue != RuleGridConsts.AnyIntGridValue &&
-                    (ruleIntGridValue > 0 && ruleIntGridValue != valueIntGridValue)) 
-                    return false;
-                return true;
+                
+                // "always place"
+                if (rule == RuleGridConsts.AnyIntGridValue) 
+                    return true;
+    
+                // negative => "must not match this exact value"
+                if (rule < 0) 
+                    return -rule != value;
+    
+                // positive => "must match exactly"
+                return rule == value;
             }
         }
     }
