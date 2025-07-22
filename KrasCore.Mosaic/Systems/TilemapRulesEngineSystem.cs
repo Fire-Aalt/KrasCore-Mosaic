@@ -159,7 +159,10 @@ namespace KrasCore.Mosaic
             private void SetPosition(ref TilemapDataSingleton.IntGridLayer layer, int2 position, IntGridValue value)
             {
                 layer.ChangedPositions.Add(position);
-                layer.IntGrid[position] = value;
+                if (value == 0)
+                    layer.IntGrid.Remove(position);
+                else
+                    layer.IntGrid[position] = value;
             }
         }
 
@@ -350,41 +353,18 @@ namespace KrasCore.Mosaic
             private bool ExecuteRule(ref RuleBlob rule, in int2 posToRefresh, int patternOffset)
             {
                 var offset = patternOffset * rule.CellsToCheckCount;
-                var passedCheck = true;
-                
+
                 for (int i = 0; i < rule.CellsToCheckCount; i++)
                 {
                     var cell = rule.Cells[offset + i];
 
                     var posToCheck = posToRefresh + cell.Offset;
-                            
                     _intGridMap.TryGetValue(posToCheck, out var value);
-                    passedCheck = CanPlace(cell.IntGridValue, value);
 
-                    if (!passedCheck)
-                        break;
+                    if (!MosaicUtils.CanPlace(cell.IntGridValue, value))
+                        return false;
                 }
-
-                return passedCheck;
-            }
-            
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            private bool CanPlace(short rule, short value)
-            {
-                // "never place"
-                if (rule == -RuleGridConsts.AnyIntGridValue) 
-                    return false;
-                
-                // "always place"
-                if (rule == RuleGridConsts.AnyIntGridValue) 
-                    return true;
-    
-                // negative => "must not match this exact value"
-                if (rule < 0) 
-                    return -rule != value;
-    
-                // positive => "must match exactly"
-                return rule == value;
+                return true;
             }
         }
     }
