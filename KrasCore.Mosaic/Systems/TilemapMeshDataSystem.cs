@@ -12,7 +12,7 @@ using Hash128 = Unity.Entities.Hash128;
 
 namespace KrasCore.Mosaic
 {
-	[UpdateAfter(typeof(TilemapCommandBufferSystem))]
+	[UpdateAfter(typeof(TilemapRulesEngineSystem))]
 	[UpdateInGroup(typeof(SimulationSystemGroup), OrderLast = true)]
     public partial struct TilemapMeshDataSystem : ISystem
     {
@@ -48,6 +48,7 @@ namespace KrasCore.Mosaic
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
+	        // TODO: move filtering into a job so that no Complete is necessary
 	        state.EntityManager.CompleteDependencyBeforeRW<TilemapDataSingleton>();
 	        state.EntityManager.CompleteDependencyBeforeRW<TilemapMeshDataSingleton>();
 	        

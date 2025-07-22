@@ -8,27 +8,29 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
-using Hash128 = Unity.Entities.Hash128;
-using Random = Unity.Mathematics.Random;
 
 namespace KrasCore.Mosaic
 {
-    [RequireMatchingQueriesForUpdate]
     [UpdateInGroup(typeof(SimulationSystemGroup), OrderFirst = true)]
-    public partial struct TilemapCommandBufferSystem : ISystem
+    public partial struct TilemapRulesEngineSystem : ISystem
     {
+        private EntityQuery _query;
+        
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
-            state.RequireForUpdate<TilemapCommandBufferSingleton>();
-            state.RequireForUpdate<TilemapDataSingleton>();
-            
             state.EntityManager.CreateSingleton(new TilemapCommandBufferSingleton(8, Allocator.Persistent));
             state.EntityManager.CreateSingleton(new TilemapDataSingleton
             {
-                IntGridLayers = new NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer>(8, Allocator.Persistent),
+                IntGridLayers = new NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer>(256, Allocator.Persistent),
                 EntityCommands = new ParallelToListMapper<EntityCommand>(256, Allocator.Persistent)
             });
+            
+            _query = SystemAPI.QueryBuilder()
+                .WithAll<TilemapData, RuleBlobReferenceElement, RefreshPositionElement, WeightedEntityElement>()
+                .Build();
+            
+            state.RequireForUpdate(_query);
         }
 
         [BurstCompile]
@@ -44,36 +46,21 @@ namespace KrasCore.Mosaic
             var tcb = SystemAPI.GetSingletonRW<TilemapCommandBufferSingleton>().ValueRW; 
             var dataSingleton = SystemAPI.GetSingletonRW<TilemapDataSingleton>().ValueRW;
             
-            // Clear last frame data
-            dataSingleton.EntityCommands.Clear();
-            
-            var query = SystemAPI.QueryBuilder()
-                .WithAll<TilemapData, RuleBlobReferenceElement, RefreshPositionElement, WeightedEntityElement>()
-                .Build();
-
-            var tilemapDataLookup = SystemAPI.GetComponentLookup<TilemapData>(true);
-            
-            var intGridEntities = query.ToEntityListAsync(state.WorldUpdateAllocator,
+            var intGridEntities = _query.ToEntityListAsync(state.WorldUpdateAllocator,
                 state.Dependency, out var dependency);
             
-            state.Dependency = new ClearJob
-            {
-                IntGridEntities = intGridEntities.AsDeferredJobArray(),
-                TilemapDataLookup = tilemapDataLookup,
-                IntGridLayers = dataSingleton.IntGridLayers,
-                TcbLayers = tcb.Layers,
-            }.Schedule(intGridEntities, 1, dependency);
+            var tilemapDataLookup = SystemAPI.GetComponentLookup<TilemapData>(true);
             
-            state.Dependency = new ProcessCommandsJob
+            state.Dependency = new ClearAndFindRefreshPositionsJob
             {
                 IntGridEntities = intGridEntities.AsDeferredJobArray(),
                 TilemapDataLookup = tilemapDataLookup,
                 RefreshOffsetsBufferLookup = SystemAPI.GetBufferLookup<RefreshPositionElement>(true),
                 IntGridLayers = dataSingleton.IntGridLayers,
-                TcbLayers = tcb.Layers,
-            }.Schedule(intGridEntities, 1, state.Dependency);
+                TcbLayers = tcb.IntGridLayers,
+            }.Schedule(intGridEntities, 1, dependency);
             
-            state.Dependency = new ProcessRulesJob
+            state.Dependency = new ExecuteRulesJob
             {
                 IntGridEntities = intGridEntities.AsDeferredJobArray(),
                 TilemapData = tilemapDataLookup,
@@ -88,55 +75,7 @@ namespace KrasCore.Mosaic
         }
         
         [BurstCompile]
-        private struct ClearJob : IJobParallelForDefer
-        {
-            public NativeArray<Entity> IntGridEntities;
-            [ReadOnly]
-            public ComponentLookup<TilemapData> TilemapDataLookup;
-            
-            [NativeDisableContainerSafetyRestriction]
-            public NativeHashMap<Hash128, TilemapCommandBufferSingleton.IntGridLayer> TcbLayers;
-            [NativeDisableParallelForRestriction]
-            public NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer> IntGridLayers;
-
-            private Entity _intGridEntity;
-            
-            public void Execute(int index)
-            {
-                _intGridEntity = IntGridEntities[index];
-                
-                var intGridHash = TilemapDataLookup[_intGridEntity].IntGridHash;
-                
-                ref var dataLayer = ref IntGridLayers.GetOrAddRef(intGridHash);
-                ref var commandsLayer = ref TcbLayers.GetOrAddRef(intGridHash);
-
-                dataLayer.PositionsToRefresh.Clear();
-                dataLayer.RefreshedPositions.Clear();
-                
-                if (TryClearAll(ref commandsLayer, ref dataLayer)
-                    || commandsLayer.SetCommands.Length == 0)
-                {
-                    dataLayer.Skip = true;
-                }
-            }
-            
-            private bool TryClearAll(ref TilemapCommandBufferSingleton.IntGridLayer bufferLayer, ref TilemapDataSingleton.IntGridLayer dataLayer)
-            {
-                if (!bufferLayer.ClearCommand.Value) return false;
-
-                bufferLayer.SetCommands.Clear();
-                bufferLayer.ClearCommand.Value = false;
-                
-                dataLayer.IntGrid.Clear();
-                dataLayer.RuleGrid.Clear();
-                dataLayer.RenderedSprites.Clear();
-                return true;
-            }
-        }
-        
-        
-        [BurstCompile]
-        private struct ProcessCommandsJob : IJobParallelForDefer
+        private struct ClearAndFindRefreshPositionsJob : IJobParallelForDefer
         {
             public NativeArray<Entity> IntGridEntities;
             [ReadOnly]
@@ -148,18 +87,47 @@ namespace KrasCore.Mosaic
             public NativeHashMap<Hash128, TilemapCommandBufferSingleton.IntGridLayer> TcbLayers;
             [NativeDisableParallelForRestriction]
             public NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer> IntGridLayers;
-            
+
             public void Execute(int index)
             {
                 var intGridEntity = IntGridEntities[index];
-                
                 var intGridHash = TilemapDataLookup[intGridEntity].IntGridHash;
+                
+                ref var commandsLayer = ref TcbLayers.GetOrAddRef(intGridHash);
                 ref var dataLayer = ref IntGridLayers.GetOrAddRef(intGridHash);
+
+                dataLayer.PositionsToRefresh.Clear();
+                dataLayer.RefreshedPositions.Clear();
+                
+                if (TryClearAll(ref commandsLayer, ref dataLayer))
+                    return;
+                
+                ExecuteSetCommands(ref commandsLayer, ref dataLayer);
+                
+                if (dataLayer.ChangedPositions.Count == 0)
+                    return;
                 
                 RefreshOffsetsBufferLookup.TryGetBuffer(intGridEntity, out var refreshPositionsBuffer);
-                ref var commandsLayer = ref TcbLayers.GetOrAddRef(intGridHash);
+                FindPositionsToRefresh(ref dataLayer, refreshPositionsBuffer);
+            }
+            
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private bool TryClearAll(ref TilemapCommandBufferSingleton.IntGridLayer commandsLayer, ref TilemapDataSingleton.IntGridLayer dataLayer)
+            {
+                if (!commandsLayer.ClearCommand.Value) return false;
+
+                commandsLayer.SetCommands.Clear();
+                commandsLayer.ClearCommand.Value = false;
                 
-                // Set int grid values and get changedPositions
+                dataLayer.IntGrid.Clear();
+                dataLayer.RuleGrid.Clear();
+                dataLayer.RenderedSprites.Clear();
+                return true;
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private void ExecuteSetCommands(ref TilemapCommandBufferSingleton.IntGridLayer commandsLayer, ref TilemapDataSingleton.IntGridLayer dataLayer)
+            {
                 foreach (var command in commandsLayer.SetCommands)
                 {
                     SetPosition(ref dataLayer, command.Position, command.IntGridValue);
@@ -172,8 +140,11 @@ namespace KrasCore.Mosaic
                     }
                 }
                 commandsLayer.SetCommands.Clear();
-                
-                // Convert changed positions set into positions to refresh
+            }
+            
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private static void FindPositionsToRefresh(ref TilemapDataSingleton.IntGridLayer dataLayer, in DynamicBuffer<RefreshPositionElement> refreshPositionsBuffer)
+            {
                 foreach (var changedPosition in dataLayer.ChangedPositions)
                 {
                     foreach (var refreshOffset in refreshPositionsBuffer)
@@ -184,7 +155,7 @@ namespace KrasCore.Mosaic
                 }
                 dataLayer.ChangedPositions.Clear();
             }
-
+            
             private void SetPosition(ref TilemapDataSingleton.IntGridLayer layer, int2 position, IntGridValue value)
             {
                 layer.ChangedPositions.Add(position);
@@ -193,7 +164,7 @@ namespace KrasCore.Mosaic
         }
 
         [BurstCompile]
-        private struct ProcessRulesJob : IJobParallelForDefer
+        private struct ExecuteRulesJob : IJobParallelForDefer
         {
             public NativeArray<Entity> IntGridEntities;
             [ReadOnly]
@@ -223,6 +194,9 @@ namespace KrasCore.Mosaic
                 
                 _intGridHash = TilemapData[intGridEntity].IntGridHash;
                 ref var dataLayer = ref IntGridLayers.GetOrAddRef(_intGridHash);
+                
+                if (dataLayer.PositionsToRefresh.Count == 0) 
+                    return;
 
                 _intGridMap = dataLayer.IntGrid.AsReadOnly();
                 

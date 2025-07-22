@@ -16,16 +16,15 @@ namespace KrasCore.Mosaic.Data
         {
             public UnsafeHashMap<int2, IntGridValue> IntGrid;
             public UnsafeHashMap<int2, int> RuleGrid;
+        
+            public UnsafeHashMap<int2, SpriteMesh> RenderedSprites;
+            public UnsafeHashMap<int2, Entity> SpawnedEntities;
+
             public UnsafeHashSet<int2> ChangedPositions;
             public UnsafeHashSet<int2> PositionsToRefresh;
-        
-            public UnsafeHashMap<int2, Entity> SpawnedEntities;
-            public UnsafeHashMap<int2, SpriteMesh> RenderedSprites;
-
             public UnsafeList<int2> RefreshedPositions;
 
             public readonly bool DualGrid;
-            public bool Skip;
             
             // Store data locally to simplify lookups
             public TilemapData TilemapData;
@@ -44,7 +43,6 @@ namespace KrasCore.Mosaic.Data
                 RefreshedPositions = new UnsafeList<int2>(capacity, allocator);
                 
                 DualGrid = dualGrid;
-                Skip = false;
                 TilemapData = default;
             }
             
