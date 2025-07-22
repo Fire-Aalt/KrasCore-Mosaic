@@ -1,7 +1,6 @@
 using KrasCore.Mosaic.Data;
 using Unity.Burst;
 using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 
 namespace KrasCore.Mosaic
@@ -12,19 +11,16 @@ namespace KrasCore.Mosaic
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            var dataSingleton = SystemAPI.GetSingletonRW<TilemapDataSingleton>().ValueRW;
-            
             state.Dependency = new RegisterJob
             {
                 Tcb = SystemAPI.GetSingletonRW<TilemapCommandBufferSingleton>().ValueRW,
-                DataSingleton = dataSingleton
+                DataSingleton = SystemAPI.GetSingletonRW<TilemapDataSingleton>().ValueRW
             }.Schedule(state.Dependency);
             
-            state.Dependency = new UpdateJob
+            state.Dependency = new UpdateTilemapRendererDataJob
             {
-                GridData = SystemAPI.GetComponentLookup<GridData>(true),
-                DataLayers = dataSingleton.IntGridLayers
-            }.ScheduleParallel(state.Dependency);
+                GridDataLookup = SystemAPI.GetComponentLookup<GridData>(true)
+            }.Schedule(state.Dependency);
         }
 
         [BurstCompile]
@@ -32,31 +28,27 @@ namespace KrasCore.Mosaic
         private partial struct RegisterJob : IJobEntity
         {
             public TilemapCommandBufferSingleton Tcb;
-            [NativeDisableContainerSafetyRestriction]
             public TilemapDataSingleton DataSingleton;
             
-            private void Execute(ref TilemapData tilemapData, EnabledRefRW<TilemapData> enabled)
+            private void Execute(ref TilemapData tilemapData, EnabledRefRW<TilemapData> enabled, Entity entity)
             {
                 Tcb.TryRegisterIntGridLayer(tilemapData.IntGridHash);
-                DataSingleton.TryRegisterIntGridLayer(tilemapData);
+                DataSingleton.TryRegisterIntGridLayer(tilemapData, entity);
                 enabled.ValueRW = true;
             }
         }
         
         [BurstCompile]
-        private partial struct UpdateJob : IJobEntity
+        private partial struct UpdateTilemapRendererDataJob : IJobEntity
         {
             [ReadOnly]
-            public ComponentLookup<GridData> GridData;
+            public ComponentLookup<GridData> GridDataLookup;
             
-            [NativeDisableContainerSafetyRestriction]
-            public NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer> DataLayers;
-            
-            private void Execute(ref TilemapData tilemapData)
+            private void Execute(in TilemapData data, ref TilemapRendererData rendererData)
             {
-                tilemapData.GridData = GridData[tilemapData.GridEntity];
-                ref var layer = ref DataLayers.GetValueAsRef(tilemapData.IntGridHash);
-                layer.SetTilemapData(tilemapData);
+                var gridData = GridDataLookup[data.GridEntity];
+                rendererData.Swizzle = gridData.Swizzle;
+                rendererData.CellSize = gridData.CellSize;
             }
         }
     }

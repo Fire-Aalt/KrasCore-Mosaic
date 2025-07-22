@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.InteropServices;
 
 namespace KrasCore.Mosaic.Data
 {
@@ -15,9 +14,6 @@ namespace KrasCore.Mosaic.Data
         
         public static implicit operator IntGridValue(int value) => new(value);
         public static implicit operator short(IntGridValue value) => value.value;
-        
-        public static bool operator ==(IntGridValue left, IntGridValue right) => left.Equals(right);
-        public static bool operator !=(IntGridValue left, IntGridValue right) => !(left == right);
 
         public bool Equals(IntGridValue other)
         {

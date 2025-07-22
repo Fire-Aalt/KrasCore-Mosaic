@@ -1,5 +1,6 @@
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Mathematics;
 using UnityEngine.Rendering;
 
 namespace KrasCore.Mosaic.Data
@@ -11,13 +12,9 @@ namespace KrasCore.Mosaic.Data
         
         // Store data locally to simplify lookups
         public Entity GridEntity;
-        public GridData GridData;
         public bool DualGrid;
         
         public ShadowCastingMode ShadowCastingMode;
         public bool ReceiveShadows;
-        
-        public Orientation Orientation;
-        public Swizzle Swizzle => GridData.CellSwizzle;
     }
 }

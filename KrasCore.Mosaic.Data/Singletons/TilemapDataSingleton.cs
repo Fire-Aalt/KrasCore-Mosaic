@@ -25,11 +25,9 @@ namespace KrasCore.Mosaic.Data
             public UnsafeList<int2> RefreshedPositions;
 
             public readonly bool DualGrid;
+            public readonly Entity IntGridEntity;
             
-            // Store data locally to simplify lookups
-            public TilemapData TilemapData;
-            
-            public IntGridLayer(int capacity, Allocator allocator, bool dualGrid)
+            public IntGridLayer(int capacity, Allocator allocator, TilemapData tilemapData, Entity intGridEntity)
             {
                 IntGrid = new UnsafeHashMap<int2, IntGridValue>(capacity, allocator);
                 RuleGrid = new UnsafeHashMap<int2, int>(capacity, allocator);
@@ -42,15 +40,10 @@ namespace KrasCore.Mosaic.Data
             
                 RefreshedPositions = new UnsafeList<int2>(capacity, allocator);
                 
-                DualGrid = dualGrid;
-                TilemapData = default;
+                DualGrid = tilemapData.DualGrid;
+                IntGridEntity = intGridEntity;
             }
             
-            internal void SetTilemapData(in TilemapData data)
-            {
-                TilemapData = data;
-            }
-
             public void Dispose()
             {
                 IntGrid.Dispose();
@@ -71,11 +64,11 @@ namespace KrasCore.Mosaic.Data
         // Store entity commands on a singleton to sort it later and instantiate using batch API
         public ParallelToListMapper<EntityCommand> EntityCommands;
         
-        public bool TryRegisterIntGridLayer(TilemapData tilemapData)
+        public bool TryRegisterIntGridLayer(TilemapData tilemapData, Entity intGridEntity)
         {
             if (IntGridLayers.ContainsKey(tilemapData.IntGridHash)) return false;
             
-            IntGridLayers.Add(tilemapData.IntGridHash, new IntGridLayer(64, Allocator.Persistent, tilemapData.DualGrid));
+            IntGridLayers.Add(tilemapData.IntGridHash, new IntGridLayer(64, Allocator.Persistent, tilemapData, intGridEntity));
             return true;
         }
         

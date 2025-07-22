@@ -3,9 +3,10 @@ using Unity.Mathematics;
 
 namespace KrasCore.Mosaic.Data
 {
-    public struct GridData : IComponentData
+    public struct TilemapRendererData : IComponentData
     {
         public float3 CellSize;
+        public Orientation Orientation;
         public Swizzle Swizzle;
     }
 }
