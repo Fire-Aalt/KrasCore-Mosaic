@@ -1,4 +1,4 @@
-using BovineLabs.Core.Collections;
+using System.Runtime.CompilerServices;
 using BovineLabs.Core.Extensions;
 using KrasCore.Mosaic.Data;
 using KrasCore.NZCore;
@@ -8,8 +8,8 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
-
-// ReSharper disable Unity.Entities.MustBeSurroundedWithRefRwRo
+using Hash128 = Unity.Entities.Hash128;
+using Random = Unity.Mathematics.Random;
 
 namespace KrasCore.Mosaic
 {
@@ -17,8 +17,6 @@ namespace KrasCore.Mosaic
     [UpdateInGroup(typeof(SimulationSystemGroup), OrderFirst = true)]
     public partial struct TilemapCommandBufferSystem : ISystem
     {
-        private NativeList<JobHandle> _jobHandles;
-        
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
@@ -31,8 +29,6 @@ namespace KrasCore.Mosaic
                 IntGridLayers = new NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer>(8, Allocator.Persistent),
                 EntityCommands = new ParallelToListMapper<EntityCommand>(256, Allocator.Persistent)
             });
-
-            _jobHandles = new NativeList<JobHandle>(8, Allocator.Persistent);
         }
 
         [BurstCompile]
@@ -40,339 +36,343 @@ namespace KrasCore.Mosaic
         {
             SystemAPI.GetSingleton<TilemapCommandBufferSingleton>().Dispose();
             SystemAPI.GetSingleton<TilemapDataSingleton>().Dispose();
-            _jobHandles.Dispose();
         }
         
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
-        {
-            state.EntityManager.CompleteDependencyBeforeRW<TilemapCommandBufferSingleton>();
-            state.EntityManager.CompleteDependencyBeforeRW<TilemapDataSingleton>();
-            
-            ref var tcb = ref SystemAPI.GetSingletonRW<TilemapCommandBufferSingleton>().ValueRW;
-            ref var dataSingleton = ref SystemAPI.GetSingletonRW<TilemapDataSingleton>().ValueRW;
+        { 
+            var tcb = SystemAPI.GetSingletonRW<TilemapCommandBufferSingleton>().ValueRW; 
+            var dataSingleton = SystemAPI.GetSingletonRW<TilemapDataSingleton>().ValueRW;
             
             // Clear last frame data
             dataSingleton.EntityCommands.Clear();
+            
+            var query = SystemAPI.QueryBuilder()
+                .WithAll<TilemapData, RuleBlobReferenceElement, RefreshPositionElement, WeightedEntityElement>()
+                .Build();
 
-            foreach (var (tilemapDataRO, rulesBuffer, refreshPositionsBuffer, entityBuffer) in SystemAPI.Query<RefRO<TilemapData>,
-                         DynamicBuffer<RuleBlobReferenceElement>, DynamicBuffer<RefreshPositionElement>, DynamicBuffer<WeightedEntityElement>>())
+            var tilemapDataLookup = SystemAPI.GetComponentLookup<TilemapData>(true);
+            
+            var intGridEntities = query.ToEntityListAsync(state.WorldUpdateAllocator,
+                state.Dependency, out var dependency);
+            
+            state.Dependency = new ClearJob
             {
-                var intGridHash = tilemapDataRO.ValueRO.IntGridHash;
-                var dataLayer = dataSingleton.IntGridLayers[intGridHash];
-                
-                // Clear last frame data
-                dataLayer.RuleCommands.Clear();
-                dataLayer.SpriteCommands.Clear();
-                dataLayer.PositionToRemove.Clear();
-                
-                var commandsLayer = tcb.Layers[intGridHash];
-                
-                if (TryClearAll(ref commandsLayer, ref dataLayer, refreshPositionsBuffer)
-                    || commandsLayer.SetCommands.Length == 0)
-                {
-                    continue;
-                }
-
-                // ProcessCommandsJob
-                var jobDependency = new ProcessCommandsJob
-                {
-                    IntGrid = dataLayer.IntGrid,
-                    ChangedPositions = dataLayer.ChangedPositions,
-                    SetCommands = commandsLayer.SetCommands,
-                    DualGrid = dataLayer.DualGrid
-                }.Schedule(state.Dependency);
-                
-                // Find and filter refresh positions
-                jobDependency = new FindRefreshPositionsJob
-                {
-                    RefreshOffsets = refreshPositionsBuffer.AsNativeArray().Reinterpret<int2>(),
-                    ChangedPositions = dataLayer.ChangedPositions,
-                    PositionsToRefresh = dataLayer.PositionsToRefresh,
-                    PositionsToRefreshList = dataLayer.PositionsToRefreshList
-                }.Schedule(jobDependency);
-                
-                // Apply rules
-                jobDependency = new ProcessRulesJob
-                {
-                    IntGrid = dataLayer.IntGrid,
-                    RuleGrid = dataLayer.RuleGrid,
-                    PositionsToRefresh = dataLayer.PositionsToRefreshList.AsDeferredJobArray(),
-                    EntityBuffer = entityBuffer,
-                    RulesBuffer = rulesBuffer,
-                    EntityCommands = dataSingleton.EntityCommands.AsThreadWriter(),
-                    RuleCommands = dataLayer.RuleCommands.AsThreadWriter(),
-                    SpriteCommands = dataLayer.SpriteCommands.AsThreadWriter(),
-                    PositionsToRemove = dataLayer.PositionToRemove.AsThreadWriter(),
-                    IntGridHash = intGridHash,
-                    Seed = tcb.GlobalSeed.Value
-                }.Schedule(dataLayer.PositionsToRefreshList, 16, jobDependency);
-                
-                var handle1 = dataLayer.SpriteCommands.CopyParallelToListSingle(jobDependency);
-                var handle2 = dataLayer.PositionToRemove.CopyParallelToListSingle(jobDependency);
-                var handle3 = dataLayer.RuleCommands.CopyParallelToListSingle(jobDependency);
-
-                var finalHandle = JobHandle.CombineDependencies(handle1, handle2, handle3);
-
-                finalHandle = new UpdateRuleGridJob
-                {
-                    RuleGrid = dataLayer.RuleGrid,
-                    RuleCommands = dataLayer.RuleCommands.List.AsDeferredJobArray(),
-                    PositionsToRemove = dataLayer.PositionToRemove.List.AsDeferredJobArray()
-                }.Schedule(finalHandle);
-                _jobHandles.Add(finalHandle);
-            }
-
-            if (_jobHandles.Length == 0) return;
-            var combinedDependency = JobHandle.CombineDependencies(_jobHandles.AsArray());
+                IntGridEntities = intGridEntities.AsDeferredJobArray(),
+                TilemapDataLookup = tilemapDataLookup,
+                IntGridLayers = dataSingleton.IntGridLayers,
+                TcbLayers = tcb.Layers,
+            }.Schedule(intGridEntities, 1, dependency);
             
-            state.Dependency = dataSingleton.EntityCommands.CopyParallelToListSingle(combinedDependency);
-            _jobHandles.Clear();
-        }
-
-        private bool TryClearAll(ref TilemapCommandBufferSingleton.IntGridLayer bufferLayer, ref TilemapDataSingleton.IntGridLayer layer,
-            in DynamicBuffer<RefreshPositionElement> refreshPositionsBuffer)
-        {
-            if (!bufferLayer.ClearCommand.Value) return false;
-            bufferLayer.ClearCommand.Value = false;
-
-            foreach (var kvp in layer.IntGrid)
+            state.Dependency = new ProcessCommandsJob
             {
-                foreach (var refreshOffset in refreshPositionsBuffer)
-                {
-                    var pos = kvp.Key + refreshOffset.Value;
-                    layer.PositionToRemove.List.Add(new RemoveCommand { Position = pos });
-                }
-            }
-            layer.IntGrid.Clear();
-            layer.RuleGrid.Clear();
-            return true;
-        }
-
-        [BurstCompile]
-        private struct UpdateRuleGridJob : IJob
-        {
-            public NativeParallelHashMap<int2, int> RuleGrid;
+                IntGridEntities = intGridEntities.AsDeferredJobArray(),
+                TilemapDataLookup = tilemapDataLookup,
+                RefreshOffsetsBufferLookup = SystemAPI.GetBufferLookup<RefreshPositionElement>(true),
+                IntGridLayers = dataSingleton.IntGridLayers,
+                TcbLayers = tcb.Layers,
+            }.Schedule(intGridEntities, 1, state.Dependency);
             
-            [ReadOnly]
-            public NativeArray<RemoveCommand> PositionsToRemove;
-            [ReadOnly]
-            public NativeArray<RuleCommand> RuleCommands;
-            
-            public void Execute()
+            state.Dependency = new ProcessRulesJob
             {
-                foreach (var positionToRemove in PositionsToRemove)
-                {
-                    RuleGrid.Remove(positionToRemove.Position);
-                }
+                IntGridEntities = intGridEntities.AsDeferredJobArray(),
+                TilemapData = tilemapDataLookup,
+                RulesBufferLookup = SystemAPI.GetBufferLookup<RuleBlobReferenceElement>(true),
+                EntitiesBufferLookup = SystemAPI.GetBufferLookup<WeightedEntityElement>(true),
+                IntGridLayers = dataSingleton.IntGridLayers,
+                EntityCommands = dataSingleton.EntityCommands.AsThreadWriter(),
+                Seed = tcb.GlobalSeed.Value
+            }.Schedule(intGridEntities, 1, state.Dependency);
             
-                foreach (var command in RuleCommands)
-                {
-                    RuleGrid[command.Position] = command.AppliedRuleHash;
-                }
-            }
-        }
-
-        [BurstCompile]
-        private struct ProcessCommandsJob : IJob
-        {
-            public ParallelList<SetCommand> SetCommands;
-            public NativeParallelHashMap<int2, IntGridValue> IntGrid;
-            public NativeHashSet<int2> ChangedPositions;
-            
-            public bool DualGrid;
-            
-            public void Execute()
-            {
-                foreach (var command in SetCommands)
-                {
-                    SetPosition(command.Position, command.IntGridValue);
-                    
-                    if (DualGrid)
-                    {
-                        SetPosition(command.Position + new int2(1, 0), command.IntGridValue);
-                        SetPosition(command.Position + new int2(0, 1), command.IntGridValue);
-                        SetPosition(command.Position + new int2(1, 1), command.IntGridValue);
-                    }
-                }
-                SetCommands.Clear();
-            }
-
-            private void SetPosition(int2 position, IntGridValue value)
-            {
-                ChangedPositions.Add(position);
-                IntGrid[position] = value;
-            }
+            state.Dependency = dataSingleton.EntityCommands.CopyParallelToListSingle(state.Dependency);
         }
         
         [BurstCompile]
-        private struct FindRefreshPositionsJob : IJob
+        private struct ClearJob : IJobParallelForDefer
         {
+            public NativeArray<Entity> IntGridEntities;
             [ReadOnly]
-            public NativeArray<int2> RefreshOffsets;
+            public ComponentLookup<TilemapData> TilemapDataLookup;
             
-            public NativeHashSet<int2> ChangedPositions;
-            public NativeHashSet<int2> PositionsToRefresh;
-            public NativeList<int2> PositionsToRefreshList;
-            
-            public void Execute()
-            {
-                foreach (var changedPosition in ChangedPositions)
-                {
-                    foreach (var refreshOffset in RefreshOffsets)
-                    {
-                        var pos = changedPosition + refreshOffset;
-                        PositionsToRefresh.Add(pos);
-                    }
-                }
-                PositionsToRefresh.ToNativeList(ref PositionsToRefreshList);
-                
-                PositionsToRefresh.Clear();
-                ChangedPositions.Clear();
-            }
-        }
-        
-        [BurstCompile]
-        private struct ProcessRulesJob : IJobParallelForDefer
-        {
-            [ReadOnly]
-            public NativeParallelHashMap<int2, IntGridValue> IntGrid;
-            [ReadOnly]
-            public NativeParallelHashMap<int2, int> RuleGrid;
-            [ReadOnly]
-            public NativeArray<int2> PositionsToRefresh;
-            
-            [ReadOnly]
             [NativeDisableContainerSafetyRestriction]
-            public DynamicBuffer<RuleBlobReferenceElement> RulesBuffer;
-            [ReadOnly]
-            [NativeDisableContainerSafetyRestriction]
-            public DynamicBuffer<WeightedEntityElement> EntityBuffer;
+            public NativeHashMap<Hash128, TilemapCommandBufferSingleton.IntGridLayer> TcbLayers;
+            [NativeDisableParallelForRestriction]
+            public NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer> IntGridLayers;
 
-            [NativeDisableContainerSafetyRestriction]
-            public ParallelList<EntityCommand>.ThreadWriter EntityCommands;
-            
-            public ParallelList<RuleCommand>.ThreadWriter RuleCommands;
-            public ParallelList<SpriteCommand>.ThreadWriter SpriteCommands;
-            public ParallelList<RemoveCommand>.ThreadWriter PositionsToRemove;
-
-            public Hash128 IntGridHash;
-            public uint Seed;
+            private Entity _intGridEntity;
             
             public void Execute(int index)
             {
-                var posToRefresh = PositionsToRefresh[index];
-                RuleCommands.Begin();
-                EntityCommands.Begin();
-                SpriteCommands.Begin();
-                PositionsToRemove.Begin();
+                _intGridEntity = IntGridEntities[index];
+                
+                var intGridHash = TilemapDataLookup[_intGridEntity].IntGridHash;
+                
+                ref var dataLayer = ref IntGridLayers.GetOrAddRef(intGridHash);
+                ref var commandsLayer = ref TcbLayers.GetOrAddRef(intGridHash);
 
-                for (var ruleIndex = 0; ruleIndex < RulesBuffer.Length; ruleIndex++)
+                dataLayer.PositionsToRefresh.Clear();
+                dataLayer.RefreshedPositions.Clear();
+                
+                if (TryClearAll(ref commandsLayer, ref dataLayer)
+                    || commandsLayer.SetCommands.Length == 0)
                 {
-                    var ruleElement = RulesBuffer[ruleIndex];
-                    if (!ruleElement.Enabled) continue;
-                    ref var rule = ref ruleElement.Value.Value;
-                    
-                    var random = new Random(MosaicUtils.Hash(Seed, posToRefresh));
-                    if (random.NextFloat() * 100f > rule.Chance) continue;
-
-                    var appliedRotation = 0;
-                    var appliedMirror = new bool2(false, false);
-                    var passedCheck = ExecuteRule(ref rule, posToRefresh, 0);
-
-                    if (rule.RuleTransform != RuleTransform.None)
-                    {
-                        if (!passedCheck && rule.RuleTransform.IsMirroredX())
-                        {
-                            appliedMirror = new bool2(true, false);
-                            passedCheck = ExecuteRule(ref rule, posToRefresh, 1);
-                        }
-
-                        if (!passedCheck && rule.RuleTransform.IsMirroredY())
-                        {
-                            appliedMirror = new bool2(false, true);
-                            passedCheck = ExecuteRule(ref rule, posToRefresh, 2);
-                        }
-
-                        if (!passedCheck && rule.RuleTransform == RuleTransform.MirrorXY)
-                        {
-                            appliedMirror = new bool2(true, true);
-                            passedCheck = ExecuteRule(ref rule, posToRefresh, 3);
-                        }
-
-                        if (!passedCheck && rule.RuleTransform == RuleTransform.Rotated)
-                        {
-                            for (appliedRotation = 1; appliedRotation < 4; appliedRotation++)
-                            {
-                                passedCheck = ExecuteRule(ref rule, posToRefresh, appliedRotation);
-                                if (passedCheck) break;
-                            }
-                        }
-                    }
-                    if (!passedCheck) continue;
-
-                    var ruleExists = RuleGrid.ContainsKey(posToRefresh);
-                    var currentRuleHash = ruleExists
-                        ? RuleGrid[posToRefresh]
-                        : -1;
-                    
-                    var newRuleHash = Hash(ruleIndex, appliedMirror, appliedRotation);
-                    if (currentRuleHash == newRuleHash) return;
-
-                    if (ruleExists) QueueRemovePos(posToRefresh);
-                    
-                    RuleCommands.Write(new RuleCommand
-                    {
-                        Position = posToRefresh,
-                        AppliedRuleHash = newRuleHash
-                    });
-                    
-                    if (rule.TryGetEntity(ref random, EntityBuffer, out var newEntity))
-                    {
-                        EntityCommands.Write(new EntityCommand
-                        {
-                            SrcEntity = newEntity,
-                            Position = posToRefresh,
-                            IntGridHash = IntGridHash
-                        });
-                    }
-                    if (rule.TryGetSpriteMesh(ref random, out var newSprite))
-                    {
-                        var resultFlip = new bool2();
-                        var resultRotation = 0;
-                        if (rule.ResultTransform.HasFlagBurst(ResultTransform.MirrorX))
-                        {
-                            resultFlip.x = random.NextBool();
-                        }
-                        if (rule.ResultTransform.HasFlagBurst(ResultTransform.MirrorY))
-                        {
-                            resultFlip.y = random.NextBool();
-                        }
-                        if (rule.ResultTransform.HasFlagBurst(ResultTransform.Rotated))
-                        {
-                            resultRotation = random.NextInt(0, 4);
-                        }
-                        
-                        newSprite.Flip = appliedMirror ^ resultFlip;
-                        newSprite.Rotation = appliedRotation + resultRotation;
-                        if (newSprite.Rotation > 3)
-                            newSprite.Rotation -= 4;
-                        
-                        SpriteCommands.Write(new SpriteCommand
-                        {
-                            SpriteMesh = newSprite,
-                            Position = posToRefresh
-                        });
-                    }
-                    return;
-                }
-
-                if (RuleGrid.ContainsKey(posToRefresh))
-                {
-                    QueueRemovePos(posToRefresh);
+                    dataLayer.Skip = true;
                 }
             }
             
+            private bool TryClearAll(ref TilemapCommandBufferSingleton.IntGridLayer bufferLayer, ref TilemapDataSingleton.IntGridLayer dataLayer)
+            {
+                if (!bufferLayer.ClearCommand.Value) return false;
+
+                bufferLayer.SetCommands.Clear();
+                bufferLayer.ClearCommand.Value = false;
+                
+                dataLayer.IntGrid.Clear();
+                dataLayer.RuleGrid.Clear();
+                dataLayer.RenderedSprites.Clear();
+                return true;
+            }
+        }
+        
+        
+        [BurstCompile]
+        private struct ProcessCommandsJob : IJobParallelForDefer
+        {
+            public NativeArray<Entity> IntGridEntities;
+            [ReadOnly]
+            public ComponentLookup<TilemapData> TilemapDataLookup;
+            [ReadOnly]
+            public BufferLookup<RefreshPositionElement> RefreshOffsetsBufferLookup;
+            
+            [NativeDisableContainerSafetyRestriction]
+            public NativeHashMap<Hash128, TilemapCommandBufferSingleton.IntGridLayer> TcbLayers;
+            [NativeDisableParallelForRestriction]
+            public NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer> IntGridLayers;
+            
+            public void Execute(int index)
+            {
+                var intGridEntity = IntGridEntities[index];
+                
+                var intGridHash = TilemapDataLookup[intGridEntity].IntGridHash;
+                ref var dataLayer = ref IntGridLayers.GetOrAddRef(intGridHash);
+                
+                RefreshOffsetsBufferLookup.TryGetBuffer(intGridEntity, out var refreshPositionsBuffer);
+                ref var commandsLayer = ref TcbLayers.GetOrAddRef(intGridHash);
+                
+                // Set int grid values and get changedPositions
+                foreach (var command in commandsLayer.SetCommands)
+                {
+                    SetPosition(ref dataLayer, command.Position, command.IntGridValue);
+                    
+                    if (dataLayer.DualGrid)
+                    {
+                        SetPosition(ref dataLayer, command.Position + new int2(1, 0), command.IntGridValue);
+                        SetPosition(ref dataLayer, command.Position + new int2(0, 1), command.IntGridValue);
+                        SetPosition(ref dataLayer, command.Position + new int2(1, 1), command.IntGridValue);
+                    }
+                }
+                commandsLayer.SetCommands.Clear();
+                
+                // Convert changed positions set into positions to refresh
+                foreach (var changedPosition in dataLayer.ChangedPositions)
+                {
+                    foreach (var refreshOffset in refreshPositionsBuffer)
+                    {
+                        var pos = changedPosition + refreshOffset.Value;
+                        dataLayer.PositionsToRefresh.Add(pos);
+                    }
+                }
+                dataLayer.ChangedPositions.Clear();
+            }
+
+            private void SetPosition(ref TilemapDataSingleton.IntGridLayer layer, int2 position, IntGridValue value)
+            {
+                layer.ChangedPositions.Add(position);
+                layer.IntGrid[position] = value;
+            }
+        }
+
+        [BurstCompile]
+        private struct ProcessRulesJob : IJobParallelForDefer
+        {
+            public NativeArray<Entity> IntGridEntities;
+            [ReadOnly]
+            public ComponentLookup<TilemapData> TilemapData;
+            [ReadOnly]
+            public BufferLookup<RuleBlobReferenceElement> RulesBufferLookup;
+            [ReadOnly]
+            public BufferLookup<WeightedEntityElement> EntitiesBufferLookup;
+            
+            [NativeDisableParallelForRestriction]
+            public NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer> IntGridLayers;
+            public ParallelList<EntityCommand>.ThreadWriter EntityCommands;
+            
+            public uint Seed;
+
+            private Hash128 _intGridHash;
+            [ReadOnly]
+            private DynamicBuffer<RuleBlobReferenceElement> _rulesBuffer;
+            [ReadOnly]
+            private DynamicBuffer<WeightedEntityElement> _entityBuffer;
+
+            private UnsafeHashMap<int2, IntGridValue>.ReadOnly _intGridMap;
+            
+            public void Execute(int index)
+            {
+                var intGridEntity = IntGridEntities[index];
+                
+                _intGridHash = TilemapData[intGridEntity].IntGridHash;
+                ref var dataLayer = ref IntGridLayers.GetOrAddRef(_intGridHash);
+
+                _intGridMap = dataLayer.IntGrid.AsReadOnly();
+                
+                RulesBufferLookup.TryGetBuffer(intGridEntity, out _rulesBuffer);
+                EntitiesBufferLookup.TryGetBuffer(intGridEntity, out _entityBuffer);
+
+                EntityCommands.Begin();
+                foreach (var posToRefresh in dataLayer.PositionsToRefresh)
+                {
+                    var ruleHashExists = dataLayer.RuleGrid.TryGetValue(posToRefresh, out var ruleHash);
+                    
+                    var positionStillValid = RefreshPosition(ref dataLayer, posToRefresh, ruleHashExists, ruleHash);
+
+                    if (ruleHashExists && !positionStillValid)
+                    {
+                        dataLayer.RenderedSprites.Remove(posToRefresh);
+                        dataLayer.RuleGrid.Remove(posToRefresh);
+                        dataLayer.RefreshedPositions.Add(posToRefresh);
+                    }
+                }
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private bool RefreshPosition(ref TilemapDataSingleton.IntGridLayer dataLayer, int2 posToRefresh,
+                bool ruleHashExists, int ruleHash)
+            {
+                for (var ruleIndex = 0; ruleIndex < _rulesBuffer.Length; ruleIndex++)
+                {
+                    var ruleElement = _rulesBuffer[ruleIndex];
+                    if (!ruleElement.Enabled)
+                        continue;
+                    
+                    ref var rule = ref ruleElement.Value.Value;
+                        
+                    var random = new Random(MosaicUtils.Hash(Seed, posToRefresh));
+                    if (random.NextFloat() * 100f > rule.Chance)
+                        continue;
+
+                    if (!ExecuteRules(ref rule, posToRefresh, out var appliedRotation, out var appliedMirror))
+                        continue;
+
+                    var currentRuleHash = ruleHashExists ? ruleHash : 0;
+                    var newRuleHash = MosaicUtils.Hash(ruleIndex, appliedMirror, appliedRotation);
+                        
+                    if (currentRuleHash == newRuleHash)
+                        return true;
+                    
+                    dataLayer.RefreshedPositions.Add(posToRefresh);
+                    dataLayer.RuleGrid[posToRefresh] = newRuleHash;
+                        
+                    TryAddEntity(ref rule, ref random, posToRefresh);
+                    TryAddSpriteMesh(ref dataLayer, ref rule, ref random, posToRefresh, appliedMirror, appliedRotation);
+                    
+                    return true;
+                }
+                return false;
+            }
+            
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private bool ExecuteRules(ref RuleBlob rule, int2 posToRefresh, out int appliedRotation, out bool2 appliedMirror)
+            {
+                appliedRotation = 0;
+                appliedMirror = new bool2(false, false);
+                if (ExecuteRule(ref rule, posToRefresh, 0))
+                    return true;
+                
+                if (rule.RuleTransform == RuleTransform.None)
+                    return false;
+
+                if (rule.RuleTransform.IsMirroredX())
+                {
+                    appliedMirror = new bool2(true, false);
+                    if (ExecuteRule(ref rule, posToRefresh, 1)) 
+                        return true;
+                }
+
+                if (rule.RuleTransform.IsMirroredY())
+                {
+                    appliedMirror = new bool2(false, true);
+                    if (ExecuteRule(ref rule, posToRefresh, 2)) 
+                        return true;
+                }
+
+                if (rule.RuleTransform == RuleTransform.MirrorXY)
+                {
+                    appliedMirror = new bool2(true, true);
+                    if (ExecuteRule(ref rule, posToRefresh, 3)) 
+                        return true;
+                }
+
+                if (rule.RuleTransform == RuleTransform.Rotated)
+                {
+                    for (appliedRotation = 1; appliedRotation < 4; appliedRotation++)
+                    {
+                        if (ExecuteRule(ref rule, posToRefresh, appliedRotation)) 
+                            return true;
+                    }
+                }
+                return false;
+            }
+            
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private void TryAddEntity(ref RuleBlob rule, ref Random random, int2 posToRefresh)
+            {
+                if (rule.TryGetEntity(ref random, _entityBuffer, out var newEntity))
+                {
+                    EntityCommands.Write(new EntityCommand
+                    {
+                        SrcEntity = newEntity,
+                        Position = posToRefresh,
+                        IntGridHash = _intGridHash
+                    });
+                }
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private static void TryAddSpriteMesh(ref TilemapDataSingleton.IntGridLayer dataLayer, ref RuleBlob rule, ref Random random, int2 posToRefresh,
+                bool2 appliedMirror, int appliedRotation)
+            {
+                if (rule.TryGetSpriteMesh(ref random, out var newSprite))
+                {
+                    var resultFlip = new bool2();
+                    var resultRotation = 0;
+                    if (rule.ResultTransform.HasFlagBurst(ResultTransform.MirrorX))
+                    {
+                        resultFlip.x = random.NextBool();
+                    }
+                    if (rule.ResultTransform.HasFlagBurst(ResultTransform.MirrorY))
+                    {
+                        resultFlip.y = random.NextBool();
+                    }
+                    if (rule.ResultTransform.HasFlagBurst(ResultTransform.Rotated))
+                    {
+                        resultRotation = random.NextInt(0, 4);
+                    }
+                            
+                    newSprite.Flip = appliedMirror ^ resultFlip;
+                    newSprite.Rotation = appliedRotation + resultRotation;
+                    if (newSprite.Rotation > 3)
+                        newSprite.Rotation -= 4;
+                            
+                    dataLayer.RenderedSprites[posToRefresh] = newSprite;
+                }
+                else
+                {
+                    dataLayer.RenderedSprites.Remove(posToRefresh);
+                }
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             private bool ExecuteRule(ref RuleBlob rule, in int2 posToRefresh, int patternOffset)
             {
                 var offset = patternOffset * rule.CellsToCheckCount;
@@ -384,7 +384,7 @@ namespace KrasCore.Mosaic
 
                     var posToCheck = posToRefresh + cell.Offset;
                             
-                    IntGrid.TryGetValue(posToCheck, out var value);
+                    _intGridMap.TryGetValue(posToCheck, out var value);
                     passedCheck = CanPlace(cell.IntGridValue, value);
 
                     if (!passedCheck)
@@ -393,24 +393,8 @@ namespace KrasCore.Mosaic
 
                 return passedCheck;
             }
-
-            private void QueueRemovePos(in int2 posToRefresh)
-            {
-                PositionsToRemove.Write(new RemoveCommand
-                {
-                    Position = posToRefresh
-                });
-            }
-
-            private static int Hash(int ruleIndex, in bool2 mirror, int rotation)
-            {
-                var mirrorHash = (mirror.x ? 1 : 0) | ((mirror.y ? 1 : 0) << 1);
-                var hash = ruleIndex;
-                hash = (hash * 431) + mirrorHash;
-                hash = (hash * 701) + rotation;
-                return hash;
-            }
             
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             private bool CanPlace(short ruleIntGridValue, short valueIntGridValue)
             {
                 if (ruleIntGridValue == -RuleGridConsts.AnyIntGridValue) 

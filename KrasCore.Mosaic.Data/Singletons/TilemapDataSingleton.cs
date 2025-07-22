@@ -14,41 +14,37 @@ namespace KrasCore.Mosaic.Data
     {
         public struct IntGridLayer : IDisposable
         {
-            public NativeParallelHashMap<int2, IntGridValue> IntGrid;
-            public NativeParallelHashMap<int2, int> RuleGrid;
-            public NativeHashSet<int2> ChangedPositions;
-            public NativeHashSet<int2> PositionsToRefresh;
-            public NativeList<int2> PositionsToRefreshList;
+            public UnsafeHashMap<int2, IntGridValue> IntGrid;
+            public UnsafeHashMap<int2, int> RuleGrid;
+            public UnsafeHashSet<int2> ChangedPositions;
+            public UnsafeHashSet<int2> PositionsToRefresh;
         
-            public NativeParallelHashMap<int2, Entity> SpawnedEntities;
-            public NativeParallelHashMap<int2, SpriteMesh> RenderedSprites;
-        
-            public ParallelToListMapper<RuleCommand> RuleCommands;
-            public ParallelToListMapper<SpriteCommand> SpriteCommands;
-            public ParallelToListMapper<RemoveCommand> PositionToRemove;
+            public UnsafeHashMap<int2, Entity> SpawnedEntities;
+            public UnsafeHashMap<int2, SpriteMesh> RenderedSprites;
+
+            public UnsafeList<int2> RefreshedPositions;
 
             public readonly bool DualGrid;
+            public bool Skip;
             
             // Store data locally to simplify lookups
             public TilemapData TilemapData;
             
             public IntGridLayer(int capacity, Allocator allocator, bool dualGrid)
             {
-                IntGrid = new NativeParallelHashMap<int2, IntGridValue>(capacity, allocator);
-                RuleGrid = new NativeParallelHashMap<int2, int>(capacity, allocator);
+                IntGrid = new UnsafeHashMap<int2, IntGridValue>(capacity, allocator);
+                RuleGrid = new UnsafeHashMap<int2, int>(capacity, allocator);
                 
-                ChangedPositions = new NativeHashSet<int2>(capacity, allocator);
-                PositionsToRefresh = new NativeHashSet<int2>(capacity, allocator);
-                PositionsToRefreshList = new NativeList<int2>(capacity, allocator);
+                ChangedPositions = new UnsafeHashSet<int2>(capacity, allocator);
+                PositionsToRefresh = new UnsafeHashSet<int2>(capacity, allocator);
             
-                SpawnedEntities = new NativeParallelHashMap<int2, Entity>(capacity, allocator);
-                RenderedSprites = new NativeParallelHashMap<int2, SpriteMesh>(capacity, allocator);
-
-                RuleCommands = new ParallelToListMapper<RuleCommand>(capacity, allocator);
-                SpriteCommands = new ParallelToListMapper<SpriteCommand>(capacity, allocator);
-                PositionToRemove = new ParallelToListMapper<RemoveCommand>(capacity, allocator);
+                SpawnedEntities = new UnsafeHashMap<int2, Entity>(capacity, allocator);
+                RenderedSprites = new UnsafeHashMap<int2, SpriteMesh>(capacity, allocator);
             
+                RefreshedPositions = new UnsafeList<int2>(capacity, allocator);
+                
                 DualGrid = dualGrid;
+                Skip = false;
                 TilemapData = default;
             }
             
@@ -64,14 +60,11 @@ namespace KrasCore.Mosaic.Data
                 
                 ChangedPositions.Dispose();
                 PositionsToRefresh.Dispose();
-                PositionsToRefreshList.Dispose();
             
-                RuleCommands.Dispose();
                 SpawnedEntities.Dispose();
                 RenderedSprites.Dispose();
-            
-                SpriteCommands.Dispose();
-                PositionToRemove.Dispose();
+
+                RefreshedPositions.Dispose();
             }
         }
         

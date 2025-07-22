@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using KrasCore.Mosaic.Data;
 using Unity.Burst;
 using Unity.Collections;
@@ -65,8 +66,7 @@ namespace KrasCore.Mosaic
 		        var intGridHash = kvp.Key;
 		        var dataLayer = kvp.Value;
                 
-		        if (dataLayer.PositionToRemove.List.Length == 0 
-		            && dataLayer.SpriteCommands.List.Length == 0
+		        if (dataLayer.RefreshedPositions.Length == 0 
 		            && tcb.PrevCullingBounds.Value.Equals(tcb.CullingBounds.Value))
 		        {
 			        continue;
@@ -84,13 +84,8 @@ namespace KrasCore.Mosaic
 
 	        if (meshDataSingleton.UpdatedMeshBoundsMap.Capacity < meshesCount)
 				meshDataSingleton.UpdatedMeshBoundsMap.Capacity = meshesCount;
-            
-            var handle = new UpdateRenderedSpritesJob
-            {
-	            IntGridLayers = _data.DirtyIntGridLayers
-            }.ScheduleParallel(meshesCount, 1, state.Dependency);
-            
-            handle = new ResizeLargeListsJob
+	        
+            var handle = new ResizeLargeListsJob
             {
 	            IntGridLayers = _data.DirtyIntGridLayers,
 	            Offsets = _data.DirtyOffsetCounts,
@@ -99,7 +94,7 @@ namespace KrasCore.Mosaic
 	            Vertices = _data.Vertices,
 	            Indices = _data.Indices,
 	            LayerPointers = _data.LayerPointers,
-            }.Schedule(handle);
+            }.Schedule(state.Dependency);
             
             handle = new PrepareAndCullSpriteMeshDataJob
             {
@@ -169,34 +164,11 @@ namespace KrasCore.Mosaic
 	            MeshDataArray = meshDataSingleton.MeshDataArray,
             }.ScheduleParallel(meshesCount, 1, JobHandle.CombineDependencies(indexHandle, boundsHandle));
         }
-
-        [BurstCompile]
-        private struct UpdateRenderedSpritesJob : IJobFor
-        {
-	        [NativeDisableContainerSafetyRestriction]
-	        public NativeList<TilemapDataSingleton.IntGridLayer> IntGridLayers;
-	        
-	        public void Execute(int index)
-	        {
-		        var data = IntGridLayers[index];
-
-		        foreach (var positionToRemove in data.PositionToRemove.List)
-		        {
-			        data.RenderedSprites.Remove(positionToRemove.Position);
-		        }
-            
-		        foreach (var command in data.SpriteCommands.List)
-		        {
-			        data.RenderedSprites[command.Position] = command.SpriteMesh;
-		        }
-	        }
-        }
         
         [BurstCompile]
         private struct ResizeLargeListsJob : IJob
         {
 	        [ReadOnly]
-	        [NativeDisableContainerSafetyRestriction]
 	        public NativeList<TilemapDataSingleton.IntGridLayer> IntGridLayers;
 	        
 	        public NativeList<int2> Positions;
@@ -215,7 +187,7 @@ namespace KrasCore.Mosaic
 			        var data = IntGridLayers[i];
 
 			        var offset = meshesCount;
-			        var count = data.RenderedSprites.Count();
+			        var count = data.RenderedSprites.Count;
 			        meshesCount += count;
 			        
 			        Offsets[i] = new OffsetData
@@ -465,30 +437,30 @@ namespace KrasCore.Mosaic
 		        
 		        Vertices[vc + 0] = new Vertex
         		{
-        			position = rotatedPos + Rotate(up - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
-			        normal = normal,
-        			uv = new float2(minUv.x, maxUv.y)
+        			Position = rotatedPos + Rotate(up - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
+			        Normal = normal,
+        			UV = new float2(minUv.x, maxUv.y)
         		};
 
 		        Vertices[vc + 1] = new Vertex
         		{
-        			position = rotatedPos + Rotate(up + right - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
-			        normal = normal,
-        			uv = new float2(maxUv.x, maxUv.y)
+        			Position = rotatedPos + Rotate(up + right - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
+			        Normal = normal,
+        			UV = new float2(maxUv.x, maxUv.y)
         		};
 
 		        Vertices[vc + 2] = new Vertex
         		{
-        			position = rotatedPos + Rotate(right - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
-			        normal = normal,
-        			uv = new float2(maxUv.x, minUv.y)
+        			Position = rotatedPos + Rotate(right - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
+			        Normal = normal,
+        			UV = new float2(maxUv.x, minUv.y)
         		};
 
 		        Vertices[vc + 3] = new Vertex
         		{
-        			position = rotatedPos + Rotate(-pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
-			        normal = normal,
-        			uv = new float2(minUv.x, minUv.y)
+        			Position = rotatedPos + Rotate(-pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
+			        Normal = normal,
+        			UV = new float2(minUv.x, minUv.y)
         		};
 		        
 		        vc -= offset.DataOffset * 4;
@@ -534,7 +506,7 @@ namespace KrasCore.Mosaic
 
 		        for (int i = 0; i < vertices.Length; i++)
 		        {
-			        var position = vertices[i].position;
+			        var position = vertices[i].Position;
 			        minPos = math.min(minPos, position);
 			        maxPos = math.max(maxPos, position);
 		        }
@@ -548,11 +520,11 @@ namespace KrasCore.Mosaic
         }
     }
 
-	[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+	[StructLayout(LayoutKind.Sequential)]
     public struct Vertex
     {
-        public float3 position;
-        public float3 normal;
-        public float2 uv;
+        public float3 Position;
+        public float3 Normal;
+        public float2 UV;
     }
 }
