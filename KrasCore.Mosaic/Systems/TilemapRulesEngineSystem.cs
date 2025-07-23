@@ -12,7 +12,7 @@ using Random = Unity.Mathematics.Random;
 
 namespace KrasCore.Mosaic
 {
-    [UpdateInGroup(typeof(SimulationSystemGroup), OrderFirst = true)]
+    [UpdateInGroup(typeof(PresentationSystemGroup), OrderLast = true)]
     public partial struct TilemapRulesEngineSystem : ISystem
     {
         private EntityQuery _query;
