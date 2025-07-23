@@ -12,8 +12,7 @@ using Hash128 = Unity.Entities.Hash128;
 
 namespace KrasCore.Mosaic
 {
-	[UpdateAfter(typeof(TilemapRulesEngineSystem))]
-	[UpdateInGroup(typeof(SimulationSystemGroup), OrderLast = true)]
+	[UpdateInGroup(typeof(InitializationSystemGroup), OrderFirst = true)]
     public partial struct TilemapMeshDataSystem : ISystem
     {
 	    private static readonly quaternion RotY90 = quaternion.RotateY(90f * math.TORADIANS);
@@ -33,8 +32,8 @@ namespace KrasCore.Mosaic
 	        _data = new Data(8, Allocator.Persistent);
 
             _layout = new NativeArray<VertexAttributeDescriptor>(3, Allocator.Persistent);
-            _layout[0] = new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float32, 3);
-            _layout[1] = new VertexAttributeDescriptor(VertexAttribute.Normal, VertexAttributeFormat.Float32, 3);
+            _layout[0] = new VertexAttributeDescriptor(VertexAttribute.Position);
+            _layout[1] = new VertexAttributeDescriptor(VertexAttribute.Normal);
             _layout[2] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 2);
         }
         
@@ -48,7 +47,6 @@ namespace KrasCore.Mosaic
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-	        // TODO: move filtering into a job so that no Complete is necessary
 	        state.EntityManager.CompleteDependencyBeforeRW<TilemapDataSingleton>();
 	        state.EntityManager.CompleteDependencyBeforeRW<TilemapMeshDataSingleton>();
 	        
@@ -62,6 +60,9 @@ namespace KrasCore.Mosaic
 	        _data.DirtyTilemapsRendererData.Clear();
 	        _data.DirtyOffsetCounts.Clear();
 	        
+	        meshDataSingleton.HashesToUpdate.Clear();
+	        meshDataSingleton.UpdatedMeshBoundsMap.Clear();
+	        
 	        foreach (var kvp in dataSingleton.IntGridLayers)
 	        {
 		        var intGridHash = kvp.Key;
@@ -72,7 +73,7 @@ namespace KrasCore.Mosaic
 		        {
 			        continue;
 		        }
-		        meshDataSingleton.IntGridHashesToUpdate.Add(intGridHash);
+		        meshDataSingleton.HashesToUpdate.Add(intGridHash);
 		        var rendererData = state.EntityManager.GetComponentData<TilemapRendererData>(dataLayer.IntGridEntity);
 		        _data.DirtyIntGridLayers.Add(dataLayer);
 		        _data.DirtyTilemapsRendererData.Add(rendererData);
@@ -81,7 +82,7 @@ namespace KrasCore.Mosaic
 	        if (!meshDataSingleton.IsDirty) return;
 	        tcb.PrevCullingBounds.Value = tcb.CullingBounds.Value;
 	        
-	        var meshesCount = meshDataSingleton.IntGridHashesToUpdate.Length;
+	        var meshesCount = meshDataSingleton.HashesToUpdate.Length;
 	        meshDataSingleton.MeshDataArray = Mesh.AllocateWritableMeshData(meshesCount);
 
 	        if (meshDataSingleton.UpdatedMeshBoundsMap.Capacity < meshesCount)
@@ -155,7 +156,7 @@ namespace KrasCore.Mosaic
             
             var boundsHandle = new CalculateBoundsJob
             {
-	            IntGridHashesToUpdate = meshDataSingleton.IntGridHashesToUpdate,
+	            IntGridHashesToUpdate = meshDataSingleton.HashesToUpdate,
 	            UpdatedMeshBoundsMapWriter = meshDataSingleton.UpdatedMeshBoundsMap.AsParallelWriter(),
 	            MeshDataArray = meshDataSingleton.MeshDataArray,
             }.ScheduleParallel(meshesCount, 1, vertexHandle);

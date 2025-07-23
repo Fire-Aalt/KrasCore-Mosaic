@@ -7,6 +7,8 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
+using Hash128 = Unity.Entities.Hash128;
+using Random = Unity.Mathematics.Random;
 
 namespace KrasCore.Mosaic
 {
