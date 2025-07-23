@@ -1,13 +1,27 @@
 using KrasCore.Mosaic.Data;
 using Unity.Burst;
+using Unity.Collections;
 using Unity.Entities;
-using UnityEngine;
 
 namespace KrasCore.Mosaic
 {
     [UpdateInGroup(typeof(TilemapCleanupSystemGroup))]
     public partial struct TilemapEntityCleanupSystem : ISystem
     {
+        private NativeList<Entity> _entitiesToDelete;
+        
+        [BurstCompile]
+        public void OnCreate(ref SystemState state)
+        {
+            _entitiesToDelete = new NativeList<Entity>(256, Allocator.Persistent);
+        }
+
+        [BurstCompile]
+        public void OnDestroy(ref SystemState state)
+        {
+            _entitiesToDelete.Dispose();
+        }
+
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
@@ -22,7 +36,7 @@ namespace KrasCore.Mosaic
                 {
                     foreach (var kvPair in dataLayer.SpawnedEntities)
                     {
-                        state.EntityManager.DestroyEntity(kvPair.Value);
+                        _entitiesToDelete.Add(kvPair.Value);
                     }
                     dataLayer.SpawnedEntities.Clear();
                 }
@@ -30,12 +44,17 @@ namespace KrasCore.Mosaic
                 {
                     foreach (var removedPos in dataLayer.RefreshedPositions)
                     {
-                        spawnedEntities.TryGetValue(removedPos, out var entity);
-                        
-                        state.EntityManager.DestroyEntity(entity);
+                        if (!spawnedEntities.TryGetValue(removedPos, out var entity)) continue;
                         spawnedEntities.Remove(removedPos);
+                        _entitiesToDelete.Add(entity);
                     }
                 }
+            }
+
+            if (_entitiesToDelete.Length != 0)
+            {
+                state.EntityManager.DestroyEntity(_entitiesToDelete.AsArray());
+                _entitiesToDelete.Clear();
             }
         }
     }

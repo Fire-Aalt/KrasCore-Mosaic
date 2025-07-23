@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using KrasCore.Mosaic.Data;
 using Unity.Burst;
 using Unity.Collections;
@@ -6,20 +7,23 @@ using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Rendering;
+using UnityEngine;
+using Hash128 = Unity.Entities.Hash128;
+using Mesh = UnityEngine.Mesh;
 
 namespace KrasCore.Mosaic
 {
 	[UpdateInGroup(typeof(PresentationSystemGroup), OrderFirst = true)]
 	public partial class TilemapPresentationSystem : SystemBase
 	{
-		private readonly Dictionary<Hash128, UnityEngine.Mesh> _meshMap = new();
-		private readonly List<UnityEngine.Mesh> _meshesToUpdate = new();
+		private readonly Dictionary<Hash128, Mesh> _meshMap = new();
+		private readonly List<Mesh> _meshesToUpdate = new();
 		
 		protected override void OnCreate()
 		{
 			EntityManager.CreateSingleton(new TilemapMeshDataSingleton
 			{
-				IntGridHashesToUpdate = new NativeList<Hash128>(8, Allocator.Persistent),
+				HashesToUpdate = new NativeList<Hash128>(8, Allocator.Persistent),
 				UpdatedMeshBoundsMap = new NativeParallelHashMap<Hash128, AABB>(8, Allocator.Persistent)
 			});
 		}
@@ -29,26 +33,12 @@ namespace KrasCore.Mosaic
 			SystemAPI.GetSingleton<TilemapMeshDataSingleton>().Dispose();
 			foreach (var kvp in _meshMap)
 			{
-				UnityEngine.Object.Destroy(kvp.Value);
+				Object.Destroy(kvp.Value);
 			}
 		}
  
 		protected override void OnUpdate()
 		{
-			EntityManager.CompleteDependencyBeforeRW<TilemapMeshDataSingleton>();
-			var meshDataSingleton = SystemAPI.GetSingleton<TilemapMeshDataSingleton>();
-
-			foreach (var intGridHash in meshDataSingleton.IntGridHashesToUpdate)
-			{
-				if (!_meshMap.TryGetValue(intGridHash, out var mesh))
-				{
-					mesh = new UnityEngine.Mesh { name = "Mosaic.TilemapMesh" };
-					mesh.MarkDynamic();
-					_meshMap.Add(intGridHash, mesh);
-				}
-				_meshesToUpdate.Add(mesh);
-			}
-			
 			var uninitializedQuery = SystemAPI.QueryBuilder().WithAll<TilemapData, RuntimeMaterial>().WithNone<MaterialMeshInfo>().Build();
 			if (!uninitializedQuery.IsEmpty)
 			{
@@ -61,7 +51,15 @@ namespace KrasCore.Mosaic
 				for (int i = 0; i < entities.Length; i++)
 				{
 					var tilemapData = tilemapsData[i];
-					var meshId = entitiesGraphicsSystem.RegisterMesh(_meshMap[tilemapData.IntGridHash]);
+					
+					if (!_meshMap.TryGetValue(tilemapData.IntGridHash, out var mesh))
+					{
+						mesh = new Mesh { name = "Mosaic.TilemapMesh" };
+						mesh.MarkDynamic();
+						_meshMap.Add(tilemapData.IntGridHash, mesh);
+					}
+					
+					var meshId = entitiesGraphicsSystem.RegisterMesh(mesh);
 					var materialId = entitiesGraphicsSystem.RegisterMaterial(runtimeMaterials[i].Value);
 
 					var desc = new RenderMeshDescription(
@@ -73,26 +71,26 @@ namespace KrasCore.Mosaic
 				}
 			}
 			
-			if (meshDataSingleton.IsDirty)
+			EntityManager.CompleteDependencyBeforeRW<TilemapMeshDataSingleton>();
+			var meshDataSingleton = SystemAPI.GetSingleton<TilemapMeshDataSingleton>();
+			
+			foreach (var intGridHash in meshDataSingleton.HashesToUpdate)
 			{
-				UnityEngine.Mesh.ApplyAndDisposeWritableMeshData(meshDataSingleton.MeshDataArray, _meshesToUpdate);
-				meshDataSingleton.IntGridHashesToUpdate.Clear();
-				_meshesToUpdate.Clear();
+				_meshesToUpdate.Add(_meshMap[intGridHash]);
 			}
-
-			if (!meshDataSingleton.UpdatedMeshBoundsMap.IsEmpty)
+			
+			if (_meshesToUpdate.Count != 0)
 			{
+				Mesh.ApplyAndDisposeWritableMeshData(meshDataSingleton.MeshDataArray, _meshesToUpdate);
+				_meshesToUpdate.Clear();
+				
 				Dependency = new UpdateBoundsJob
-				{
-					UpdatedMeshBoundsMap = meshDataSingleton.UpdatedMeshBoundsMap
-				}.Schedule(Dependency);
-				Dependency = new ClearJob
 				{
 					UpdatedMeshBoundsMap = meshDataSingleton.UpdatedMeshBoundsMap
 				}.Schedule(Dependency);
 			}
 		}
-
+		
 		[BurstCompile]
 		private partial struct UpdateBoundsJob : IJobEntity
 		{
@@ -105,17 +103,6 @@ namespace KrasCore.Mosaic
 				{
 					renderBounds.Value = aabb;
 				}
-			}
-		}
-
-		[BurstCompile]
-		private struct ClearJob : IJob
-		{
-			public NativeParallelHashMap<Hash128, AABB> UpdatedMeshBoundsMap;
-			
-			public void Execute()
-			{
-				UpdatedMeshBoundsMap.Clear();
 			}
 		}
 	}

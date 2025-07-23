@@ -7,16 +7,16 @@ namespace KrasCore.Mosaic.Data
 {
     internal struct TilemapMeshDataSingleton : IComponentData, IDisposable
     {
-        public NativeList<Hash128> IntGridHashesToUpdate;
+        public NativeList<Hash128> HashesToUpdate;
         public NativeParallelHashMap<Hash128, AABB> UpdatedMeshBoundsMap;
         
         public UnityEngine.Mesh.MeshDataArray MeshDataArray;
 
-        public bool IsDirty => IntGridHashesToUpdate.Length > 0;
+        public bool IsDirty => HashesToUpdate.Length > 0;
         
         public void Dispose()
         {
-            IntGridHashesToUpdate.Dispose();
+            HashesToUpdate.Dispose();
             UpdatedMeshBoundsMap.Dispose();
         }
     }
