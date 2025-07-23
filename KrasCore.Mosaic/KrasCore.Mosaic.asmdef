@@ -4,12 +4,6 @@
     "references": [
         "KrasCore",
         "KrasCore.Mosaic.Data",
-        "BovineLabs.Core",
-        "BovineLabs.Core.Extensions",
-        "BovineLabs.Quill",
-        "BovineLabs.Anchor",
-        "Unity.AppUI.MVVM",
-        "Unity.AppUI",
         "Unity.Burst",
         "Unity.Collections",
         "Unity.Entities",
@@ -29,17 +23,6 @@
     "precompiledReferences": [],
     "autoReferenced": false,
     "defineConstraints": [],
-    "versionDefines": [
-        {
-            "name": "com.bovinelabs.quill",
-            "expression": "",
-            "define": "BL_QUILL"
-        },
-        {
-            "name": "com.bovinelabs.anchor",
-            "expression": "",
-            "define": "BL_ANCHOR"
-        }
-    ],
+    "versionDefines": [],
     "noEngineReferences": false
 }

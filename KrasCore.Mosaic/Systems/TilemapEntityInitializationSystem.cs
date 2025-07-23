@@ -1,7 +1,7 @@
-using BovineLabs.Core.Extensions;
 using KrasCore.Mosaic.Data;
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Transforms;
 
@@ -62,7 +62,7 @@ namespace KrasCore.Mosaic
                     
                 var position = currentCommand.Position;
 
-                ref var dataLayer = ref _intGridLayers.GetOrAddRef(currentCommand.IntGridHash);
+                ref var dataLayer = ref _intGridLayers.GetValueAsRef(currentCommand.IntGridHash);
                 var rendererData = state.EntityManager.GetComponentData<TilemapRendererData>(dataLayer.IntGridEntity);
                 
                 state.EntityManager.SetComponentData(instance, new LocalTransform

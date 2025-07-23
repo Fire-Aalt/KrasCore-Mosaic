@@ -5,24 +5,8 @@ namespace KrasCore.Mosaic.Data
 {
     public static class MosaicUtils
     {
-        public static int GetCellsToCheckBucketsCount(RuleTransform transform)
-        {
-            return transform switch
-            {
-                RuleTransform.MirrorX => 2,
-                RuleTransform.MirrorY => 2,
-                RuleTransform.MirrorXY => 4,
-                RuleTransform.Rotated => 4,
-                _ => 1
-            };
-        }
-        
-        /// <summary>
-        /// Hash function for seeded random seeds, unique for each position
-        /// </summary>
         public static uint Hash(uint seed, int2 pos)
         {
-            // Combine position into a single 64-bit value for better hash distribution
             ulong combined = ((ulong)pos.x << 32) | (uint)pos.y;
             uint hash = seed;
 
