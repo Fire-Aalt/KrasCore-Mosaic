@@ -101,59 +101,29 @@ namespace KrasCore.Mosaic.Authoring
                 }
             }
             
+            // Handles both even and odd matrices
             public int2 GetOffsetFromCenterMirrored(int index, bool2 mirror)
             {
                 var x = index % MatrixSize;
                 var y = index / MatrixSize;
                 
-                if (MatrixSize % 2 != 0)
-                {
-                    var offset = new int2(x - MatrixSizeHalf, MatrixSizeHalf - y);
-                    
-                    if (mirror.x) offset.x = MatrixSizeHalf - x;
-                    if (mirror.y) offset.y = y - MatrixSizeHalf;
+                if (mirror.x) x = (MatrixSize - 1) - x;
+                if (mirror.y) y = (MatrixSize - 1) - y;
                 
-                    return offset;
-                }
-                else
-                {
-                    var temp = new int2(x, y);
-                    
-                    if (mirror.x) temp.x = x + 1 - MatrixSizeHalf;
-                    if (mirror.y) temp.y = y + 1 - MatrixSizeHalf;
+                var res = new int2(
+                    x - MatrixSizeHalf,
+                    MatrixSizeHalf - y
+                );
+                if (MatrixSize % 2 == 0) res += new int2(1, 0);
                 
-                    return new int2(x - MatrixSizeHalf + 1, MatrixSizeHalf - y);
-                }
+                return res;
             }
             
+            // Handles both even and odd matrices
             public int2 GetOffsetFromCenterRotated(int index, int rotation)
             {
                 var x = index % MatrixSize;
                 var y = index / MatrixSize;
-
-                // rotation++;
-                // var tmp = x;
-                // x = MatrixSize - y - 1;
-                // y = tmp;
-                // Debug.Log($"Return: {x} {y} Before: {index % MatrixSize} {index / MatrixSize}");
-                //         // antiClockwise
-                //         //res[MatrixSize - j - 1][i] = mat[i][j];
-                //         
-                //         // clockwise
-                //         //res[j][MatrixSize - i - 1] = mat[i][j];
-                //
-                // Debug.Log($"After {0} rotations: {x} {y}");
-                // for (int i = 0; i < rotation; i++)
-                // {
-                //     tmp = x;
-                //     x = y;
-                //     y = MatrixSize - tmp - 1;
-                //     Debug.Log($"After {i + 1} rotations: {x} {y}");
-                // }
-                //
-                // var res = new int2(MatrixSizeHalf - x, MatrixSizeHalf - y);
-                // //if (MatrixSize % 2 == 0) res += new int2(1, 1);
-                // return res;
                 
                 var x2 = x * 2 - (MatrixSize - 1);
                 var y2 = (MatrixSize - 1) - y * 2;
@@ -167,16 +137,16 @@ namespace KrasCore.Mosaic.Authoring
                     _ => default
                 };
     
-                var nx = (rd2.x + (MatrixSize - 1)) / 2;
-                var ny = ((MatrixSize - 1) - rd2.y) / 2;
+                x = (rd2.x + (MatrixSize - 1)) / 2;
+                y = ((MatrixSize - 1) - rd2.y) / 2;
 
-                var ans = new int2(
-                    nx - MatrixSizeHalf,
-                    MatrixSizeHalf - ny
+                var res = new int2(
+                    x - MatrixSizeHalf,
+                    MatrixSizeHalf - y
                 );
-                if (MatrixSize % 2 == 0) ans += new int2(1, 0);
+                if (MatrixSize % 2 == 0) res += new int2(1, 0);
                 
-                return ans;
+                return res;
             }
         }
     }

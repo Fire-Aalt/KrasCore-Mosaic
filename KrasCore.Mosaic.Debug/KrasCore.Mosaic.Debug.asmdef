@@ -4,9 +4,9 @@
     "references": [
         "KrasCore.Mosaic.Data",
         "KrasCore",
-        "BovineLabs.Anchor",
         "BovineLabs.Core",
         "BovineLabs.Core.Extensions",
+        "BovineLabs.Anchor",
         "BovineLabs.Quill",
         "Unity.AppUI",
         "Unity.AppUI.MVVM",

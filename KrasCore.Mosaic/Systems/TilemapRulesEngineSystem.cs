@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using BovineLabs.Core.Extensions;
 using KrasCore.Mosaic.Data;
 using KrasCore.NZCore;
 using Unity.Burst;
@@ -93,8 +92,8 @@ namespace KrasCore.Mosaic
                 var intGridEntity = IntGridEntities[index];
                 var intGridHash = TilemapDataLookup[intGridEntity].IntGridHash;
                 
-                ref var commandsLayer = ref TcbLayers.GetOrAddRef(intGridHash);
-                ref var dataLayer = ref IntGridLayers.GetOrAddRef(intGridHash);
+                ref var commandsLayer = ref TcbLayers.GetValueAsRef(intGridHash);
+                ref var dataLayer = ref IntGridLayers.GetValueAsRef(intGridHash);
 
                 dataLayer.PositionsToRefresh.Clear();
                 dataLayer.RefreshedPositions.Clear();
@@ -198,7 +197,7 @@ namespace KrasCore.Mosaic
                 var intGridEntity = IntGridEntities[index];
                 
                 _intGridHash = TilemapData[intGridEntity].IntGridHash;
-                ref var dataLayer = ref IntGridLayers.GetOrAddRef(_intGridHash);
+                ref var dataLayer = ref IntGridLayers.GetValueAsRef(_intGridHash);
                 
                 if (dataLayer.PositionsToRefresh.Count == 0) 
                     return;

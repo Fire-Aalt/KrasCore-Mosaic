@@ -10,7 +10,6 @@ namespace KrasCore.Mosaic.Data
         public Hash128 IntGridHash;
         public FixedString128Bytes DebugName;
         
-        // Store data locally to simplify lookups
         public Entity GridEntity;
         public bool DualGrid;
         
