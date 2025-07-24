@@ -1,8 +1,9 @@
+using System;
 using UnityEngine;
 
-namespace KrasCore.Mosaic
+namespace KrasCore.Mosaic.Authoring
 {
-    [System.AttributeUsage(System.AttributeTargets.Field, AllowMultiple = false, Inherited = true)]
+    [AttributeUsage(AttributeTargets.Field, AllowMultiple = false, Inherited = true)]
     public class IntGridMatrixAttribute : PropertyAttribute
     {
         public float Padding = 0.01f;

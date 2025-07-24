@@ -1,50 +1,34 @@
-using System.Collections.Generic;
+using KrasCore.Mosaic.Authoring;
 using KrasCore.Mosaic.Data;
-using Sirenix.Utilities;
+using Sirenix.OdinInspector.Editor;
 using Sirenix.Utilities.Editor;
 using UnityEditor;
 using UnityEngine;
 
-namespace KrasCore.Mosaic.Authoring
+namespace KrasCore.Mosaic.Editor
 {
-    [InitializeOnLoad]
-    public static class EditorHelper
+    public class IntGridValueSelectorDrawer : OdinAttributeDrawer<IntGridValueSelectorDrawerAttribute, IntGridValueSelector>
     {
-        public static readonly Color BackgroundCellColor = new(0f, 0f, 0f, 0.5f);
-        
-        public static readonly Material TextureMat;
+        private IntGridValueSelector Selector => ValueEntry.SmartValue;
+        private IntGridDefinition IntGrid => Selector.intGrid;
 
-        public static readonly Texture NotTexture;
-        public static readonly Texture AnyTexture;
-        public static readonly Texture MatrixCenterTexture;
-        
-        static EditorHelper()
-        {
-            TextureMat = Resources.Load("default") as Material;
-            
-            NotTexture = Resources.Load("not") as Texture;
-            AnyTexture = Resources.Load("any") as Texture;
-            MatrixCenterTexture = Resources.Load("matrixCenter") as Texture;
-        }
-        
-        public static short IntGridValueDrawer(short intGridValue, List<IntGridValueDefinition> intGridValues)
+        protected override void DrawPropertyLayout(GUIContent label)
         {
             SirenixEditorGUI.BeginBox();
-            for (int i = 0; i < intGridValues.Count; i++)
+            for (int i = 0; i < IntGrid.intGridValues.Count; i++)
             {
-                if (IntGridButton(0, intGridValues[i].name, intGridValue == intGridValues[i].value, intGridValues[i].texture, intGridValues[i].color))
+                if (IntGridButton(0, IntGrid.intGridValues[i].name, Selector.value == IntGrid.intGridValues[i].value,
+                        IntGrid.intGridValues[i].texture, IntGrid.intGridValues[i].color))
                 {
-                    intGridValue = intGridValues[i].value;
+                    Selector.value = IntGrid.intGridValues[i].value;
                 }
             }
             
-            if (IntGridButton(0, "Any Value/No Value", intGridValue == RuleGridConsts.AnyIntGridValue, AnyTexture, Color.white))
+            if (IntGridButton(0, "Any Value/No Value", Selector.value == RuleGridConsts.AnyIntGridValue, EditorResources.AnyTexture, Color.white))
             {
-                intGridValue = RuleGridConsts.AnyIntGridValue;
+                Selector.value = RuleGridConsts.AnyIntGridValue;
             }
             SirenixEditorGUI.EndBox();
-            
-            return intGridValue;
         }
         
         private static bool IntGridButton(int indent, string text, bool isActive, Texture icon, Color cellColor)
@@ -57,7 +41,7 @@ namespace KrasCore.Mosaic.Authoring
             else
                 SirenixEditorGUI.DrawSolidRect(rect, flag2 ? SirenixGUIStyles.MenuButtonHoverColor : SirenixGUIStyles.MenuButtonColor);
             SirenixEditorGUI.DrawBorders(rect, 0, 0, 0, 1, SirenixGUIStyles.MenuButtonBorderColor);
-            if (Event.current.type == UnityEngine.EventType.MouseDown)
+            if (Event.current.type == EventType.MouseDown)
             {
                 if (flag2)
                 {
@@ -75,7 +59,7 @@ namespace KrasCore.Mosaic.Authoring
             var iconRect = new Rect(rect.position + new Vector2(0f, 3f), new Vector2(40f, 40f));
             if (icon != null)
             {
-                EditorGUI.DrawPreviewTexture(iconRect, icon, TextureMat, ScaleMode.ScaleToFit);
+                EditorGUI.DrawPreviewTexture(iconRect, icon, EditorResources.TextureMat, ScaleMode.ScaleToFit);
             }
             else
             {

@@ -12,8 +12,8 @@ using Hash128 = Unity.Entities.Hash128;
 
 namespace KrasCore.Mosaic
 {
-	[UpdateAfter(typeof(TilemapRulesEngineSystem))]
-	[UpdateInGroup(typeof(PresentationSystemGroup), OrderLast = true)]
+	[UpdateAfter(typeof(TilemapRuleEngineSystem))]
+	[UpdateInGroup(typeof(TilemapUpdateSystemGroup))]
     public partial struct TilemapMeshDataSystem : ISystem
     {
 	    private static readonly quaternion RotY90 = quaternion.RotateY(90f * math.TORADIANS);
@@ -48,185 +48,172 @@ namespace KrasCore.Mosaic
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-	        state.EntityManager.CompleteDependencyBeforeRW<TilemapDataSingleton>();
-	        state.EntityManager.CompleteDependencyBeforeRW<TilemapMeshDataSingleton>();
-	        
-            ref var dataSingleton = ref SystemAPI.GetSingletonRW<TilemapDataSingleton>().ValueRW;
-            ref var meshDataSingleton = ref SystemAPI.GetSingletonRW<TilemapMeshDataSingleton>().ValueRW;
-            
-	        // Set Culling Bounds
+	        var dataSingleton = SystemAPI.GetSingleton<TilemapDataSingleton>();
+	        var meshDataSingleton = SystemAPI.GetSingleton<TilemapMeshDataSingleton>();
 	        var tcb = SystemAPI.GetSingleton<TilemapCommandBufferSingleton>();
-            
-	        _data.DirtyIntGridLayers.Clear();
-	        _data.DirtyTilemapsRendererData.Clear();
-	        _data.DirtyOffsetCounts.Clear();
-	        
-	        meshDataSingleton.HashesToUpdate.Clear();
-	        meshDataSingleton.UpdatedMeshBoundsMap.Clear();
-	        
-	        foreach (var kvp in dataSingleton.IntGridLayers)
-	        {
-		        var intGridHash = kvp.Key;
-		        ref var dataLayer = ref kvp.Value;
-                
-		        if (dataLayer.RefreshedPositions.Length == 0 
-		            && tcb.PrevCullingBounds.Value.Equals(tcb.CullingBounds.Value)
-		            )
-		        {
-			        continue;
-		        }
-		        
-		        meshDataSingleton.HashesToUpdate.Add(intGridHash);
-		        var rendererData = state.EntityManager.GetComponentData<TilemapRendererData>(dataLayer.IntGridEntity);
-		        _data.DirtyIntGridLayers.Add(dataLayer);
-		        _data.DirtyTilemapsRendererData.Add(rendererData);
-		        _data.DirtyOffsetCounts.Add(default);
-	        }
-	        if (!meshDataSingleton.IsDirty) return;
+
+	        var cullingBoundsChanged = !tcb.PrevCullingBounds.Value.Equals(tcb.CullingBounds.Value);
 	        tcb.PrevCullingBounds.Value = tcb.CullingBounds.Value;
-	       
-	        var meshesCount = meshDataSingleton.HashesToUpdate.Length;
 	        
-	        if (meshDataSingleton.UpdatedMeshBoundsMap.Capacity < meshesCount)
-				meshDataSingleton.UpdatedMeshBoundsMap.Capacity = meshesCount;
+	        state.Dependency = new FindHashesToUpdateJob
+	        {
+		        HashesToUpdate = meshDataSingleton.HashesToUpdate,
+		        IntGridLayers = dataSingleton.IntGridLayers,
+		        CullingBoundsChanged = cullingBoundsChanged,
+		        Data = _data,
+		        UpdatedMeshBoundsMap = meshDataSingleton.UpdatedMeshBoundsMap,
+		        TilemapRendererDataLookup = SystemAPI.GetComponentLookup<TilemapRendererData>(true),
+	        }.Schedule(state.Dependency);
 	        
-            var handle = new ResizeLargeListsJob
+            state.Dependency = new ResizeLargeListsJob
             {
-	            IntGridLayers = _data.DirtyIntGridLayers,
-	            Offsets = _data.DirtyOffsetCounts,
-	            Positions = _data.Positions,
-	            SpriteMeshes = _data.SpriteMeshes,
-	            Vertices = _data.Vertices,
-	            Indices = _data.Indices,
-	            LayerPointers = _data.LayerPointers,
+	            HashesToUpdate = meshDataSingleton.HashesToUpdate.AsDeferredJobArray(),
+	            IntGridLayers = dataSingleton.IntGridLayers,
+	            Data = _data
             }.Schedule(state.Dependency);
             
-            handle = new PrepareAndCullSpriteMeshDataJob
+            state.Dependency = new PrepareAndCullSpriteMeshDataJob
             {
-	            IntGridLayers = _data.DirtyIntGridLayers,
-	            OffsetData = _data.DirtyOffsetCounts,
-	            CullingBounds = tcb.CullingBounds.Value,
+	            HashesToUpdate = meshDataSingleton.HashesToUpdate.AsDeferredJobArray(),
+	            IntGridLayers = dataSingleton.IntGridLayers,
+	            OffsetData = _data.DirtyOffsetCounts.AsDeferredJobArray(),
 	            Positions = _data.Positions.AsDeferredJobArray(),
-	            SpriteMeshes = _data.SpriteMeshes.AsDeferredJobArray()
-            }.ScheduleParallel(meshesCount, 1, handle);
+	            SpriteMeshes = _data.SpriteMeshes.AsDeferredJobArray(),
+	            CullingBounds = tcb.CullingBounds.Value,
+            }.Schedule(_data.DirtyOffsetCounts, 1, state.Dependency);
             
-            handle = new PatchCulledLayerPointersListJob
+            state.Dependency = new PatchLayerPointersJob
             {
-	            OffsetData = _data.DirtyOffsetCounts,
+	            HashesToUpdate = meshDataSingleton.HashesToUpdate.AsDeferredJobArray(),
+	            Offsets = _data.DirtyOffsetCounts.AsDeferredJobArray(),
 	            LayerPointers = _data.LayerPointers
-            }.Schedule(handle);
+            }.Schedule(state.Dependency);
             
             var setBufferParamsHandle = new SetBufferParamsJob
             {
-	            Layout = _layout,
-	            Offsets = _data.DirtyOffsetCounts,
+	            Offsets = _data.DirtyOffsetCounts.AsDeferredJobArray(),
 	            MeshDataArray = meshDataSingleton.MeshDataArray,
-	            HashesToUpdate = meshDataSingleton.HashesToUpdate.AsDeferredJobArray()
-            }.ScheduleParallel(meshesCount, 1, handle);
+	            Layout = _layout,
+            }.Schedule(_data.DirtyOffsetCounts, 1, state.Dependency);
             
-            handle = new PrepareLayerPointersJob
+            state.Dependency = new GenerateVertexDataJob
             {
-	            OffsetData = _data.DirtyOffsetCounts,
-	            LayerPointers = _data.LayerPointers.AsDeferredJobArray()
-            }.ScheduleParallel(meshesCount, 1, handle);
-            
-            handle = new GenerateVertexDataJob
-            {
-	            LayerData = _data.DirtyTilemapsRendererData,
-	            OffsetCount = _data.DirtyOffsetCounts,
+	            LayerData = _data.DirtyTilemapsRendererData.AsDeferredJobArray(),
+	            OffsetCount = _data.DirtyOffsetCounts.AsDeferredJobArray(),
 	            Positions = _data.Positions.AsDeferredJobArray(),
 	            SpriteMeshes = _data.SpriteMeshes.AsDeferredJobArray(),
 	            LayerPointer = _data.LayerPointers.AsDeferredJobArray(),
 	            Vertices = _data.Vertices.AsDeferredJobArray(),
 	            Indices = _data.Indices.AsDeferredJobArray(),
-            }.Schedule(_data.LayerPointers, 32, handle);
-
-            var meshDataHandle = JobHandle.CombineDependencies(setBufferParamsHandle, handle);
-			
-            var vertexHandle = new CopyVertexDataJob
+            }.Schedule(_data.LayerPointers, 64, state.Dependency);
+            
+            state.Dependency = new FinalizeMeshDataJob
             {
-	            Offsets = _data.DirtyOffsetCounts,
+	            HashesToUpdate = meshDataSingleton.HashesToUpdate.AsDeferredJobArray(),
+	            Offsets = _data.DirtyOffsetCounts.AsDeferredJobArray(),
 	            Vertices = _data.Vertices.AsDeferredJobArray(),
-	            MeshDataArray = meshDataSingleton.MeshDataArray,
-	            HashesToUpdate = meshDataSingleton.HashesToUpdate.AsDeferredJobArray()
-            }.ScheduleParallel(meshesCount, 1, meshDataHandle);
-            
-            var indexHandle = new CopyIndexDataJob
-            {
-	            Offsets = _data.DirtyOffsetCounts,
 	            Indices = _data.Indices.AsDeferredJobArray(),
-	            MeshDataArray = meshDataSingleton.MeshDataArray,
-	            HashesToUpdate = meshDataSingleton.HashesToUpdate.AsDeferredJobArray()
-            }.ScheduleParallel(meshesCount, 1, meshDataHandle);
-            
-            var boundsHandle = new CalculateBoundsJob
-            {
 	            UpdatedMeshBoundsMapWriter = meshDataSingleton.UpdatedMeshBoundsMap.AsParallelWriter(),
 	            MeshDataArray = meshDataSingleton.MeshDataArray,
-	            HashesToUpdate = meshDataSingleton.HashesToUpdate.AsDeferredJobArray()
-            }.ScheduleParallel(meshesCount, 1, vertexHandle);
-            
-            state.Dependency = new SetSubMeshJob
-            {
-	            Offsets = _data.DirtyOffsetCounts,
-	            MeshDataArray = meshDataSingleton.MeshDataArray,
-	            HashesToUpdate = meshDataSingleton.HashesToUpdate.AsDeferredJobArray()
-            }.ScheduleParallel(meshesCount, 1, JobHandle.CombineDependencies(indexHandle, boundsHandle));
+            }.Schedule(_data.DirtyOffsetCounts, 1, JobHandle.CombineDependencies(setBufferParamsHandle, state.Dependency));
+        }
+        
+        [BurstCompile]
+        private struct FindHashesToUpdateJob : IJob
+        {
+	        [ReadOnly]
+	        public ComponentLookup<TilemapRendererData> TilemapRendererDataLookup;
+	        
+	        [ReadOnly]
+	        public NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer> IntGridLayers;
+	        
+	        public bool CullingBoundsChanged;
+	        public Data Data;
+	        public NativeList<Hash128> HashesToUpdate;
+	        public NativeParallelHashMap<Hash128, AABB> UpdatedMeshBoundsMap;
+	        
+	        public void Execute()
+	        {
+		        Data.DirtyTilemapsRendererData.Clear();
+		        Data.DirtyOffsetCounts.Clear();
+		        Data.LayerPointers.Clear();
+		        HashesToUpdate.Clear();
+		        UpdatedMeshBoundsMap.Clear();
+	        
+		        foreach (var kvp in IntGridLayers)
+		        {
+			        var intGridHash = kvp.Key;
+			        ref var dataLayer = ref kvp.Value;
+                
+			        if (dataLayer.RefreshedPositions.IsEmpty
+			            && !CullingBoundsChanged
+			           )
+			        {
+				        continue;
+			        }
+		        
+			        HashesToUpdate.Add(intGridHash);
+			        Data.DirtyTilemapsRendererData.Add(TilemapRendererDataLookup[dataLayer.IntGridEntity]);
+			        Data.DirtyOffsetCounts.Add(default);
+		        }
+		        if (HashesToUpdate.IsEmpty) return;
+		        
+		        if (UpdatedMeshBoundsMap.Capacity < HashesToUpdate.Length)
+			        UpdatedMeshBoundsMap.Capacity = HashesToUpdate.Length;
+	        }
         }
         
         [BurstCompile]
         private struct ResizeLargeListsJob : IJob
         {
 	        [ReadOnly]
-	        public NativeList<TilemapDataSingleton.IntGridLayer> IntGridLayers;
-	        
-	        public NativeList<int2> Positions;
-	        public NativeList<SpriteMesh> SpriteMeshes;
-	        public NativeList<Vertex> Vertices;
-	        public NativeList<int> Indices;
+	        public NativeArray<Hash128> HashesToUpdate;
+	        [ReadOnly]
+	        public NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer> IntGridLayers;
 
-	        public NativeList<int> LayerPointers;
-	        public NativeList<OffsetData> Offsets;
+	        public Data Data;
 	        
 	        public void Execute()
 	        {
-		        var meshesCount = 0;		
-		        for (var i = 0; i < IntGridLayers.Length; i++)
+		        if (HashesToUpdate.Length == 0) return;
+		        
+		        var spriteMeshesCount = 0;
+		        for (var i = 0; i < HashesToUpdate.Length; i++)
 		        {
-			        var data = IntGridLayers[i];
+			        var data = IntGridLayers[HashesToUpdate[i]];
 
-			        var offset = meshesCount;
+			        var offset = spriteMeshesCount;
 			        var count = data.RenderedSprites.Count;
-			        meshesCount += count;
+			        spriteMeshesCount += count;
 			        
-			        Offsets[i] = new OffsetData
+			        Data.DirtyOffsetCounts[i] = new OffsetData
 			        {
 				        DataOffset = offset,
 				        Count = count
 			        };
 		        }
 
-		        var vertexCount = meshesCount * 4;
-		        var triangleCount = meshesCount * 6;		
+		        var vertexCount = spriteMeshesCount * 4;
+		        var triangleCount = spriteMeshesCount * 6;		
 		        
-		        Positions.EnsureCapacity(meshesCount, true);
-		        SpriteMeshes.EnsureCapacity(meshesCount, true);
-		        Vertices.EnsureCapacity(vertexCount, true);
-		        Indices.EnsureCapacity(triangleCount, true);
-		        LayerPointers.EnsureCapacity(meshesCount, true);
+		        Data.Positions.EnsureCapacity(spriteMeshesCount, true);
+		        Data.SpriteMeshes.EnsureCapacity(spriteMeshesCount, true);
+		        Data.Vertices.EnsureCapacity(vertexCount, true);
+		        Data.Indices.EnsureCapacity(triangleCount, true);
+		        Data.LayerPointers.EnsureCapacity(spriteMeshesCount, true);
 	        }
         }
         
         [BurstCompile]
-        private struct PrepareAndCullSpriteMeshDataJob : IJobFor
+        private struct PrepareAndCullSpriteMeshDataJob : IJobParallelForDefer
         {
 	        [ReadOnly]
-	        [NativeDisableContainerSafetyRestriction]
-	        public NativeList<TilemapDataSingleton.IntGridLayer> IntGridLayers;
+	        public NativeArray<Hash128> HashesToUpdate;
+	        [ReadOnly]
+	        public NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer> IntGridLayers;
 
 	        [NativeDisableParallelForRestriction]
-	        public NativeList<OffsetData> OffsetData;
-	        
+	        public NativeArray<OffsetData> OffsetData;
 	        [NativeDisableParallelForRestriction]
 	        public NativeArray<int2> Positions;
 	        [NativeDisableParallelForRestriction]
@@ -236,7 +223,7 @@ namespace KrasCore.Mosaic
 	        
 	        public void Execute(int index)
 	        {
-		        var data = IntGridLayers[index];
+		        var data = IntGridLayers[HashesToUpdate[index]];
 		        var offsetData = OffsetData[index];
 
 		        var visibleCount = 0;
@@ -255,58 +242,50 @@ namespace KrasCore.Mosaic
         }
 		
         [BurstCompile]
-        private struct PatchCulledLayerPointersListJob : IJob
+        private unsafe struct PatchLayerPointersJob : IJob
         {
-	        public NativeList<OffsetData> OffsetData;
+	        [ReadOnly]
+	        public NativeArray<Hash128> HashesToUpdate;
+	        
+	        public NativeArray<OffsetData> Offsets;
 	        
 	        public NativeList<int> LayerPointers;
 	        
 	        public void Execute()
 	        {
+		        if (HashesToUpdate.Length == 0) return;
+		        
 		        var pointerOffset = 0;
-		        for (int i = 0; i < OffsetData.Length; i++)
+		        for (int i = 0; i < Offsets.Length; i++)
 		        {
-			        var newOffsetData = OffsetData[i]; 
+			        var newOffsetData = Offsets[i]; 
 			        newOffsetData.PointerOffset = pointerOffset;
 			        
 			        pointerOffset += newOffsetData.Count;
 
-			        OffsetData[i] = newOffsetData;
+			        Offsets[i] = newOffsetData;
 		        }
 		        
 		        LayerPointers.SetLengthNoClear(pointerOffset);
+		        for (int i = 0; i < Offsets.Length; i++)
+		        {
+			        var offset = Offsets[i];
+			        
+			        UnsafeUtility.MemCpyReplicate(
+				        (byte*)LayerPointers.GetUnsafePtr() + offset.PointerOffset * UnsafeUtility.SizeOf<int>(), 
+				        UnsafeUtility.AddressOf(ref i), UnsafeUtility.SizeOf<int>(), offset.Count);
+		        }
 	        }
         }
         
         [BurstCompile]
-        private struct PrepareLayerPointersJob : IJobFor
-        {
-	        [ReadOnly]
-	        public NativeList<OffsetData> OffsetData;
-	        
-	        [NativeDisableParallelForRestriction]
-	        public NativeArray<int> LayerPointers;
-	        
-	        public unsafe void Execute(int index)
-	        {
-		        var offset = OffsetData[index];
-		        
-		        UnsafeUtility.MemCpyReplicate(
-			        (byte*)LayerPointers.GetUnsafePtr() + offset.PointerOffset * UnsafeUtility.SizeOf<int>(), 
-			        UnsafeUtility.AddressOf(ref index), UnsafeUtility.SizeOf<int>(), offset.Count);
-	        }
-        }
-		
-        [BurstCompile]
-        private struct SetBufferParamsJob : IJobFor
+        private struct SetBufferParamsJob : IJobParallelForDefer
         {
 	        [ReadOnly]
 	        public NativeArray<VertexAttributeDescriptor> Layout;
 	        [ReadOnly]
-	        public NativeList<OffsetData> Offsets;
+	        public NativeArray<OffsetData> Offsets;
 	        
-	        [ReadOnly]
-	        public NativeArray<Hash128> HashesToUpdate;
 	        public Mesh.MeshDataArray MeshDataArray;
 	        
 	        public void Execute(int index)
@@ -322,76 +301,6 @@ namespace KrasCore.Mosaic
 	        }
         }
         
-        [BurstCompile]
-        private struct CopyVertexDataJob : IJobFor
-        {
-	        [ReadOnly]
-	        public NativeArray<Vertex> Vertices;
-	        [ReadOnly]
-	        public NativeList<OffsetData> Offsets;
-
-	        [ReadOnly]
-	        public NativeArray<Hash128> HashesToUpdate;
-	        [NativeDisableContainerSafetyRestriction]
-	        public Mesh.MeshDataArray MeshDataArray;
-	        
-	        public void Execute(int index)
-	        {
-		        var meshData = MeshDataArray[index];
-		        var offset = Offsets[index];
-		        
-		        var vertexCount = offset.Count * 4;
-
-		        Vertices.CopyToUnsafe(meshData.GetVertexData<Vertex>(), vertexCount, offset.DataOffset * 4, 0);
-	        }
-        }
-        
-        [BurstCompile]
-        private struct CopyIndexDataJob : IJobFor
-        {
-	        [ReadOnly]
-	        public NativeArray<int> Indices;
-	        [ReadOnly]
-	        public NativeList<OffsetData> Offsets;
-
-	        [ReadOnly]
-	        public NativeArray<Hash128> HashesToUpdate;
-	        [NativeDisableContainerSafetyRestriction]
-	        public Mesh.MeshDataArray MeshDataArray;
-	        
-	        public void Execute(int index)
-	        {
-		        var meshData = MeshDataArray[index];
-		        var offset = Offsets[index];
-		        
-		        var indexCount = offset.Count * 6;
-
-		        Indices.CopyToUnsafe(meshData.GetIndexData<int>(), indexCount, offset.DataOffset * 6, 0);
-	        }
-        }
-        
-        [BurstCompile]
-        private struct SetSubMeshJob : IJobFor
-        {
-	        [ReadOnly]
-	        public NativeList<OffsetData> Offsets;
-
-	        [ReadOnly]
-	        public NativeArray<Hash128> HashesToUpdate;
-	        public Mesh.MeshDataArray MeshDataArray;
-	        
-	        public void Execute(int index)
-	        {
-		        var meshData = MeshDataArray[index];
-		        var offset = Offsets[index];
-		        
-		        var indexCount = offset.Count * 6;
-		        
-		        meshData.subMeshCount = 1;
-		        meshData.SetSubMesh(0, new SubMeshDescriptor(0, indexCount));
-	        }
-        }
-		
         [BurstCompile]
         private struct GenerateVertexDataJob : IJobParallelForDefer
         {
@@ -409,9 +318,9 @@ namespace KrasCore.Mosaic
 	        public NativeArray<int> Indices;
 
 	        [ReadOnly]
-	        public NativeList<TilemapRendererData> LayerData;
+	        public NativeArray<TilemapRendererData> LayerData;
 	        [ReadOnly]
-	        public NativeList<OffsetData> OffsetCount;
+	        public NativeArray<OffsetData> OffsetCount;
 	        
         	public void Execute(int index)
 	        {
@@ -501,26 +410,46 @@ namespace KrasCore.Mosaic
 		        };
 	        }
         }
-        
-        [BurstCompile(FloatPrecision.Low, FloatMode.Fast)]
-        private struct CalculateBoundsJob : IJobFor
+
+        [BurstCompile]
+        private struct FinalizeMeshDataJob : IJobParallelForDefer
         {
 	        [ReadOnly]
 	        public NativeArray<Hash128> HashesToUpdate;
-	        public Mesh.MeshDataArray MeshDataArray;
+	        [ReadOnly]
+	        public NativeArray<OffsetData> Offsets;
+	        
+	        [ReadOnly]
+	        public NativeArray<Vertex> Vertices;
+	        [ReadOnly]
+	        public NativeArray<int> Indices;
+	        
 	        public NativeParallelHashMap<Hash128, AABB>.ParallelWriter UpdatedMeshBoundsMapWriter;
-
+	        public Mesh.MeshDataArray MeshDataArray;
+	        
 	        public void Execute(int index)
 	        {
 		        var meshData = MeshDataArray[index];
-		        var vertices = meshData.GetVertexData<Vertex>();
+		        var offset = Offsets[index];
+		        
+		        var vertexCount = offset.Count * 4;
+		        var indexCount = offset.Count * 6;
+
+		        var vertexData = meshData.GetVertexData<Vertex>();
+		        var indexData = meshData.GetIndexData<int>();
+		        
+		        Vertices.CopyToUnsafe(vertexData, vertexCount, offset.DataOffset * 4, 0);
+		        Indices.CopyToUnsafe(indexData, indexCount, offset.DataOffset * 6, 0);
+		        
+		        meshData.subMeshCount = 1;
+		        meshData.SetSubMesh(0, new SubMeshDescriptor(0, indexCount));
 		        
 		        var minPos = new float3(float.MaxValue, float.MaxValue, float.MaxValue);
 		        var maxPos = new float3(float.MinValue, float.MinValue, float.MinValue);
 
-		        for (int i = 0; i < vertices.Length; i++)
+		        for (int i = 0; i < vertexData.Length; i++)
 		        {
-			        var position = vertices[i].Position;
+			        var position = vertexData[i].Position;
 			        minPos = math.min(minPos, position);
 			        maxPos = math.max(maxPos, position);
 		        }

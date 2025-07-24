@@ -87,7 +87,7 @@ namespace KrasCore.Mosaic.Editor
             }
 
             var centerSquare = matrixRect.Padding(_matrixSizePixels / 2f - _squareSizePixels / 2f);
-            EditorGUI.DrawPreviewTexture(centerSquare, EditorHelper.MatrixCenterTexture, EditorHelper.TextureMat, ScaleMode.ScaleToFit);
+            EditorGUI.DrawPreviewTexture(centerSquare, EditorResources.MatrixCenterTexture, EditorResources.TextureMat, ScaleMode.ScaleToFit);
             
             if (Attribute.IsReadonly)
             {
@@ -114,7 +114,7 @@ namespace KrasCore.Mosaic.Editor
             DrawIntGridValue(rect, matrixValue);
             if (matrixValue < 0)
             {
-                DrawBuiltInCellTexture(rect, EditorHelper.NotTexture, Color.red);
+                DrawBuiltInCellTexture(rect, EditorResources.NotTexture, Color.red);
             }
         }
 
@@ -122,14 +122,14 @@ namespace KrasCore.Mosaic.Editor
         {
             if (Mathf.Abs(value) == RuleGridConsts.AnyIntGridValue)
             {
-                EditorGUI.DrawRect(rect.Padding(1), EditorHelper.BackgroundCellColor);
-                DrawBuiltInCellTexture(rect, EditorHelper.AnyTexture, Color.white);
+                EditorGUI.DrawRect(rect.Padding(1), EditorResources.BackgroundCellColor);
+                DrawBuiltInCellTexture(rect, EditorResources.AnyTexture, Color.white);
                 return;
             }
 
             if (value == 0)
             {
-                EditorGUI.DrawRect(rect.Padding(1), EditorHelper.BackgroundCellColor);
+                EditorGUI.DrawRect(rect.Padding(1), EditorResources.BackgroundCellColor);
                 return;
             }
             
@@ -140,8 +140,8 @@ namespace KrasCore.Mosaic.Editor
             }
             else
             {
-                EditorGUI.DrawRect(rect.Padding(1), EditorHelper.BackgroundCellColor);
-                EditorGUI.DrawPreviewTexture(rect, intGridValue.texture, EditorHelper.TextureMat, ScaleMode.ScaleToFit);
+                EditorGUI.DrawRect(rect.Padding(1), EditorResources.BackgroundCellColor);
+                EditorGUI.DrawPreviewTexture(rect, intGridValue.texture, EditorResources.TextureMat, ScaleMode.ScaleToFit);
             }
         }
 
@@ -151,7 +151,7 @@ namespace KrasCore.Mosaic.Editor
             var size = rect.size;
             rect.size *= 0.6f;
             rect.position += (size - rect.size) * 0.5f;
-            EditorGUI.DrawPreviewTexture(rect, texture, EditorHelper.TextureMat, ScaleMode.ScaleToFit);
+            EditorGUI.DrawPreviewTexture(rect, texture, EditorResources.TextureMat, ScaleMode.ScaleToFit);
         }
 
         private IntGridValueDefinition IntGridToIndex(IntGridValue intGridValue)
