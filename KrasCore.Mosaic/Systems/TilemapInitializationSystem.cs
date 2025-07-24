@@ -2,25 +2,56 @@ using KrasCore.Mosaic.Data;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Rendering;
+using UnityEngine;
 
 namespace KrasCore.Mosaic
 {
     [UpdateInGroup(typeof(TilemapInitializationSystemGroup), OrderFirst = true)]
-    public partial struct TilemapInitializationSystem : ISystem
+    public partial class TilemapInitializationSystem : SystemBase
     {
-        [BurstCompile]
-        public void OnUpdate(ref SystemState state)
+        protected override void OnUpdate()
         {
-            state.Dependency = new RegisterJob
+            var uninitializedQuery = SystemAPI.QueryBuilder().WithAll<TilemapData, RuntimeMaterial>().WithNone<MaterialMeshInfo>().Build();
+            if (!uninitializedQuery.IsEmpty)
+            {
+                var meshSingleton = SystemAPI.ManagedAPI.GetSingleton<TilemapMeshSingleton>();
+                var entitiesGraphicsSystem = World.GetExistingSystemManaged<EntitiesGraphicsSystem>();
+
+                var entities = uninitializedQuery.ToEntityArray(Allocator.Temp);
+                var tilemapsData = uninitializedQuery.ToComponentDataArray<TilemapData>(Allocator.Temp);
+                var runtimeMaterials = uninitializedQuery.ToComponentDataArray<RuntimeMaterial>(Allocator.Temp);
+
+                for (int i = 0; i < entities.Length; i++)
+                {
+                    var tilemapData = tilemapsData[i];
+
+                    var mesh = new Mesh { name = "Mosaic.TilemapMesh" };
+                    mesh.MarkDynamic();
+                    meshSingleton.MeshMap.Add(tilemapData.IntGridHash, mesh);
+
+                    var meshId = entitiesGraphicsSystem.RegisterMesh(mesh);
+                    var materialId = entitiesGraphicsSystem.RegisterMaterial(runtimeMaterials[i].Value);
+
+                    var desc = new RenderMeshDescription(
+                        tilemapData.ShadowCastingMode,
+                        tilemapData.ReceiveShadows);
+                    var materialMeshInfo = new MaterialMeshInfo(materialId, meshId);
+
+                    RenderMeshUtility.AddComponents(entities[i], EntityManager, desc, materialMeshInfo);
+                }
+            }
+            
+            Dependency = new RegisterJob
             {
                 Tcb = SystemAPI.GetSingletonRW<TilemapCommandBufferSingleton>().ValueRW,
                 DataSingleton = SystemAPI.GetSingletonRW<TilemapDataSingleton>().ValueRW
-            }.Schedule(state.Dependency);
+            }.Schedule(Dependency);
             
-            state.Dependency = new UpdateTilemapRendererDataJob
+            Dependency = new UpdateTilemapRendererDataJob
             {
                 GridDataLookup = SystemAPI.GetComponentLookup<GridData>(true)
-            }.Schedule(state.Dependency);
+            }.Schedule(Dependency);
         }
 
         [BurstCompile]

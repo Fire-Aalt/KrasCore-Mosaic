@@ -131,7 +131,11 @@ namespace KrasCore.Mosaic
             {
                 foreach (var command in commandsLayer.SetCommands)
                 {
-                    SetPosition(ref dataLayer, command.Position, command.IntGridValue);
+                    dataLayer.ChangedPositions.Add(command.Position);
+                    if (command.IntGridValue == 0)
+                        dataLayer.IntGrid.Remove(command.Position);
+                    else
+                        dataLayer.IntGrid[command.Position] = command.IntGridValue;
                     
                     if (dataLayer.DualGrid)
                     {
@@ -157,15 +161,6 @@ namespace KrasCore.Mosaic
                     }
                 }
                 dataLayer.ChangedPositions.Clear();
-            }
-            
-            private void SetPosition(ref TilemapDataSingleton.IntGridLayer layer, int2 position, IntGridValue value)
-            {
-                layer.ChangedPositions.Add(position);
-                if (value == 0)
-                    layer.IntGrid.Remove(position);
-                else
-                    layer.IntGrid[position] = value;
             }
         }
 

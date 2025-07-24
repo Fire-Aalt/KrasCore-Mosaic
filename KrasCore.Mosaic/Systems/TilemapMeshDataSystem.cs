@@ -12,7 +12,8 @@ using Hash128 = Unity.Entities.Hash128;
 
 namespace KrasCore.Mosaic
 {
-	[UpdateInGroup(typeof(InitializationSystemGroup), OrderFirst = true)]
+	[UpdateAfter(typeof(TilemapRulesEngineSystem))]
+	[UpdateInGroup(typeof(PresentationSystemGroup), OrderLast = true)]
     public partial struct TilemapMeshDataSystem : ISystem
     {
 	    private static readonly quaternion RotY90 = quaternion.RotateY(90f * math.TORADIANS);
@@ -52,7 +53,7 @@ namespace KrasCore.Mosaic
 	        
             ref var dataSingleton = ref SystemAPI.GetSingletonRW<TilemapDataSingleton>().ValueRW;
             ref var meshDataSingleton = ref SystemAPI.GetSingletonRW<TilemapMeshDataSingleton>().ValueRW;
-	        
+            
 	        // Set Culling Bounds
 	        var tcb = SystemAPI.GetSingleton<TilemapCommandBufferSingleton>();
             
@@ -69,10 +70,12 @@ namespace KrasCore.Mosaic
 		        ref var dataLayer = ref kvp.Value;
                 
 		        if (dataLayer.RefreshedPositions.Length == 0 
-		            && tcb.PrevCullingBounds.Value.Equals(tcb.CullingBounds.Value))
+		            && tcb.PrevCullingBounds.Value.Equals(tcb.CullingBounds.Value)
+		            )
 		        {
 			        continue;
 		        }
+		        
 		        meshDataSingleton.HashesToUpdate.Add(intGridHash);
 		        var rendererData = state.EntityManager.GetComponentData<TilemapRendererData>(dataLayer.IntGridEntity);
 		        _data.DirtyIntGridLayers.Add(dataLayer);
@@ -81,10 +84,9 @@ namespace KrasCore.Mosaic
 	        }
 	        if (!meshDataSingleton.IsDirty) return;
 	        tcb.PrevCullingBounds.Value = tcb.CullingBounds.Value;
-	        
+	       
 	        var meshesCount = meshDataSingleton.HashesToUpdate.Length;
-	        meshDataSingleton.MeshDataArray = Mesh.AllocateWritableMeshData(meshesCount);
-
+	        
 	        if (meshDataSingleton.UpdatedMeshBoundsMap.Capacity < meshesCount)
 				meshDataSingleton.UpdatedMeshBoundsMap.Capacity = meshesCount;
 	        
@@ -118,7 +120,8 @@ namespace KrasCore.Mosaic
             {
 	            Layout = _layout,
 	            Offsets = _data.DirtyOffsetCounts,
-	            MeshDataArray = meshDataSingleton.MeshDataArray
+	            MeshDataArray = meshDataSingleton.MeshDataArray,
+	            HashesToUpdate = meshDataSingleton.HashesToUpdate.AsDeferredJobArray()
             }.ScheduleParallel(meshesCount, 1, handle);
             
             handle = new PrepareLayerPointersJob
@@ -145,6 +148,7 @@ namespace KrasCore.Mosaic
 	            Offsets = _data.DirtyOffsetCounts,
 	            Vertices = _data.Vertices.AsDeferredJobArray(),
 	            MeshDataArray = meshDataSingleton.MeshDataArray,
+	            HashesToUpdate = meshDataSingleton.HashesToUpdate.AsDeferredJobArray()
             }.ScheduleParallel(meshesCount, 1, meshDataHandle);
             
             var indexHandle = new CopyIndexDataJob
@@ -152,19 +156,21 @@ namespace KrasCore.Mosaic
 	            Offsets = _data.DirtyOffsetCounts,
 	            Indices = _data.Indices.AsDeferredJobArray(),
 	            MeshDataArray = meshDataSingleton.MeshDataArray,
+	            HashesToUpdate = meshDataSingleton.HashesToUpdate.AsDeferredJobArray()
             }.ScheduleParallel(meshesCount, 1, meshDataHandle);
             
             var boundsHandle = new CalculateBoundsJob
             {
-	            IntGridHashesToUpdate = meshDataSingleton.HashesToUpdate,
 	            UpdatedMeshBoundsMapWriter = meshDataSingleton.UpdatedMeshBoundsMap.AsParallelWriter(),
 	            MeshDataArray = meshDataSingleton.MeshDataArray,
+	            HashesToUpdate = meshDataSingleton.HashesToUpdate.AsDeferredJobArray()
             }.ScheduleParallel(meshesCount, 1, vertexHandle);
             
             state.Dependency = new SetSubMeshJob
             {
 	            Offsets = _data.DirtyOffsetCounts,
 	            MeshDataArray = meshDataSingleton.MeshDataArray,
+	            HashesToUpdate = meshDataSingleton.HashesToUpdate.AsDeferredJobArray()
             }.ScheduleParallel(meshesCount, 1, JobHandle.CombineDependencies(indexHandle, boundsHandle));
         }
         
@@ -299,6 +305,8 @@ namespace KrasCore.Mosaic
 	        [ReadOnly]
 	        public NativeList<OffsetData> Offsets;
 	        
+	        [ReadOnly]
+	        public NativeArray<Hash128> HashesToUpdate;
 	        public Mesh.MeshDataArray MeshDataArray;
 	        
 	        public void Execute(int index)
@@ -322,6 +330,8 @@ namespace KrasCore.Mosaic
 	        [ReadOnly]
 	        public NativeList<OffsetData> Offsets;
 
+	        [ReadOnly]
+	        public NativeArray<Hash128> HashesToUpdate;
 	        [NativeDisableContainerSafetyRestriction]
 	        public Mesh.MeshDataArray MeshDataArray;
 	        
@@ -344,6 +354,8 @@ namespace KrasCore.Mosaic
 	        [ReadOnly]
 	        public NativeList<OffsetData> Offsets;
 
+	        [ReadOnly]
+	        public NativeArray<Hash128> HashesToUpdate;
 	        [NativeDisableContainerSafetyRestriction]
 	        public Mesh.MeshDataArray MeshDataArray;
 	        
@@ -364,6 +376,8 @@ namespace KrasCore.Mosaic
 	        [ReadOnly]
 	        public NativeList<OffsetData> Offsets;
 
+	        [ReadOnly]
+	        public NativeArray<Hash128> HashesToUpdate;
 	        public Mesh.MeshDataArray MeshDataArray;
 	        
 	        public void Execute(int index)
@@ -492,8 +506,7 @@ namespace KrasCore.Mosaic
         private struct CalculateBoundsJob : IJobFor
         {
 	        [ReadOnly]
-	        public NativeList<Hash128> IntGridHashesToUpdate;
-	        
+	        public NativeArray<Hash128> HashesToUpdate;
 	        public Mesh.MeshDataArray MeshDataArray;
 	        public NativeParallelHashMap<Hash128, AABB>.ParallelWriter UpdatedMeshBoundsMapWriter;
 
@@ -512,7 +525,7 @@ namespace KrasCore.Mosaic
 			        maxPos = math.max(maxPos, position);
 		        }
 		        
-		        UpdatedMeshBoundsMapWriter.TryAdd(IntGridHashesToUpdate[index], new AABB
+		        UpdatedMeshBoundsMapWriter.TryAdd(HashesToUpdate[index], new AABB
 		        {
 			        Center = (maxPos + minPos) * 0.5f,
 			        Extents = (maxPos - minPos) * 0.5f,
