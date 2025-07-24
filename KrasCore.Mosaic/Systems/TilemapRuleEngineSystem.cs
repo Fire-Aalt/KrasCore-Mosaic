@@ -12,8 +12,8 @@ using Random = Unity.Mathematics.Random;
 
 namespace KrasCore.Mosaic
 {
-    [UpdateInGroup(typeof(PresentationSystemGroup), OrderLast = true)]
-    public partial struct TilemapRulesEngineSystem : ISystem
+    [UpdateInGroup(typeof(TilemapUpdateSystemGroup))]
+    public partial struct TilemapRuleEngineSystem : ISystem
     {
         private EntityQuery _query;
         

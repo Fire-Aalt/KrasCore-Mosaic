@@ -25,6 +25,7 @@ namespace KrasCore.Mosaic
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
+            state.EntityManager.CompleteDependencyBeforeRO<TilemapDataSingleton>();
             var singleton = SystemAPI.GetSingleton<TilemapDataSingleton>();
             
             foreach (var kvp in singleton.IntGridLayers)

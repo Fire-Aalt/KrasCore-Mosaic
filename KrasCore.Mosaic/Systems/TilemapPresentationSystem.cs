@@ -47,6 +47,7 @@ namespace KrasCore.Mosaic
 
 			if (_meshesToUpdate.Count != 0)
 			{
+				// Mesh.ApplyAndDisposeWritableMeshData() expects same size List<Mesh>, so we have to populate it with dummy meshes
 				var neededDummies = meshDataSingleton.MeshDataArray.Length - _meshesToUpdate.Count;
 				for (int i = 0; i < neededDummies; i++)
 				{

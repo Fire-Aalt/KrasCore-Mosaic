@@ -14,8 +14,6 @@ namespace KrasCore.Mosaic.Data
 
         public bool IsMeshDataArrayCreated;
         public Mesh.MeshDataArray MeshDataArray;
-        
-        public bool IsDirty => HashesToUpdate.Length > 0;
 
         public void AllocateWritableMeshData(int count)
         {
