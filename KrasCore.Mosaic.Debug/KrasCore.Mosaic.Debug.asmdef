@@ -1,0 +1,47 @@
+{
+    "name": "KrasCore.Mosaic.Debug",
+    "rootNamespace": "KrasCore.Mosaic.Debug",
+    "references": [
+        "KrasCore.Mosaic.Data",
+        "KrasCore",
+        "BovineLabs.Core",
+        "BovineLabs.Core.Extensions",
+        "BovineLabs.Anchor",
+        "BovineLabs.Quill",
+        "Unity.AppUI",
+        "Unity.AppUI.MVVM",
+        "Unity.Burst",
+        "Unity.Collections",
+        "Unity.Entities",
+        "Unity.Entities.Graphics",
+        "Unity.Entities.Hybrid",
+        "Unity.Mathematics",
+        "Unity.Mathematics.Extensions",
+        "Unity.Scenes",
+        "Unity.Transforms"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "BL_ANCHOR",
+        "UNITY_EDITOR || BL_DEBUG",
+        "UNITY_EDITOR || !APP_UI_EDITOR_ONLY"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.bovinelabs.anchor",
+            "expression": "",
+            "define": "BL_ANCHOR"
+        },
+        {
+            "name": "com.bovinelabs.quill",
+            "expression": "",
+            "define": "BL_QUILL"
+        }
+    ],
+    "noEngineReferences": false
+}

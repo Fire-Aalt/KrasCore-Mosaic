@@ -1,3 +1,4 @@
+using System;
 using KrasCore.Mosaic.Data;
 using Unity.Collections;
 using Unity.Entities;
@@ -9,42 +10,35 @@ namespace KrasCore.Mosaic.Authoring
     {
         public static BlobAssetReference<RuleBlob> Create(RuleGroup.Rule rule, int entityCount, NativeHashSet<int2> refreshPositions)
         {
-            using var builder = new BlobBuilder(Allocator.Temp);
+            var builder = new BlobBuilder(Allocator.Temp);
             ref var root = ref builder.ConstructRoot<RuleBlob>();
 
             root.Chance = rule.ruleChance;
             root.RuleTransform = rule.ruleTransform;
             root.ResultTransform = rule.resultTransform;
-            root.UsesDualGrid = rule.BoundIntGridDefinition.useDualGrid;
             
-            AddPatterns(ref root, rule, refreshPositions, builder);
-            AddResults(ref root, rule, entityCount, builder);
+            AddPatterns(ref builder, ref root, rule, refreshPositions);
+            AddResults(ref builder, ref root, rule, entityCount);
 
             return builder.CreateBlobAssetReference<RuleBlob>(Allocator.Persistent);
         }
 
-        private static void AddPatterns(ref RuleBlob root, RuleGroup.Rule rule, NativeHashSet<int2> refreshPositions, BlobBuilder builder)
+        private static void AddPatterns(ref BlobBuilder builder, ref RuleBlob root, RuleGroup.Rule rule, NativeHashSet<int2> refreshPositions)
         {
-            var usedCellCount = 0;
-            foreach (var intGridValue in rule.ruleMatrix.matrix)
-            {
-                usedCellCount += intGridValue.IsEmpty ? 0 : 1;
-            }
+            var cells = new NativeList<RuleCell>(Allocator.Temp);
             
-            var combinedMirroredCellCount = usedCellCount * MosaicUtils.GetCellsToCheckBucketsCount(rule.ruleTransform);
-            var cells = builder.Allocate(ref root.Cells, combinedMirroredCellCount);
+            AddMirrorPattern(rule, cells, refreshPositions, default);
+            root.CellsToCheckCount = cells.Length;
+            
+            if (rule.ruleTransform.IsMirroredX()) AddMirrorPattern(rule, cells, refreshPositions, new bool2(true, false));
+            if (rule.ruleTransform.IsMirroredY()) AddMirrorPattern(rule, cells, refreshPositions, new bool2(false, true));
+            if (rule.ruleTransform == RuleTransform.MirrorXY) AddMirrorPattern(rule, cells, refreshPositions, new bool2(true, true));
+            if (rule.ruleTransform == RuleTransform.Rotated) AddRotatedPattern(rule, cells, refreshPositions);
 
-            var currentCell = 0;
-            AddMirrorPattern(rule, cells, refreshPositions, ref currentCell, default);
-            root.CellsToCheckCount = currentCell;
-            
-            if (rule.ruleTransform.IsMirroredX()) AddMirrorPattern(rule, cells, refreshPositions, ref currentCell, new bool2(true, false));
-            if (rule.ruleTransform.IsMirroredY()) AddMirrorPattern(rule, cells, refreshPositions, ref currentCell, new bool2(false, true));
-            if (rule.ruleTransform == RuleTransform.MirrorXY) AddMirrorPattern(rule, cells, refreshPositions, ref currentCell, new bool2(true, true));
-            if (rule.ruleTransform == RuleTransform.Rotated) AddRotatedPattern(rule, cells, refreshPositions, ref currentCell);
+            builder.Construct(ref root.Cells, cells);
         }
 
-        private static void AddResults(ref RuleBlob root, RuleGroup.Rule rule, int entityCount, BlobBuilder builder)
+        private static void AddResults(ref BlobBuilder builder, ref RuleBlob root, RuleGroup.Rule rule, int entityCount)
         {
             if (rule.TileSprites != null)
             {
@@ -77,49 +71,44 @@ namespace KrasCore.Mosaic.Authoring
             }
         }
         
-        private static void AddMirrorPattern(RuleGroup.Rule rule, BlobBuilderArray<RuleCell> cells,
-            NativeHashSet<int2> refreshPositions, ref int cnt, bool2 mirror)
+        private static void AddMirrorPattern(RuleGroup.Rule rule, NativeList<RuleCell> cells,
+            NativeHashSet<int2> refreshPositions, bool2 mirror)
         {
-            for (var index = 0; index < rule.ruleMatrix.matrix.Length; index++)
+            var matrix = rule.ruleMatrix.GetCurrentMatrix();
+            for (var index = 0; index < matrix.Length; index++)
             {
-                var intGridValue = rule.ruleMatrix.matrix[index];
-                if (intGridValue.IsEmpty) continue;
-                ref var cell = ref cells[cnt];
-                
-                var pos = RuleGroup.Rule.GetOffsetFromCenterMirrored(index, mirror);
-                refreshPositions.Add(pos);
-                
-                cell = new RuleCell
-                {
-                    IntGridValue = intGridValue,
-                    Offset = pos
-                };
-                cnt++;
+                ApplyTransformation(matrix, cells, refreshPositions, index, mirror, rule.GetOffsetFromCenterMirrored);
             }
         }
         
-        private static void AddRotatedPattern(RuleGroup.Rule rule, BlobBuilderArray<RuleCell> cells,
-            NativeHashSet<int2> refreshPositions, ref int cnt)
+        private static void AddRotatedPattern(RuleGroup.Rule rule, NativeList<RuleCell> cells,
+            NativeHashSet<int2> refreshPositions)
         {
+            var matrix = rule.ruleMatrix.GetCurrentMatrix();
             for (int rotation = 1; rotation < 4; rotation++)
             {
-                for (var index = 0; index < rule.ruleMatrix.matrix.Length; index++)
+                for (var index = 0; index < matrix.Length; index++)
                 {
-                    var intGridValue = rule.ruleMatrix.matrix[index];
-                    if (intGridValue.IsEmpty) continue;
-                    ref var cell = ref cells[cnt];
-
-                    var pos = RuleGroup.Rule.GetOffsetFromCenterRotated(index, rotation);
-                    refreshPositions.Add(pos);
-                    
-                    cell = new RuleCell
-                    {
-                        IntGridValue = intGridValue,
-                        Offset = pos
-                    };
-                    cnt++;
+                    ApplyTransformation(matrix, cells, refreshPositions, index, rotation, rule.GetOffsetFromCenterRotated);
                 }
             }
+        }
+        
+        private static void ApplyTransformation<TParam>(IntGridValue[] matrix,
+            NativeList<RuleCell> cells, NativeHashSet<int2> refreshPositions,
+            int index, TParam param, Func<int, TParam, int2> transformationMethod)
+        {
+            var intGridValue = matrix[index];
+            if (intGridValue == 0) return;
+
+            var pos = transformationMethod.Invoke(index, param);
+                    
+            refreshPositions.Add(pos);
+            cells.Add(new RuleCell
+            {
+                IntGridValue = intGridValue,
+                Offset = pos
+            });
         }
     }
 }

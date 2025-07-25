@@ -1,4 +1,6 @@
+using Unity.Collections;
 using Unity.Entities;
+using Unity.Mathematics;
 using UnityEngine.Rendering;
 
 namespace KrasCore.Mosaic.Data
@@ -6,15 +8,12 @@ namespace KrasCore.Mosaic.Data
     public struct TilemapData : IComponentData, IEnableableComponent
     {
         public Hash128 IntGridHash;
-        public Orientation Orientation;
+        public FixedString128Bytes DebugName;
         
-        // Store data locally to simplify lookups
         public Entity GridEntity;
-        public GridData GridData;
+        public bool DualGrid;
         
         public ShadowCastingMode ShadowCastingMode;
         public bool ReceiveShadows;
-        
-        public Swizzle Swizzle => GridData.CellSwizzle;
     }
 }

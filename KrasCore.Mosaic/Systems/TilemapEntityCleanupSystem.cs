@@ -1,5 +1,6 @@
 using KrasCore.Mosaic.Data;
 using Unity.Burst;
+using Unity.Collections;
 using Unity.Entities;
 
 namespace KrasCore.Mosaic
@@ -7,24 +8,54 @@ namespace KrasCore.Mosaic
     [UpdateInGroup(typeof(TilemapCleanupSystemGroup))]
     public partial struct TilemapEntityCleanupSystem : ISystem
     {
+        private NativeList<Entity> _entitiesToDelete;
+        
+        [BurstCompile]
+        public void OnCreate(ref SystemState state)
+        {
+            _entitiesToDelete = new NativeList<Entity>(256, Allocator.Persistent);
+        }
+
+        [BurstCompile]
+        public void OnDestroy(ref SystemState state)
+        {
+            _entitiesToDelete.Dispose();
+        }
+
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
+            state.EntityManager.CompleteDependencyBeforeRO<TilemapDataSingleton>();
             var singleton = SystemAPI.GetSingleton<TilemapDataSingleton>();
-                
+            
             foreach (var kvp in singleton.IntGridLayers)
             {
-                var dataLayer = kvp.Value;
-                var spawnedEntities = dataLayer.SpawnedEntities;
-                
-                foreach (var positionToRemove in dataLayer.PositionToRemove.List)
+                ref var dataLayer = ref kvp.Value;
+                ref var spawnedEntities = ref dataLayer.SpawnedEntities;
+
+                if (dataLayer.RuleGrid.Count == 0 && dataLayer.SpawnedEntities.Count != 0)
                 {
-                    if (spawnedEntities.TryGetValue(positionToRemove.Position, out var entity))
+                    foreach (var kvPair in dataLayer.SpawnedEntities)
                     {
-                        state.EntityManager.DestroyEntity(entity);
-                        spawnedEntities.Remove(positionToRemove.Position);
+                        _entitiesToDelete.Add(kvPair.Value);
+                    }
+                    dataLayer.SpawnedEntities.Clear();
+                }
+                else
+                {
+                    foreach (var removedPos in dataLayer.RefreshedPositions)
+                    {
+                        if (!spawnedEntities.TryGetValue(removedPos, out var entity)) continue;
+                        spawnedEntities.Remove(removedPos);
+                        _entitiesToDelete.Add(entity);
                     }
                 }
+            }
+
+            if (_entitiesToDelete.Length != 0)
+            {
+                state.EntityManager.DestroyEntity(_entitiesToDelete.AsArray());
+                _entitiesToDelete.Clear();
             }
         }
     }

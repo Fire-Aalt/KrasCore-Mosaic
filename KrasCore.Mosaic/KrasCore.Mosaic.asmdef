@@ -4,8 +4,6 @@
     "references": [
         "KrasCore",
         "KrasCore.Mosaic.Data",
-        "BovineLabs.Core",
-        "BovineLabs.Core.Extensions",
         "Unity.Burst",
         "Unity.Collections",
         "Unity.Entities",
@@ -18,7 +16,6 @@
         "Unity.Transforms",
         "Unity.Scenes"
     ],
-    "optionalUnityReferences": [],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": true,

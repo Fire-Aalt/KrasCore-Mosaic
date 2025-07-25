@@ -14,8 +14,8 @@ namespace KrasCore.Mosaic.Authoring
         
         [HorizontalGroup("Split", width: 0.2f)]
         [BoxGroup("Split/Select", centerLabel: true, LabelText = "Select IntGrid Value")]
-        [CustomValueDrawer(nameof(IntGridValueDrawer))]
-        [SerializeField] private short _selectedIntGridValue;
+        [IntGridValueSelectorDrawer]
+        [SerializeField] private IntGridValueSelector _selectedIntGridValue;
         
         [HorizontalGroup("Split", width: 0.4f)]
         [IntGridMatrix(nameof(OnBeforeDrawMatrixCell))]
@@ -43,7 +43,6 @@ namespace KrasCore.Mosaic.Authoring
         [AssetsOnly]
         [SerializeField] private List<GameObject> _convertPrefabs = new();
         
-        private IntGridDefinition _intGrid;
         private RuleGroup.Rule _target;
         
         public static void OpenWindow(RuleGroup.Rule target)
@@ -51,6 +50,23 @@ namespace KrasCore.Mosaic.Authoring
             var window = GetWindow<RuleGroupMatrixWindow>(true, "Rule Matrix Window", true);
             window.Init(target);
             window.Show();
+        }
+
+        protected override void OnEnable()
+        {
+            base.OnEnable();
+            AssemblyReloadEvents.beforeAssemblyReload += CloseWindowOnDomainReload;
+        }
+
+        protected override void OnDisable()
+        {
+            base.OnDisable();
+            AssemblyReloadEvents.beforeAssemblyReload -= CloseWindowOnDomainReload;
+        }
+
+        private void CloseWindowOnDomainReload()
+        {
+            Close();
         }
 
         private void OnValidate()
@@ -93,17 +109,18 @@ namespace KrasCore.Mosaic.Authoring
             _matrix = target.ruleMatrix;
             _tileEntities = target.TileEntities;
             _tileSprites = target.TileSprites;
-            
-            _intGrid = target.BoundIntGridDefinition;
+
+            _selectedIntGridValue = new IntGridValueSelector
+            {
+                intGrid = target.BoundIntGridDefinition,
+                value = 1
+            };
             _target = target;
-            _selectedIntGridValue = 1;
         }
         
         public override void SaveChanges()
         {
             base.SaveChanges();
-            
-            _target.ruleMatrix.matrix = (IntGridValue[])_matrix.matrix.Clone();
             
             if (_target != null)
             {
@@ -117,26 +134,10 @@ namespace KrasCore.Mosaic.Authoring
             if (NumberOfActiveInspectorWindows == 0)
                 Close();
         }
-
-        private short IntGridValueDrawer(short intGridValue)
-        {
-            return EditorHelper.IntGridValueDrawer(intGridValue, _intGrid.intGridValues);
-        }
         
         private IntGridValue OnBeforeDrawMatrixCell(Rect rect, IntGridValue value)
         {
-            if (!_intGrid.useDualGrid)
-            {
-                UpdateIntGridValue(rect, ref value.Solid);
-            }
-            else
-            {
-                rect.Subdivide(out var leftBottom, out var rightBottom, out var leftTop, out var rightTop);
-                UpdateIntGridValue(leftBottom, ref value.LeftBottom);
-                UpdateIntGridValue(rightBottom, ref value.RightBottom);
-                UpdateIntGridValue(leftTop, ref value.LeftTop);
-                UpdateIntGridValue(rightTop, ref value.RightTop);
-            }
+            UpdateIntGridValue(rect, ref value.value);
             return value;
         }
 
@@ -144,13 +145,13 @@ namespace KrasCore.Mosaic.Authoring
         {
             if (Event.current.OnMouseDown(rect, 0))
             {
-                slot = _selectedIntGridValue;
+                slot = _selectedIntGridValue.value;
                 GUI.changed = true;
             }
             else if (Event.current.OnMouseDown(rect, 1))
             {
-                if (slot == 0) slot = (short)-_selectedIntGridValue;
-                else if (slot == _selectedIntGridValue) slot = (short)-_selectedIntGridValue;
+                if (slot == 0) slot = (short)-_selectedIntGridValue.value;
+                else if (slot == _selectedIntGridValue.value) slot = (short)-_selectedIntGridValue.value;
                 else slot = 0;
                 GUI.changed = true;
             }

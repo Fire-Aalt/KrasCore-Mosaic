@@ -1,29 +1,33 @@
 using System;
-using System.Runtime.InteropServices;
 
 namespace KrasCore.Mosaic.Data
 {
     [Serializable]
-    [StructLayout(LayoutKind.Explicit)]
-    public struct IntGridValue
+    public struct IntGridValue : IEquatable<IntGridValue>
     {
-        [FieldOffset(0)] public ulong AllValue;
-        
-        // Used for single grid setup
-        [FieldOffset(0)] public short Solid;
-        
-        // Used for Dual-Grid setup
-        [FieldOffset(0)] public short LeftBottom;
-        [FieldOffset(2)] public short RightBottom;
-        [FieldOffset(4)] public short LeftTop;
-        [FieldOffset(6)] public short RightTop;
-        
-        public bool IsEmpty => AllValue == 0;
-        
-        public IntGridValue(short solid)
+        public short value;
+     
+        public IntGridValue(int value)
         {
-            this = default;
-            Solid = solid;
+            this.value = (short)value;
+        }
+        
+        public static implicit operator IntGridValue(int value) => new(value);
+        public static implicit operator short(IntGridValue value) => value.value;
+
+        public bool Equals(IntGridValue other)
+        {
+            return value == other.value;
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is IntGridValue other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            return value.GetHashCode();
         }
     }
 }

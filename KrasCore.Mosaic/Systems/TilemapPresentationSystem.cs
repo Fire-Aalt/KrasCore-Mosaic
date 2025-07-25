@@ -3,96 +3,75 @@ using KrasCore.Mosaic.Data;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
-using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Rendering;
+using Mesh = UnityEngine.Mesh;
 
 namespace KrasCore.Mosaic
 {
 	[UpdateInGroup(typeof(PresentationSystemGroup), OrderFirst = true)]
 	public partial class TilemapPresentationSystem : SystemBase
 	{
-		private readonly Dictionary<Hash128, UnityEngine.Mesh> _meshMap = new();
-		private readonly List<UnityEngine.Mesh> _meshesToUpdate = new();
+		private readonly List<Mesh> _meshesToUpdate = new();
+		private readonly Mesh _dummyMesh = new();
 		
 		protected override void OnCreate()
 		{
 			EntityManager.CreateSingleton(new TilemapMeshDataSingleton
 			{
-				IntGridHashesToUpdate = new NativeList<Hash128>(8, Allocator.Persistent),
+				HashesToUpdate = new NativeList<Hash128>(8, Allocator.Persistent),
 				UpdatedMeshBoundsMap = new NativeParallelHashMap<Hash128, AABB>(8, Allocator.Persistent)
+			});
+			EntityManager.CreateSingleton(new TilemapMeshSingleton
+			{
+				MeshMap = new Dictionary<Hash128, Mesh>(8)
 			});
 		}
 
 		protected override void OnDestroy()
 		{
 			SystemAPI.GetSingleton<TilemapMeshDataSingleton>().Dispose();
-			foreach (var kvp in _meshMap)
-			{
-				UnityEngine.Object.Destroy(kvp.Value);
-			}
+			SystemAPI.ManagedAPI.GetSingleton<TilemapMeshSingleton>().Dispose();
 		}
  
 		protected override void OnUpdate()
 		{
 			EntityManager.CompleteDependencyBeforeRW<TilemapMeshDataSingleton>();
-			var meshDataSingleton = SystemAPI.GetSingleton<TilemapMeshDataSingleton>();
-
-			foreach (var intGridHash in meshDataSingleton.IntGridHashesToUpdate)
-			{
-				if (!_meshMap.TryGetValue(intGridHash, out var mesh))
-				{
-					mesh = new UnityEngine.Mesh { name = "Mosaic.TilemapMesh" };
-					mesh.MarkDynamic();
-					_meshMap.Add(intGridHash, mesh);
-				}
-				_meshesToUpdate.Add(mesh);
-			}
+			ref var meshDataSingleton = ref SystemAPI.GetSingletonRW<TilemapMeshDataSingleton>().ValueRW;
+			var meshSingleton = SystemAPI.ManagedAPI.GetSingleton<TilemapMeshSingleton>();
 			
-			var uninitializedQuery = SystemAPI.QueryBuilder().WithAll<TilemapData, RuntimeMaterial>().WithNone<MaterialMeshInfo>().Build();
-			if (!uninitializedQuery.IsEmpty)
+			foreach (var intGridHash in meshDataSingleton.HashesToUpdate)
 			{
-				var entitiesGraphicsSystem = World.GetExistingSystemManaged<EntitiesGraphicsSystem>();
-				
-				var entities = uninitializedQuery.ToEntityArray(Allocator.Temp);
-				var tilemapsData = uninitializedQuery.ToComponentDataArray<TilemapData>(Allocator.Temp);
-				var runtimeMaterials = uninitializedQuery.ToComponentDataArray<RuntimeMaterial>(Allocator.Temp);
-				
-				for (int i = 0; i < entities.Length; i++)
-				{
-					var tilemapData = tilemapsData[i];
-					var meshId = entitiesGraphicsSystem.RegisterMesh(_meshMap[tilemapData.IntGridHash]);
-					var materialId = entitiesGraphicsSystem.RegisterMaterial(runtimeMaterials[i].Value);
-
-					var desc = new RenderMeshDescription(
-						tilemapData.ShadowCastingMode,
-						receiveShadows: tilemapData.ReceiveShadows);
-					var materialMeshInfo = new MaterialMeshInfo(materialId, meshId);
-					
-					RenderMeshUtility.AddComponents(entities[i], EntityManager, desc, materialMeshInfo);
-				}
+				_meshesToUpdate.Add(meshSingleton.MeshMap[intGridHash]);
 			}
-			
-			if (meshDataSingleton.IsDirty)
+
+			if (_meshesToUpdate.Count != 0)
 			{
-				UnityEngine.Mesh.ApplyAndDisposeWritableMeshData(meshDataSingleton.MeshDataArray, _meshesToUpdate);
-				meshDataSingleton.IntGridHashesToUpdate.Clear();
+				// Mesh.ApplyAndDisposeWritableMeshData() expects same size List<Mesh>, so we have to populate it with dummy meshes
+				var neededDummies = meshDataSingleton.MeshDataArray.Length - _meshesToUpdate.Count;
+				for (int i = 0; i < neededDummies; i++)
+				{
+					_meshesToUpdate.Add(_dummyMesh);
+				}
+				
+				meshDataSingleton.ApplyAndDisposeWritableMeshData(_meshesToUpdate);
 				_meshesToUpdate.Clear();
 			}
-
-			if (!meshDataSingleton.UpdatedMeshBoundsMap.IsEmpty)
+			
+			if (!meshDataSingleton.IsMeshDataArrayCreated || meshSingleton.MeshMap.Count != meshDataSingleton.MeshDataArray.Length)
+			{
+				meshDataSingleton.AllocateWritableMeshData(meshSingleton.MeshMap.Count);
+			}
+			
+			if (meshDataSingleton.HashesToUpdate.Length != 0)
 			{
 				Dependency = new UpdateBoundsJob
 				{
 					UpdatedMeshBoundsMap = meshDataSingleton.UpdatedMeshBoundsMap
 				}.Schedule(Dependency);
-				Dependency = new ClearJob
-				{
-					UpdatedMeshBoundsMap = meshDataSingleton.UpdatedMeshBoundsMap
-				}.Schedule(Dependency);
 			}
 		}
-
+		
 		[BurstCompile]
 		private partial struct UpdateBoundsJob : IJobEntity
 		{
@@ -105,17 +84,6 @@ namespace KrasCore.Mosaic
 				{
 					renderBounds.Value = aabb;
 				}
-			}
-		}
-
-		[BurstCompile]
-		private struct ClearJob : IJob
-		{
-			public NativeParallelHashMap<Hash128, AABB> UpdatedMeshBoundsMap;
-			
-			public void Execute()
-			{
-				UpdatedMeshBoundsMap.Clear();
 			}
 		}
 	}

@@ -61,7 +61,7 @@ namespace KrasCore.Mosaic.Data
         }
         
         [NativeDisableContainerSafetyRestriction]
-        internal NativeHashMap<Hash128, IntGridLayer> Layers;
+        internal NativeHashMap<Hash128, IntGridLayer> IntGridLayers;
         [NativeDisableContainerSafetyRestriction]
         private NativeHashMap<Hash128, ParallelWriter.IntGridLayerParallelWriter> _parallelWriteLayers;
         
@@ -75,7 +75,7 @@ namespace KrasCore.Mosaic.Data
         {
             _allocator = allocator;
 
-            Layers = new NativeHashMap<Hash128, IntGridLayer>(layersCapacity, allocator);
+            IntGridLayers = new NativeHashMap<Hash128, IntGridLayer>(layersCapacity, allocator);
             _parallelWriteLayers =
                 new NativeHashMap<Hash128, ParallelWriter.IntGridLayerParallelWriter>(layersCapacity, allocator);
             GlobalSeed = new NativeReference<uint>(allocator);
@@ -89,13 +89,13 @@ namespace KrasCore.Mosaic.Data
         
         public void SetIntGridValue(in Hash128 intGridHash, in int2 position, short intGridValue)
         {
-            var layerList = Layers[intGridHash].SetCommands.GetUnsafeList(0);
+            var layerList = IntGridLayers[intGridHash].SetCommands.GetUnsafeList(0);
             layerList.Add(new SetCommand { Position = position, IntGridValue = intGridValue });
         }
 
         public void ClearAll()
         {
-            foreach (var kvp in Layers)
+            foreach (var kvp in IntGridLayers)
             {
                 Clear(kvp.Key);
             }
@@ -103,7 +103,7 @@ namespace KrasCore.Mosaic.Data
         
         public void Clear(Hash128 intGridHash)
         {
-            var clearCommand = Layers[intGridHash].ClearCommand;
+            var clearCommand = IntGridLayers[intGridHash].ClearCommand;
             clearCommand.Value = true;
         }
         
@@ -119,22 +119,22 @@ namespace KrasCore.Mosaic.Data
         
         internal bool TryRegisterIntGridLayer(in Hash128 intGridHash)
         {
-            if (Layers.ContainsKey(intGridHash)) return false;
+            if (IntGridLayers.ContainsKey(intGridHash)) return false;
             
             var layer = new IntGridLayer(256, _allocator);
             var parallelLayer = new ParallelWriter.IntGridLayerParallelWriter(ref layer);
-            Layers.Add(intGridHash, layer);
+            IntGridLayers.Add(intGridHash, layer);
             _parallelWriteLayers.Add(intGridHash, parallelLayer);
             return true;
         }
 
         public void Dispose()
         {
-            foreach (var layer in Layers)
+            foreach (var layer in IntGridLayers)
             {
                 layer.Value.Dispose();
             }
-            Layers.Dispose();
+            IntGridLayers.Dispose();
             _parallelWriteLayers.Dispose();
             GlobalSeed.Dispose();
             CullingBounds.Dispose();

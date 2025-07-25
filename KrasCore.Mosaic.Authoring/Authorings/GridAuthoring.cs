@@ -23,7 +23,7 @@ namespace KrasCore.Mosaic.Authoring
                 AddComponent(entity, new GridData
                 {
                     CellSize = authoring._cellSize,
-                    CellSwizzle = authoring._cellSwizzle
+                    Swizzle = authoring._cellSwizzle
                 });
             }
         }

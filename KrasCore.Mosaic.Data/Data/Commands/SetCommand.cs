@@ -5,6 +5,6 @@ namespace KrasCore.Mosaic.Data
     public struct SetCommand
     {
         public int2 Position;
-        public short IntGridValue;
+        public IntGridValue IntGridValue;
     }
 }

@@ -1,6 +1,7 @@
 using KrasCore.Mosaic.Data;
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Transforms;
 
@@ -11,12 +12,6 @@ namespace KrasCore.Mosaic
     {
         private NativeList<EntityCommand> _commandsList;
         private NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer> _intGridLayers;
-        
-        [BurstCompile]
-        public void OnCreate(ref SystemState state)
-        {
-            state.RequireForUpdate<TilemapDataSingleton>();
-        }
         
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
@@ -40,6 +35,8 @@ namespace KrasCore.Mosaic
                 beginBatchIndex = i + 1;
             }
             UploadBatch(ref state, beginBatchIndex, _commandsList.Length - 1, _commandsList[^1].SrcEntity);
+            
+            singleton.EntityCommands.Clear();
         }
         
         private void UploadBatch(ref SystemState state, int beginIndex, int endIndex, in Entity srcEntity)
@@ -59,16 +56,17 @@ namespace KrasCore.Mosaic
                     
                 var position = currentCommand.Position;
 
-                var layer = _intGridLayers[currentCommand.IntGridHash];
+                ref var dataLayer = ref _intGridLayers.GetValueAsRef(currentCommand.IntGridHash);
+                var rendererData = state.EntityManager.GetComponentData<TilemapRendererData>(dataLayer.IntGridEntity);
                 
                 state.EntityManager.SetComponentData(instance, new LocalTransform
                 {
-                    Position = MosaicUtils.ApplySwizzle(position, layer.TilemapData.Swizzle) * layer.TilemapData.GridData.CellSize + srcTransform.Position, 
+                    Position = MosaicUtils.ToWorldSpace(position, rendererData) + srcTransform.Position, 
                     Scale = srcTransform.Scale,
                     Rotation = srcTransform.Rotation
                 });
                 
-                layer.SpawnedEntities[position] = instance;
+                dataLayer.SpawnedEntities[position] = instance;
             }
         }
     }

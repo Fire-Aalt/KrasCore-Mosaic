@@ -15,7 +15,6 @@ namespace KrasCore.Mosaic
             public NativeList<int> Indices;
             public NativeList<int> LayerPointers;
         
-            public NativeList<TilemapDataSingleton.IntGridLayer> DirtyIntGridLayers;
             public NativeList<TilemapRendererData> DirtyTilemapsRendererData;
             public NativeList<OffsetData> DirtyOffsetCounts;
         
@@ -27,7 +26,6 @@ namespace KrasCore.Mosaic
                 Indices = new NativeList<int>(capacity, allocator);
                 LayerPointers = new NativeList<int>(capacity, allocator);
 
-                DirtyIntGridLayers = new NativeList<TilemapDataSingleton.IntGridLayer>(8, allocator);
                 DirtyTilemapsRendererData = new NativeList<TilemapRendererData>(8, allocator);
                 DirtyOffsetCounts = new NativeList<OffsetData>(8, allocator);
             }
@@ -40,7 +38,6 @@ namespace KrasCore.Mosaic
                 Indices.Dispose();
                 LayerPointers.Dispose();
             
-                DirtyIntGridLayers.Dispose();
                 DirtyTilemapsRendererData.Dispose();
                 DirtyOffsetCounts.Dispose();
             }
