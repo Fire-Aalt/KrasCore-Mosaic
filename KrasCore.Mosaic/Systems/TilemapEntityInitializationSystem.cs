@@ -14,12 +14,6 @@ namespace KrasCore.Mosaic
         private NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer> _intGridLayers;
         
         [BurstCompile]
-        public void OnCreate(ref SystemState state)
-        {
-            state.RequireForUpdate<TilemapDataSingleton>();
-        }
-        
-        [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
             state.EntityManager.CompleteDependencyBeforeRO<TilemapDataSingleton>();
