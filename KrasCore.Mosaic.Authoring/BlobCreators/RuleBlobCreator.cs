@@ -27,12 +27,12 @@ namespace KrasCore.Mosaic.Authoring
         {
             var cells = new NativeList<RuleCell>(Allocator.Temp);
             
-            AddMirrorPattern(rule, cells, refreshPositions, default);
+            AddMirrorPattern(true, rule, cells, refreshPositions, default);
             root.CellsToCheckCount = cells.Length;
             
-            if (rule.ruleTransform.IsMirroredX()) AddMirrorPattern(rule, cells, refreshPositions, new bool2(true, false));
-            if (rule.ruleTransform.IsMirroredY()) AddMirrorPattern(rule, cells, refreshPositions, new bool2(false, true));
-            if (rule.ruleTransform == RuleTransform.MirrorXY) AddMirrorPattern(rule, cells, refreshPositions, new bool2(true, true));
+            AddMirrorPattern(rule.ruleTransform.IsMirroredX(), rule, cells, refreshPositions, new bool2(true, false));
+            AddMirrorPattern(rule.ruleTransform.IsMirroredY(), rule, cells, refreshPositions, new bool2(false, true));
+            AddMirrorPattern(rule.ruleTransform == RuleTransform.MirrorXY, rule, cells, refreshPositions, new bool2(true, true));
             if (rule.ruleTransform == RuleTransform.Rotated) AddRotatedPattern(rule, cells, refreshPositions);
 
             builder.Construct(ref root.Cells, cells);
@@ -71,13 +71,13 @@ namespace KrasCore.Mosaic.Authoring
             }
         }
         
-        private static void AddMirrorPattern(RuleGroup.Rule rule, NativeList<RuleCell> cells,
+        private static void AddMirrorPattern(bool addToRuleCells, RuleGroup.Rule rule, NativeList<RuleCell> cells,
             NativeHashSet<int2> refreshPositions, bool2 mirror)
         {
             var matrix = rule.ruleMatrix.GetCurrentMatrix();
             for (var index = 0; index < matrix.Length; index++)
             {
-                ApplyTransformation(matrix, cells, refreshPositions, index, mirror, rule.GetOffsetFromCenterMirrored);
+                ApplyTransformation(matrix, addToRuleCells, cells, refreshPositions, index, mirror, rule.GetOffsetFromCenterMirrored);
             }
         }
         
@@ -89,12 +89,12 @@ namespace KrasCore.Mosaic.Authoring
             {
                 for (var index = 0; index < matrix.Length; index++)
                 {
-                    ApplyTransformation(matrix, cells, refreshPositions, index, rotation, rule.GetOffsetFromCenterRotated);
+                    ApplyTransformation(matrix, true, cells, refreshPositions, index, rotation, rule.GetOffsetFromCenterRotated);
                 }
             }
         }
         
-        private static void ApplyTransformation<TParam>(IntGridValue[] matrix,
+        private static void ApplyTransformation<TParam>(IntGridValue[] matrix, bool addToRuleCells,
             NativeList<RuleCell> cells, NativeHashSet<int2> refreshPositions,
             int index, TParam param, Func<int, TParam, int2> transformationMethod)
         {
@@ -102,13 +102,16 @@ namespace KrasCore.Mosaic.Authoring
             if (intGridValue == 0) return;
 
             var pos = transformationMethod.Invoke(index, param);
-                    
+            
             refreshPositions.Add(pos);
-            cells.Add(new RuleCell
+            if (addToRuleCells)
             {
-                IntGridValue = intGridValue,
-                Offset = pos
-            });
+                cells.Add(new RuleCell
+                {
+                    IntGridValue = intGridValue,
+                    Offset = pos
+                });
+            }
         }
     }
 }
