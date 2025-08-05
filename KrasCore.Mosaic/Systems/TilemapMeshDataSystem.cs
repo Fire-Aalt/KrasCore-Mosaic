@@ -146,8 +146,7 @@ namespace KrasCore.Mosaic
 			        ref var dataLayer = ref kvp.Value;
                 
 			        if (dataLayer.RefreshedPositions.IsEmpty
-			            && !CullingBoundsChanged
-			           )
+			            && !CullingBoundsChanged && !dataLayer.Cleared)
 			        {
 				        continue;
 			        }
