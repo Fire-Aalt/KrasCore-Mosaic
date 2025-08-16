@@ -5,17 +5,22 @@ using UnityEngine;
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine.Rendering;
+using UnityEngine.Serialization;
 
 namespace KrasCore.Mosaic.Authoring
 {
     public class TilemapAuthoring : MonoBehaviour
     {
-        [SerializeField] private IntGridDefinition intGrid;
-        [SerializeField] private Orientation _orientation;
-
-        [SerializeField] private Material _material;
-        [SerializeField] private ShadowCastingMode _shadowCastingMode = ShadowCastingMode.TwoSided;
-        [SerializeField] private bool _receiveShadows = true;
+        public IntGridDefinition intGrid;
+        
+        [FormerlySerializedAs("_orientation")]
+        public Orientation orientation;
+        [FormerlySerializedAs("_material")]
+        public Material material;
+        [FormerlySerializedAs("_shadowCastingMode")]
+        public ShadowCastingMode shadowCastingMode = ShadowCastingMode.TwoSided;
+        [FormerlySerializedAs("_receiveShadows")]
+        public bool receiveShadows = true;
 
         public class Baker : Baker<TilemapAuthoring>
         {
@@ -29,6 +34,7 @@ namespace KrasCore.Mosaic.Authoring
                 Texture2D refTexture = null;
                 
                 var entityCount = 0;
+                DependsOn(authoring.intGrid);
                 foreach (var group in authoring.intGrid.ruleGroups)
                 {
                     DependsOn(group);
@@ -56,17 +62,17 @@ namespace KrasCore.Mosaic.Authoring
                     DebugName = authoring.intGrid.name,
                     GridEntity = GetEntity(authoring.GetComponentInParent<GridAuthoring>(), TransformUsageFlags.None),
                     DualGrid = authoring.intGrid.useDualGrid,
-                    ShadowCastingMode = authoring._shadowCastingMode,
-                    ReceiveShadows = authoring._receiveShadows
+                    ShadowCastingMode = authoring.shadowCastingMode,
+                    ReceiveShadows = authoring.receiveShadows
                 });
                 SetComponentEnabled<TilemapData>(entity, false);
 
                 AddComponent(entity, new TilemapRendererData
                 {
-                    Orientation = authoring._orientation,
+                    Orientation = authoring.orientation,
                 });
                 
-                AddComponent(entity, new RuntimeMaterialLookup(authoring._material, refTexture));
+                AddComponent(entity, new RuntimeMaterialLookup(authoring.material, refTexture));
                 AddComponent<RuntimeMaterial>(entity);
                 
                 var refreshPositionsBuffer = AddBuffer<RefreshPositionElement>(entity);
@@ -93,7 +99,7 @@ namespace KrasCore.Mosaic.Authoring
                         refTexture = spriteTexture;
                     else if (refTexture != spriteTexture)
                     {
-                        throw new Exception("Different textures in one tilemap. This is not supported yet");
+                        throw new Exception("Different textures in one tilemap. This is not supported");
                     }
                 }
                 return refTexture;

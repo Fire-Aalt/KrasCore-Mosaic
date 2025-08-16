@@ -97,7 +97,7 @@ namespace KrasCore.Mosaic
 	            LayerPointer = _data.LayerPointers.AsDeferredJobArray(),
 	            Vertices = _data.Vertices.AsDeferredJobArray(),
 	            Indices = _data.Indices.AsDeferredJobArray(),
-            }.Schedule(_data.LayerPointers, 64, state.Dependency);
+            }.Schedule(_data.LayerPointers, 128, state.Dependency);
             
             state.Dependency = new FinalizeMeshDataJob
             {
