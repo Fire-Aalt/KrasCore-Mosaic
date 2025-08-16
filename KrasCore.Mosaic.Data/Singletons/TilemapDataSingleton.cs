@@ -27,9 +27,10 @@ namespace KrasCore.Mosaic.Data
             public bool Cleared;
 
             public readonly bool DualGrid;
+            public readonly bool IsTerrainLayer;
             public readonly Entity IntGridEntity;
             
-            public IntGridLayer(int capacity, Allocator allocator, TilemapData tilemapData, Entity intGridEntity)
+            public IntGridLayer(int capacity, Allocator allocator, TilemapData tilemapData, bool isTerrainLayer, Entity intGridEntity)
             {
                 IntGrid = new UnsafeHashMap<int2, IntGridValue>(capacity, allocator);
                 RuleGrid = new UnsafeHashMap<int2, int>(capacity, allocator);
@@ -45,6 +46,7 @@ namespace KrasCore.Mosaic.Data
                 Cleared = false;
                 
                 DualGrid = tilemapData.DualGrid;
+                IsTerrainLayer = isTerrainLayer;
                 IntGridEntity = intGridEntity;
             }
             
@@ -68,11 +70,11 @@ namespace KrasCore.Mosaic.Data
         // Store entity commands on a singleton to sort it later and instantiate using batch API
         public ParallelToListMapper<EntityCommand> EntityCommands;
         
-        public bool TryRegisterIntGridLayer(TilemapData tilemapData, Entity intGridEntity)
+        public bool TryRegisterIntGridLayer(TilemapData tilemapData, bool terrainLayer, Entity intGridEntity)
         {
             if (IntGridLayers.ContainsKey(tilemapData.IntGridHash)) return false;
             
-            IntGridLayers.Add(tilemapData.IntGridHash, new IntGridLayer(64, Allocator.Persistent, tilemapData, intGridEntity));
+            IntGridLayers.Add(tilemapData.IntGridHash, new IntGridLayer(64, Allocator.Persistent, tilemapData, terrainLayer, intGridEntity));
             return true;
         }
         

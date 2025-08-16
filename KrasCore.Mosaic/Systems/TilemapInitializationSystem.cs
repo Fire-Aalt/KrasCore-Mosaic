@@ -12,30 +12,30 @@ namespace KrasCore.Mosaic
     {
         protected override void OnUpdate()
         {
-            var uninitializedQuery = SystemAPI.QueryBuilder().WithAll<TilemapData, RuntimeMaterial>().WithNone<MaterialMeshInfo>().Build();
+            var uninitializedQuery = SystemAPI.QueryBuilder().WithAll<TilemapRendererInitData, RuntimeMaterial>().WithNone<MaterialMeshInfo>().Build();
             if (!uninitializedQuery.IsEmpty)
             {
                 var meshSingleton = SystemAPI.ManagedAPI.GetSingleton<TilemapMeshSingleton>();
                 var entitiesGraphicsSystem = World.GetExistingSystemManaged<EntitiesGraphicsSystem>();
 
                 var entities = uninitializedQuery.ToEntityArray(Allocator.Temp);
-                var tilemapsData = uninitializedQuery.ToComponentDataArray<TilemapData>(Allocator.Temp);
+                var tilemapRendererData = uninitializedQuery.ToComponentDataArray<TilemapRendererInitData>(Allocator.Temp);
                 var runtimeMaterials = uninitializedQuery.ToComponentDataArray<RuntimeMaterial>(Allocator.Temp);
 
                 for (int i = 0; i < entities.Length; i++)
                 {
-                    var tilemapData = tilemapsData[i];
+                    var tilemapRenderingData = tilemapRendererData[i];
 
                     var mesh = new Mesh { name = "Mosaic.TilemapMesh" };
                     mesh.MarkDynamic();
-                    meshSingleton.MeshMap.Add(tilemapData.IntGridHash, mesh);
+                    meshSingleton.MeshMap.Add(tilemapRenderingData.MeshHash, mesh);
 
                     var meshId = entitiesGraphicsSystem.RegisterMesh(mesh);
                     var materialId = entitiesGraphicsSystem.RegisterMaterial(runtimeMaterials[i].Value);
 
                     var desc = new RenderMeshDescription(
-                        tilemapData.ShadowCastingMode,
-                        tilemapData.ReceiveShadows);
+                        tilemapRenderingData.ShadowCastingMode,
+                        tilemapRenderingData.ReceiveShadows);
                     var materialMeshInfo = new MaterialMeshInfo(materialId, meshId);
 
                     RenderMeshUtility.AddComponents(entities[i], EntityManager, desc, materialMeshInfo);
@@ -44,8 +44,9 @@ namespace KrasCore.Mosaic
             
             Dependency = new RegisterJob
             {
+                TilemapTerrainLayerTagLookup = SystemAPI.GetComponentLookup<TilemapTerrainLayer>(true),
                 Tcb = SystemAPI.GetSingletonRW<TilemapCommandBufferSingleton>().ValueRW,
-                DataSingleton = SystemAPI.GetSingletonRW<TilemapDataSingleton>().ValueRW
+                DataSingleton = SystemAPI.GetSingletonRW<TilemapDataSingleton>().ValueRW,
             }.Schedule(Dependency);
             
             Dependency = new UpdateTilemapRendererDataJob
@@ -58,13 +59,18 @@ namespace KrasCore.Mosaic
         [WithDisabled(typeof(TilemapData))]
         private partial struct RegisterJob : IJobEntity
         {
+            [ReadOnly]
+            public ComponentLookup<TilemapTerrainLayer> TilemapTerrainLayerTagLookup;
+            
             public TilemapCommandBufferSingleton Tcb;
             public TilemapDataSingleton DataSingleton;
             
             private void Execute(ref TilemapData tilemapData, EnabledRefRW<TilemapData> enabled, Entity entity)
             {
+                var isTerrainLayer = TilemapTerrainLayerTagLookup.HasComponent(entity);
+                
                 Tcb.TryRegisterIntGridLayer(tilemapData.IntGridHash);
-                DataSingleton.TryRegisterIntGridLayer(tilemapData, entity);
+                DataSingleton.TryRegisterIntGridLayer(tilemapData, isTerrainLayer, entity);
                 enabled.ValueRW = true;
             }
         }
@@ -75,7 +81,7 @@ namespace KrasCore.Mosaic
             [ReadOnly]
             public ComponentLookup<GridData> GridDataLookup;
             
-            private void Execute(in TilemapData data, ref TilemapRendererData rendererData)
+            private void Execute(in TilemapRendererInitData data, ref TilemapRendererData rendererData)
             {
                 var gridData = GridDataLookup[data.GridEntity];
                 rendererData.Swizzle = gridData.Swizzle;

@@ -1,108 +1,28 @@
 using System;
-using KrasCore.Mosaic.Data;
-using Unity.Collections;
 using UnityEngine;
 using Unity.Entities;
-using Unity.Mathematics;
-using UnityEngine.Rendering;
-using UnityEngine.Serialization;
 
 namespace KrasCore.Mosaic.Authoring
 {
     public class TilemapAuthoring : MonoBehaviour
     {
         public IntGridDefinition intGrid;
-        
-        [FormerlySerializedAs("_orientation")]
-        public Orientation orientation;
-        [FormerlySerializedAs("_material")]
-        public Material material;
-        [FormerlySerializedAs("_shadowCastingMode")]
-        public ShadowCastingMode shadowCastingMode = ShadowCastingMode.TwoSided;
-        [FormerlySerializedAs("_receiveShadows")]
-        public bool receiveShadows = true;
+        public RenderingData renderingData;
 
         public class Baker : Baker<TilemapAuthoring>
         {
             public override void Bake(TilemapAuthoring authoring)
             {
+                var gridAuthoring = GetComponentInParent<GridAuthoring>();
+                if (gridAuthoring == null)
+                {
+                    throw new Exception("GridAuthoring not found");
+                }
+                
                 var entity = GetEntity(TransformUsageFlags.Dynamic);
-                var ruleBlobBuffer = AddBuffer<RuleBlobReferenceElement>(entity);
-                var weightedEntityBuffer = AddBuffer<WeightedEntityElement>(entity);
-
-                var refreshPositions = new NativeHashSet<int2>(64, Allocator.Temp);
-                Texture2D refTexture = null;
                 
-                var entityCount = 0;
-                DependsOn(authoring.intGrid);
-                foreach (var group in authoring.intGrid.ruleGroups)
-                {
-                    DependsOn(group);
-                    
-                    foreach (var rule in group.rules)
-                    {
-                        var blob = RuleBlobCreator.Create(rule, entityCount, refreshPositions);
-                        AddBlobAsset(ref blob, out _);
-
-                        ruleBlobBuffer.Add(new RuleBlobReferenceElement
-                        {
-                            Enabled = rule.enabled.HasFlag(RuleGroup.Enabled.Enabled),
-                            Value = blob
-                        });
-                        
-                        refTexture = AddResults(rule, weightedEntityBuffer, refTexture);
-
-                        entityCount += rule.TileEntities.Count;
-                    }
-                }
-                
-                AddComponent(entity, new TilemapData
-                {
-                    IntGridHash = authoring.intGrid.Hash,
-                    DebugName = authoring.intGrid.name,
-                    GridEntity = GetEntity(authoring.GetComponentInParent<GridAuthoring>(), TransformUsageFlags.None),
-                    DualGrid = authoring.intGrid.useDualGrid,
-                    ShadowCastingMode = authoring.shadowCastingMode,
-                    ReceiveShadows = authoring.receiveShadows
-                });
-                SetComponentEnabled<TilemapData>(entity, false);
-
-                AddComponent(entity, new TilemapRendererData
-                {
-                    Orientation = authoring.orientation,
-                });
-                
-                AddComponent(entity, new RuntimeMaterialLookup(authoring.material, refTexture));
-                AddComponent<RuntimeMaterial>(entity);
-                
-                var refreshPositionsBuffer = AddBuffer<RefreshPositionElement>(entity);
-                refreshPositionsBuffer.AddRange(refreshPositions.ToNativeArray(Allocator.Temp).Reinterpret<RefreshPositionElement>());
-            }
-
-            private Texture2D AddResults(RuleGroup.Rule rule, DynamicBuffer<WeightedEntityElement> weightedEntityBuffer, Texture2D refTexture)
-            {
-                for (var i = 0; i < rule.TileEntities.Count; i++)
-                {
-                    var go = rule.TileEntities[i].result;
-
-                    weightedEntityBuffer.Add(new WeightedEntityElement
-                    {
-                        Value = GetEntity(go, TransformUsageFlags.None)
-                    });
-                }
-
-                for (int i = 0; i < rule.TileSprites.Count; i++)
-                {
-                    var spriteTexture = rule.TileSprites[i].result.texture;
-
-                    if (refTexture == null)
-                        refTexture = spriteTexture;
-                    else if (refTexture != spriteTexture)
-                    {
-                        throw new Exception("Different textures in one tilemap. This is not supported");
-                    }
-                }
-                return refTexture;
+                var materialTexture = BakerUtils.AddIntGridLayerData(this, entity, authoring.intGrid, null);
+                BakerUtils.AddRenderingData(this, entity, authoring.intGrid.Hash, authoring.renderingData, gridAuthoring, materialTexture);
             }
         }
     }

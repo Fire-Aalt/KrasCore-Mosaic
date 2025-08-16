@@ -137,6 +137,8 @@ namespace KrasCore.Mosaic
 			        var intGridHash = kvp.Key;
 			        ref var dataLayer = ref kvp.Value;
                 
+			        if (dataLayer.IsTerrainLayer) continue;
+			        
 			        if (dataLayer.RefreshedPositions.IsEmpty
 			            && !CullingBoundsChanged && !dataLayer.Cleared)
 			        {

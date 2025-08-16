@@ -79,6 +79,7 @@ namespace KrasCore.Mosaic.Debug
             {
                 Drawer = drawer,
                 TilemapRendererDataLookup = SystemAPI.GetComponentLookup<TilemapRendererData>(true),
+                TilemapTerrainLayerLookup = SystemAPI.GetComponentLookup<TilemapTerrainLayer>(true),
                 SelectedIndices = data.IntGridValues.Value.ToArray(state.WorldUpdateAllocator),
                 IntGridsBuffer = _intGridsBuffer.AsArray(),
                 IntGridLayers = singleton.IntGridLayers,
@@ -94,6 +95,8 @@ namespace KrasCore.Mosaic.Debug
 
             [ReadOnly]
             public ComponentLookup<TilemapRendererData> TilemapRendererDataLookup;
+            [ReadOnly]
+            public ComponentLookup<TilemapTerrainLayer> TilemapTerrainLayerLookup;
             
             [ReadOnly]
             public NativeArray<int> SelectedIndices;
@@ -108,7 +111,16 @@ namespace KrasCore.Mosaic.Debug
                 var key = IntGridsBuffer[SelectedIndices[index]].IntGridHash;
                 var layer = IntGridLayers[key];
 
-                var rendererData = TilemapRendererDataLookup[layer.IntGridEntity];
+                TilemapRendererData rendererData;
+                if (layer.IsTerrainLayer)
+                {
+                    var terrainEntity = TilemapTerrainLayerLookup[layer.IntGridEntity].TerrainEntity;
+                    rendererData = TilemapRendererDataLookup[terrainEntity];
+                }
+                else
+                {
+                    rendererData = TilemapRendererDataLookup[layer.IntGridEntity];
+                }
 
                 var rnd = new Random((uint)key.GetHashCode());
                 var rgb = rnd.NextFloat3();
