@@ -10,7 +10,7 @@ using Mesh = UnityEngine.Mesh;
 namespace KrasCore.Mosaic
 {
 	[UpdateInGroup(typeof(PresentationSystemGroup), OrderFirst = true)]
-	public partial class TilemapPresentationSystem : SystemBase
+	public partial class MosaicPresentationSystem : SystemBase
 	{
 		private readonly List<Mesh> _meshesToUpdate = new();
 		private readonly Mesh _dummyMesh = new();
@@ -65,10 +65,12 @@ namespace KrasCore.Mosaic
 			
 			if (meshDataSingleton.HashesToUpdate.Length != 0)
 			{
-				Dependency = new UpdateBoundsJob
+				new UpdateBoundsJob
 				{
 					UpdatedMeshBoundsMap = meshDataSingleton.UpdatedMeshBoundsMap
-				}.Schedule(Dependency);
+				}.Run();
+				meshDataSingleton.UpdatedMeshBoundsMap.Clear();
+				meshDataSingleton.HashesToUpdate.Clear();
 			}
 		}
 		

@@ -8,7 +8,7 @@ using Unity.Transforms;
 namespace KrasCore.Mosaic
 {
     [UpdateInGroup(typeof(TilemapInitializationSystemGroup))]
-    public partial struct TilemapEntityInitializationSystem : ISystem
+    public partial struct EntityInitializationSystem : ISystem
     {
         private NativeList<EntityCommand> _commandsList;
         private NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer> _intGridLayers;

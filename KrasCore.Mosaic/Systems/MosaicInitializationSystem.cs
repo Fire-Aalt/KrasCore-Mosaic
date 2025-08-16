@@ -4,11 +4,12 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Rendering;
 using UnityEngine;
+using TerrainData = KrasCore.Mosaic.Data.TerrainData;
 
 namespace KrasCore.Mosaic
 {
     [UpdateInGroup(typeof(TilemapInitializationSystemGroup), OrderFirst = true)]
-    public partial class TilemapInitializationSystem : SystemBase
+    public partial class MosaicInitializationSystem : SystemBase
     {
         protected override void OnUpdate()
         {
@@ -16,6 +17,7 @@ namespace KrasCore.Mosaic
             if (!uninitializedQuery.IsEmpty)
             {
                 var meshSingleton = SystemAPI.ManagedAPI.GetSingleton<TilemapMeshSingleton>();
+                var meshDataSingleton = SystemAPI.GetSingleton<TilemapMeshDataSingleton>();
                 var entitiesGraphicsSystem = World.GetExistingSystemManaged<EntitiesGraphicsSystem>();
 
                 var entities = uninitializedQuery.ToEntityArray(Allocator.Temp);
@@ -40,8 +42,13 @@ namespace KrasCore.Mosaic
 
                     RenderMeshUtility.AddComponents(entities[i], EntityManager, desc, materialMeshInfo);
                 }
+
+                if (meshDataSingleton.UpdatedMeshBoundsMap.Capacity < meshSingleton.MeshMap.Count)
+                {
+                    meshDataSingleton.UpdatedMeshBoundsMap.Capacity = meshSingleton.MeshMap.Count;
+                }
             }
-            
+        
             Dependency = new RegisterJob
             {
                 TilemapTerrainLayerTagLookup = SystemAPI.GetComponentLookup<TilemapTerrainLayer>(true),
@@ -74,7 +81,7 @@ namespace KrasCore.Mosaic
                 enabled.ValueRW = true;
             }
         }
-        
+
         [BurstCompile]
         private partial struct UpdateTilemapRendererDataJob : IJobEntity
         {

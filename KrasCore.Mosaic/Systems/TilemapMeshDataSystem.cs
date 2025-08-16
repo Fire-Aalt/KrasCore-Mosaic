@@ -12,7 +12,7 @@ using Hash128 = Unity.Entities.Hash128;
 
 namespace KrasCore.Mosaic
 {
-	[UpdateAfter(typeof(TilemapRuleEngineSystem))]
+	[UpdateAfter(typeof(RuleEngineSystem))]
 	[UpdateInGroup(typeof(TilemapUpdateSystemGroup))]
     public partial struct TilemapMeshDataSystem : ISystem
     {
@@ -41,32 +41,30 @@ namespace KrasCore.Mosaic
         public void OnUpdate(ref SystemState state)
         {
 	        var dataSingleton = SystemAPI.GetSingleton<TilemapDataSingleton>();
-	        var meshDataSingleton = SystemAPI.GetSingleton<TilemapMeshDataSingleton>();
+	        var meshDataSingleton = SystemAPI.GetSingletonRW<TilemapMeshDataSingleton>().ValueRW;
 	        var tcb = SystemAPI.GetSingleton<TilemapCommandBufferSingleton>();
-
+return;
 	        var cullingBoundsChanged = !tcb.PrevCullingBounds.Value.Equals(tcb.CullingBounds.Value);
 	        tcb.PrevCullingBounds.Value = tcb.CullingBounds.Value;
 	        
 	        state.Dependency = new FindHashesToUpdateJob
 	        {
-		        HashesToUpdate = meshDataSingleton.HashesToUpdate,
+		        MeshHashesToUpdate = meshDataSingleton.HashesToUpdate,
 		        IntGridLayers = dataSingleton.IntGridLayers,
 		        CullingBoundsChanged = cullingBoundsChanged,
 		        Data = _data,
-		        UpdatedMeshBoundsMap = meshDataSingleton.UpdatedMeshBoundsMap,
 		        TilemapRendererDataLookup = SystemAPI.GetComponentLookup<TilemapRendererData>(true),
 	        }.Schedule(state.Dependency);
 	        
             state.Dependency = new ResizeLargeListsJob
             {
-	            HashesToUpdate = meshDataSingleton.HashesToUpdate.AsDeferredJobArray(),
 	            IntGridLayers = dataSingleton.IntGridLayers,
 	            Data = _data
             }.Schedule(state.Dependency);
             
             state.Dependency = new PrepareAndCullSpriteMeshDataJob
             {
-	            HashesToUpdate = meshDataSingleton.HashesToUpdate.AsDeferredJobArray(),
+	            HashesToUpdate = _data.TilemapHashesToUpdate.AsDeferredJobArray(),
 	            IntGridLayers = dataSingleton.IntGridLayers,
 	            OffsetData = _data.DirtyOffsetCounts.AsDeferredJobArray(),
 	            Positions = _data.Positions.AsDeferredJobArray(),
@@ -76,7 +74,7 @@ namespace KrasCore.Mosaic
             
             state.Dependency = new PatchLayerPointersJob
             {
-	            HashesToUpdate = meshDataSingleton.HashesToUpdate.AsDeferredJobArray(),
+	            HashesToUpdate = _data.TilemapHashesToUpdate.AsDeferredJobArray(),
 	            Offsets = _data.DirtyOffsetCounts.AsDeferredJobArray(),
 	            LayerPointers = _data.LayerPointers
             }.Schedule(state.Dependency);
@@ -101,7 +99,7 @@ namespace KrasCore.Mosaic
             
             state.Dependency = new FinalizeMeshDataJob
             {
-	            HashesToUpdate = meshDataSingleton.HashesToUpdate.AsDeferredJobArray(),
+	            HashesToUpdate = _data.TilemapHashesToUpdate.AsDeferredJobArray(),
 	            Offsets = _data.DirtyOffsetCounts.AsDeferredJobArray(),
 	            Vertices = _data.Vertices.AsDeferredJobArray(),
 	            Indices = _data.Indices.AsDeferredJobArray(),
@@ -121,16 +119,14 @@ namespace KrasCore.Mosaic
 	        
 	        public bool CullingBoundsChanged;
 	        public Data Data;
-	        public NativeList<Hash128> HashesToUpdate;
-	        public NativeParallelHashMap<Hash128, AABB> UpdatedMeshBoundsMap;
+	        public NativeList<Hash128> MeshHashesToUpdate;
 	        
 	        public void Execute()
 	        {
+		        Data.TilemapHashesToUpdate.Clear();
 		        Data.DirtyTilemapsRendererData.Clear();
 		        Data.DirtyOffsetCounts.Clear();
 		        Data.LayerPointers.Clear();
-		        HashesToUpdate.Clear();
-		        UpdatedMeshBoundsMap.Clear();
 	        
 		        foreach (var kvp in IntGridLayers)
 		        {
@@ -145,14 +141,11 @@ namespace KrasCore.Mosaic
 				        continue;
 			        }
 		        
-			        HashesToUpdate.Add(intGridHash);
+			        Data.TilemapHashesToUpdate.Add(intGridHash);
+			        MeshHashesToUpdate.Add(intGridHash);
 			        Data.DirtyTilemapsRendererData.Add(TilemapRendererDataLookup[dataLayer.IntGridEntity]);
 			        Data.DirtyOffsetCounts.Add(default);
 		        }
-		        if (HashesToUpdate.IsEmpty) return;
-		        
-		        if (UpdatedMeshBoundsMap.Capacity < HashesToUpdate.Length)
-			        UpdatedMeshBoundsMap.Capacity = HashesToUpdate.Length;
 	        }
         }
         
@@ -160,20 +153,18 @@ namespace KrasCore.Mosaic
         private struct ResizeLargeListsJob : IJob
         {
 	        [ReadOnly]
-	        public NativeArray<Hash128> HashesToUpdate;
-	        [ReadOnly]
 	        public NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer> IntGridLayers;
 
 	        public Data Data;
 	        
 	        public void Execute()
 	        {
-		        if (HashesToUpdate.Length == 0) return;
+		        if (Data.TilemapHashesToUpdate.Length == 0) return;
 		        
 		        var spriteMeshesCount = 0;
-		        for (var i = 0; i < HashesToUpdate.Length; i++)
+		        for (var i = 0; i < Data.TilemapHashesToUpdate.Length; i++)
 		        {
-			        var data = IntGridLayers[HashesToUpdate[i]];
+			        var data = IntGridLayers[Data.TilemapHashesToUpdate[i]];
 
 			        var offset = spriteMeshesCount;
 			        var count = data.RenderedSprites.Count;

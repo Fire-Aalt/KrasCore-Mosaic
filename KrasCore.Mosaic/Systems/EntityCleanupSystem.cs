@@ -6,7 +6,7 @@ using Unity.Entities;
 namespace KrasCore.Mosaic
 {
     [UpdateInGroup(typeof(TilemapCleanupSystemGroup))]
-    public partial struct TilemapEntityCleanupSystem : ISystem
+    public partial struct EntityCleanupSystem : ISystem
     {
         private NativeList<Entity> _entitiesToDelete;
         

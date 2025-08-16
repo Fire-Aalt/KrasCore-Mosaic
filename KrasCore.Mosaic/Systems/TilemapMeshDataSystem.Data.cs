@@ -1,6 +1,7 @@
 using System;
 using KrasCore.Mosaic.Data;
 using Unity.Collections;
+using Unity.Entities;
 using Unity.Mathematics;
 
 namespace KrasCore.Mosaic
@@ -15,6 +16,7 @@ namespace KrasCore.Mosaic
             public NativeList<int> Indices;
             public NativeList<int> LayerPointers;
         
+            public NativeList<Hash128> TilemapHashesToUpdate;
             public NativeList<TilemapRendererData> DirtyTilemapsRendererData;
             public NativeList<OffsetData> DirtyOffsetCounts;
         
@@ -26,6 +28,7 @@ namespace KrasCore.Mosaic
                 Indices = new NativeList<int>(capacity, allocator);
                 LayerPointers = new NativeList<int>(capacity, allocator);
 
+                TilemapHashesToUpdate = new NativeList<Hash128>(8, allocator);
                 DirtyTilemapsRendererData = new NativeList<TilemapRendererData>(8, allocator);
                 DirtyOffsetCounts = new NativeList<OffsetData>(8, allocator);
             }
@@ -37,7 +40,8 @@ namespace KrasCore.Mosaic
                 Vertices.Dispose();
                 Indices.Dispose();
                 LayerPointers.Dispose();
-            
+
+                TilemapHashesToUpdate.Dispose();
                 DirtyTilemapsRendererData.Dispose();
                 DirtyOffsetCounts.Dispose();
             }

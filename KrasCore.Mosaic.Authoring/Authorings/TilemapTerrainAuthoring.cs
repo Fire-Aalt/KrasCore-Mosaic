@@ -7,6 +7,7 @@ using UnityEditor;
 using UnityEngine;
 using Hash128 = Unity.Entities.Hash128;
 using Random = UnityEngine.Random;
+using TerrainData = KrasCore.Mosaic.Data.TerrainData;
 
 namespace KrasCore.Mosaic.Authoring
 {
@@ -67,7 +68,7 @@ namespace KrasCore.Mosaic.Authoring
                 }
                 
                 // Bake terrain entity
-                AddComponent(entity, new TilemapTerrainData
+                AddComponent(entity, new TerrainData
                 {
                     LayerHashes = intGridLayerHashes
                 });

@@ -4,6 +4,7 @@
     "references": [
         "KrasCore",
         "KrasCore.Mosaic.Data",
+        "BovineLabs.Core",
         "Unity.Burst",
         "Unity.Collections",
         "Unity.Entities",
