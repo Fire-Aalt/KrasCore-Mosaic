@@ -16,14 +16,6 @@ namespace KrasCore.Mosaic
 	[UpdateInGroup(typeof(TilemapUpdateSystemGroup))]
     public partial struct TilemapMeshDataSystem : ISystem
     {
-	    private static readonly quaternion RotY90 = quaternion.RotateY(90f * math.TORADIANS);
-	    private static readonly quaternion RotY180 = quaternion.RotateY(180f * math.TORADIANS);
-	    private static readonly quaternion RotY270 = quaternion.RotateY(270f * math.TORADIANS);
-
-	    private static readonly quaternion RotZ90 = quaternion.RotateZ(90f * math.TORADIANS);
-	    private static readonly quaternion RotZ180 = quaternion.RotateZ(180f * math.TORADIANS);
-	    private static readonly quaternion RotZ270 = quaternion.RotateZ(270f * math.TORADIANS);
-	    
         private Data _data;
         private NativeArray<VertexAttributeDescriptor> _layout;
         
@@ -31,11 +23,11 @@ namespace KrasCore.Mosaic
         public void OnCreate(ref SystemState state)
         {
 	        _data = new Data(8, Allocator.Persistent);
-
+	        
             _layout = new NativeArray<VertexAttributeDescriptor>(3, Allocator.Persistent);
             _layout[0] = new VertexAttributeDescriptor(VertexAttribute.Position);
             _layout[1] = new VertexAttributeDescriptor(VertexAttribute.Normal);
-            _layout[2] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 2);
+            _layout[2] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2);
         }
         
         [BurstCompile]
@@ -146,8 +138,7 @@ namespace KrasCore.Mosaic
 			        ref var dataLayer = ref kvp.Value;
                 
 			        if (dataLayer.RefreshedPositions.IsEmpty
-			            && !CullingBoundsChanged
-			           )
+			            && !CullingBoundsChanged && !dataLayer.Cleared)
 			        {
 				        continue;
 			        }
@@ -352,39 +343,39 @@ namespace KrasCore.Mosaic
         		int vc = 4 * index;
         		int tc = 2 * 3 * index;
 
-		        var minUv = new float2(
+		        var minUv = (half2)new float2(
 			        spriteMesh.Flip.x ? spriteMesh.MaxUv.x : spriteMesh.MinUv.x,
 			        spriteMesh.Flip.y ? spriteMesh.MaxUv.y : spriteMesh.MinUv.y);
-		        var maxUv = new float2(
+		        var maxUv = (half2)new float2(
 			        spriteMesh.Flip.x ? spriteMesh.MinUv.x : spriteMesh.MaxUv.x,
 			        spriteMesh.Flip.y ? spriteMesh.MinUv.y : spriteMesh.MaxUv.y);
 		        
 		        Vertices[vc + 0] = new Vertex
         		{
-        			Position = rotatedPos + Rotate(up - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
+        			Position = rotatedPos + MosaicUtils.Rotate(up - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
 			        Normal = normal,
-        			UV = new float2(minUv.x, maxUv.y)
+        			UV = new half2(minUv.x, maxUv.y)
         		};
 
 		        Vertices[vc + 1] = new Vertex
         		{
-        			Position = rotatedPos + Rotate(up + right - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
+        			Position = rotatedPos + MosaicUtils.Rotate(up + right - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
 			        Normal = normal,
-        			UV = new float2(maxUv.x, maxUv.y)
+        			UV = new half2(maxUv.x, maxUv.y)
         		};
 
 		        Vertices[vc + 2] = new Vertex
         		{
-        			Position = rotatedPos + Rotate(right - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
+        			Position = rotatedPos + MosaicUtils.Rotate(right - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
 			        Normal = normal,
-        			UV = new float2(maxUv.x, minUv.y)
+        			UV = new half2(maxUv.x, minUv.y)
         		};
 
 		        Vertices[vc + 3] = new Vertex
         		{
-        			Position = rotatedPos + Rotate(-pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
+        			Position = rotatedPos + MosaicUtils.Rotate(-pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
 			        Normal = normal,
-        			UV = new float2(minUv.x, minUv.y)
+        			UV = new half2(minUv.x, minUv.y)
         		};
 		        
 		        vc -= offset.DataOffset * 4;
@@ -397,18 +388,6 @@ namespace KrasCore.Mosaic
         		Indices[tc + 4] = (vc + 2);
         		Indices[tc + 5] = (vc + 3);
         	}
-	        
-	        private float3 Rotate(in float3 direction, in int rotation, in Orientation orientation)
-	        {
-		        return rotation switch
-		        {
-			        0 => direction,
-			        1 => math.mul(orientation == Orientation.XY ? RotZ90 : RotY90, direction),
-			        2 => math.mul(orientation == Orientation.XY ? RotZ180 : RotY180, direction),
-			        3 => math.mul(orientation == Orientation.XY ? RotZ270 : RotY270, direction),
-			        _ => default
-		        };
-	        }
         }
 
         [BurstCompile]
@@ -468,6 +447,6 @@ namespace KrasCore.Mosaic
     {
         public float3 Position;
         public float3 Normal;
-        public float2 UV;
+        public half2 UV;
     }
 }

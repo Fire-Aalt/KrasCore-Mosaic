@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -98,6 +99,36 @@ namespace KrasCore.Mosaic.Data
                 Swizzle.XZY => pos.xzy,
                 _ => float3.zero
             };
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float3 Rotate(in float3 dir, int rotation, in Orientation orientation)
+        {
+            var r = rotation & 3; // mod 4
+            if (r == 0) return dir;
+
+            if (orientation == Orientation.XY)
+            {
+                // Rotate around Z
+                switch (r)
+                {
+                    case 1: return new float3(-dir.y, dir.x, dir.z);   // 90°
+                    case 2: return new float3(-dir.x, -dir.y, dir.z);  // 180°
+                    case 3: return new float3(dir.y, -dir.x, dir.z);   // 270°
+                }
+            }
+            else
+            {
+                // Rotate around Y
+                switch (r)
+                {
+                    case 1: return new float3(dir.z, dir.y, -dir.x);   // 90°
+                    case 2: return new float3(-dir.x, dir.y, -dir.z);  // 180°
+                    case 3: return new float3(-dir.z, dir.y, dir.x);   // 270°
+                }
+            }
+
+            return dir;
         }
     }
 }

@@ -24,6 +24,8 @@ namespace KrasCore.Mosaic.Data
             public UnsafeHashSet<int2> PositionsToRefresh;
             public UnsafeList<int2> RefreshedPositions;
 
+            public bool Cleared;
+
             public readonly bool DualGrid;
             public readonly Entity IntGridEntity;
             
@@ -39,6 +41,8 @@ namespace KrasCore.Mosaic.Data
                 RenderedSprites = new UnsafeHashMap<int2, SpriteMesh>(capacity, allocator);
             
                 RefreshedPositions = new UnsafeList<int2>(capacity, allocator);
+
+                Cleared = false;
                 
                 DualGrid = tilemapData.DualGrid;
                 IntGridEntity = intGridEntity;

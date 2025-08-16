@@ -97,6 +97,7 @@ namespace KrasCore.Mosaic
                 ref var commandsLayer = ref TcbLayers.GetValueAsRef(intGridHash);
                 ref var dataLayer = ref IntGridLayers.GetValueAsRef(intGridHash);
 
+                dataLayer.Cleared = false;
                 dataLayer.PositionsToRefresh.Clear();
                 dataLayer.RefreshedPositions.Clear();
                 
@@ -123,6 +124,7 @@ namespace KrasCore.Mosaic
                 dataLayer.IntGrid.Clear();
                 dataLayer.RuleGrid.Clear();
                 dataLayer.RenderedSprites.Clear();
+                dataLayer.Cleared = true;
                 return true;
             }
 
