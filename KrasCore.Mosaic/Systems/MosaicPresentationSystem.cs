@@ -80,9 +80,9 @@ namespace KrasCore.Mosaic
 			[ReadOnly]
 			public NativeParallelHashMap<Hash128, AABB> UpdatedMeshBoundsMap;
 			
-			private void Execute(in TilemapData tilemapData, ref RenderBounds renderBounds)
+			private void Execute(in TilemapRendererInitData rendererData, ref RenderBounds renderBounds)
 			{
-				if (UpdatedMeshBoundsMap.TryGetValue(tilemapData.IntGridHash, out var aabb))
+				if (UpdatedMeshBoundsMap.TryGetValue(rendererData.MeshHash, out var aabb))
 				{
 					renderBounds.Value = aabb;
 				}

@@ -1,4 +1,6 @@
 using System;
+using System.Runtime.InteropServices;
+using BovineLabs.Core.Collections;
 using KrasCore.Mosaic.Data;
 using Unity.Burst;
 using Unity.Collections;
@@ -17,21 +19,10 @@ namespace KrasCore.Mosaic
 	[UpdateInGroup(typeof(TilemapUpdateSystemGroup))]
     public partial struct TerrainMeshDataSystem : ISystem
     {
-        private NativeHashMap<int, Layout> _layouts;
+        private NativeArray<VertexAttributeDescriptor> _layout;
         private NativeList<Hash128> _terrainHashesToUpdate;
         private NativeList<TilemapRendererData> _tilemapRendererData;
         private NativeHashMap<Hash128, Terrain> _terrains;
-        
-        public struct Layout : IDisposable
-        {
-	        public UnsafeList<VertexAttributeDescriptor> Descriptors;
-	        public int ByteSize;
-	        
-	        public void Dispose()
-	        {
-		        Descriptors.Dispose();
-	        }
-        }
         
         public struct SpriteMeshWithStream
         {
@@ -39,15 +30,28 @@ namespace KrasCore.Mosaic
             public byte Stream;
         }
         
+        
+        [StructLayout(LayoutKind.Sequential)]
+        public struct OffsetData
+        {
+	        public half2 Layer1TexCoordOffset;
+	        public half2 Layer2TexCoordOffset;
+        }
+        
         public struct Terrain : IDisposable
         {
             public FixedList512Bytes<Hash128> Layers;
             public UnsafeHashSet<int2> UniquePositionsSet;
             public UnsafeMultiHashMap<int2, SpriteMeshWithStream> SpriteMeshMap;
+
+            public UnsafeArray<OffsetData> OffsetDataPixelArray;
+            public UnsafeArray<byte> ControlDataPixelArray;
             
             public Terrain(int capacity, Allocator allocator)
             {
                 Layers = default;
+                OffsetDataPixelArray = default;
+                ControlDataPixelArray = default;
                 UniquePositionsSet = new UnsafeHashSet<int2>(capacity, allocator);
                 SpriteMeshMap = new UnsafeMultiHashMap<int2, SpriteMeshWithStream>(capacity, allocator);
             }
@@ -62,26 +66,11 @@ namespace KrasCore.Mosaic
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
-            _layouts = new NativeHashMap<int, Layout>(8, Allocator.Persistent);
-            for (int i = 0; i < 8; i++)
-            {
-                var texCoordsCount = i + 1;
-                var layout = new UnsafeList<VertexAttributeDescriptor>(texCoordsCount, Allocator.Persistent);
-                layout.Add(new VertexAttributeDescriptor(VertexAttribute.Position));
-                layout.Add(new VertexAttributeDescriptor(VertexAttribute.Normal));
-
-                for (var stream = 0; stream < texCoordsCount; stream++)
-                {
-                    var texCoordAttribute = (VertexAttribute)((int)VertexAttribute.TexCoord0 + stream);
-                    layout.Add(new VertexAttributeDescriptor(texCoordAttribute, VertexAttributeFormat.Float16, 2));
-                }
-
-                _layouts[texCoordsCount] = new Layout
-                {
-	                Descriptors = layout,
-	                ByteSize = UnsafeUtility.SizeOf<float3>() * 2 + UnsafeUtility.SizeOf<half2>() * texCoordsCount
-                };
-            }
+            _layout = new NativeArray<VertexAttributeDescriptor>(4, Allocator.Persistent);
+            _layout[0] = new VertexAttributeDescriptor(VertexAttribute.Position);
+            _layout[1] = new VertexAttributeDescriptor(VertexAttribute.Normal);
+            _layout[2] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 2);
+            _layout[3] = new VertexAttributeDescriptor(VertexAttribute.TexCoord4, VertexAttributeFormat.Float32, 2);
 
             _tilemapRendererData = new NativeList<TilemapRendererData>(1, Allocator.Persistent);
             _terrainHashesToUpdate = new NativeList<Hash128>(1, Allocator.Persistent);
@@ -91,11 +80,7 @@ namespace KrasCore.Mosaic
         [BurstCompile]
         public void OnDestroy(ref SystemState state)
         {
-            foreach (var kvPair in _layouts)
-            {
-                kvPair.Value.Dispose();
-            }
-            _layouts.Dispose();
+            _layout.Dispose();
 
             foreach (var kvp in _terrains)
             {
@@ -139,7 +124,7 @@ namespace KrasCore.Mosaic
 
             state.Dependency = new SetBufferParamsJob
             {
-	            Layouts = _layouts,
+	            Layout = _layout,
 	            HashesToUpdate = _terrainHashesToUpdate.AsDeferredJobArray(),
 	            MeshDataArray = meshDataSingleton.MeshDataArray,
 	            Terrains = _terrains,
@@ -147,7 +132,6 @@ namespace KrasCore.Mosaic
             
             state.Dependency = new GenerateVertexDataJob()
             {
-	            Layouts = _layouts,
 	            HashesToUpdate = _terrainHashesToUpdate.AsDeferredJobArray(),
 	            MeshDataArray = meshDataSingleton.MeshDataArray,
 	            Terrains = _terrains,
@@ -156,7 +140,6 @@ namespace KrasCore.Mosaic
             
             state.Dependency = new FinalizeMeshDataJob()
             {
-	            Layouts = _layouts,
 	            HashesToUpdate = _terrainHashesToUpdate.AsDeferredJobArray(),
 	            MeshDataArray = meshDataSingleton.MeshDataArray,
 	            Terrains = _terrains,
@@ -246,7 +229,7 @@ namespace KrasCore.Mosaic
         private struct SetBufferParamsJob : IJobParallelForDefer
         {
             [ReadOnly]
-            public NativeHashMap<int, Layout> Layouts;
+            public NativeArray<VertexAttributeDescriptor> Layout;
             [ReadOnly]
             public NativeHashMap<Hash128, Terrain> Terrains;
             [ReadOnly]
@@ -264,8 +247,7 @@ namespace KrasCore.Mosaic
                 var vertexCount = count * 4;
                 var indexCount = count * 6;
 		        
-                Debug.Log("Size:" + terrainData.Layers.Length + " " + Layouts[terrainData.Layers.Length].ByteSize);
-                meshData.SetVertexBufferParams(vertexCount, Layouts[terrainData.Layers.Length].Descriptors.AsNativeArray());
+                meshData.SetVertexBufferParams(vertexCount, Layout);
                 meshData.SetIndexBufferParams(indexCount, IndexFormat.UInt32);
             }
         }
@@ -273,8 +255,6 @@ namespace KrasCore.Mosaic
 	    [BurstCompile]
         private struct GenerateVertexDataJob : IJobParallelForDefer
         {
-	        [ReadOnly]
-	        public NativeHashMap<int, Layout> Layouts;
 	        [ReadOnly]
 	        public NativeHashMap<Hash128, Terrain> Terrains;
 	        [ReadOnly]
@@ -284,48 +264,19 @@ namespace KrasCore.Mosaic
 	        
 	        [ReadOnly]
 	        public NativeArray<TilemapRendererData> LayerData;
-
 	        
-	        private int _vertexSize;
-	        [NativeDisableContainerSafetyRestriction]
-	        private NativeArray<byte> _vertices;
-	        
-	        private unsafe void SetPosition(int vertexIndex, ref float3 position)
-	        {
-		        var ptr = (byte*)_vertices.GetUnsafePtr()
-		                  + _vertexSize * vertexIndex; // Offset = 0
-		        UnsafeUtility.CopyStructureToPtr(ref position, ptr);
-	        }
-	        
-	        private unsafe void SetNormal(int vertexIndex, ref float3 normal)
-	        {
-		        var ptr = (byte*)_vertices.GetUnsafePtr()
-		                  + _vertexSize * vertexIndex
-		                  + UnsafeUtility.SizeOf<float3>(); // Offset = 12
-		        UnsafeUtility.CopyStructureToPtr(ref normal, ptr);
-	        }
-	        
-	        private unsafe void SetTexCoord(int vertexIndex, byte stream, ref half2 texCoord)
-	        {
-		        var ptr = (byte*)_vertices.GetUnsafePtr()
-		                  + _vertexSize * vertexIndex
-		                  + UnsafeUtility.SizeOf<float3>() * 2 
-		                  + UnsafeUtility.SizeOf<half2>() * stream; // Offset = 24 + stream * 4
-		        UnsafeUtility.CopyStructureToPtr(ref texCoord, ptr);
-	        }
 	        
         	public void Execute(int index)
 	        {
 		        var meshData = MeshDataArray[index];
 		        var rendererData = LayerData[index];
 		        var terrainData = Terrains[HashesToUpdate[index]];
-		        _vertexSize = Layouts[terrainData.Layers.Length].ByteSize;
-		        
+
 		        var orientation = rendererData.Orientation;
 		        
-		        _vertices = meshData.GetVertexData<byte>();
+		        var vertices = meshData.GetVertexData<Vertex>();
 		        var indices = meshData.GetIndexData<int>();
-		        
+
 		        var vertexIndex = 0;
 		        foreach (var pos in terrainData.UniquePositionsSet)
 		        {
@@ -353,22 +304,29 @@ namespace KrasCore.Mosaic
 			                             + right - pivotPoint;
 			        var v3Pos = worldPos + pivotPoint 
 			                    - pivotPoint;
-			        
-			        SetNormal(vc + 0, ref normal);
-			        SetNormal(vc + 1, ref normal);
-			        SetNormal(vc + 2, ref normal);
-			        SetNormal(vc + 3, ref normal);
-			        
-			        SetPosition(vc + 0, ref v0Pos);
-			        SetPosition(vc + 1, ref v1Pos);
-			        SetPosition(vc + 2, ref v2Pos);
-			        SetPosition(vc + 3, ref v3Pos);
+			         
+			        // vertices[vc + 0] = new Vertex
+			        // {
+				       //  Position = v0Pos,
+				       //  Normal = normal,
+				       //  TexCoord0 = ,
+				       //  TexCoord4 = 
+			        // }
+			        // SetNormal(vc + 0, ref normal);
+			        // SetNormal(vc + 1, ref normal);
+			        // SetNormal(vc + 2, ref normal);
+			        // SetNormal(vc + 3, ref normal);
+			        //
+			        // SetPosition(vc + 0, ref v0Pos);
+			        // SetPosition(vc + 1, ref v1Pos);
+			        // SetPosition(vc + 2, ref v2Pos);
+			        // SetPosition(vc + 3, ref v3Pos);
 			        
 			        foreach (var spriteMeshWithStream in terrainData.SpriteMeshMap.GetValuesForKey(pos))
 			        {
 						var spriteMesh = spriteMeshWithStream.SpriteMesh;
 						var stream = spriteMeshWithStream.Stream;
-			   
+			   if (stream != 0) continue;
 						var minUv = (half2)new float2(
 							spriteMesh.Flip.x ? spriteMesh.MaxUv.x : spriteMesh.MinUv.x,
 							spriteMesh.Flip.y ? spriteMesh.MaxUv.y : spriteMesh.MinUv.y);
@@ -381,10 +339,10 @@ namespace KrasCore.Mosaic
 						var texCoord2 = new half2(maxUv.x, minUv.y);
 						var texCoord3 = new half2(minUv.x, minUv.y);
 												
-						SetTexCoord(vc + (0 + spriteMesh.Rotation) % 4, stream, ref texCoord0);
-						SetTexCoord(vc + (1 + spriteMesh.Rotation) % 4, stream, ref texCoord1);
-						SetTexCoord(vc + (2 + spriteMesh.Rotation) % 4, stream, ref texCoord2);
-						SetTexCoord(vc + (3 + spriteMesh.Rotation) % 4, stream, ref texCoord3);
+						// SetTexCoord(vc + (0 + spriteMesh.Rotation) % 4, stream, ref texCoord0);
+						// SetTexCoord(vc + (1 + spriteMesh.Rotation) % 4, stream, ref texCoord1);
+						// SetTexCoord(vc + (2 + spriteMesh.Rotation) % 4, stream, ref texCoord2);
+						// SetTexCoord(vc + (3 + spriteMesh.Rotation) % 4, stream, ref texCoord3);
 			        }
 			        
 			        indices[tc + 0] = (vc + 0);
@@ -406,8 +364,6 @@ namespace KrasCore.Mosaic
 		    [ReadOnly]
 		    public NativeArray<Hash128> HashesToUpdate;
 		    [ReadOnly]
-		    public NativeHashMap<int, Layout> Layouts;
-		    [ReadOnly]
 		    public NativeHashMap<Hash128, Terrain> Terrains;
 		    
 		    public NativeParallelHashMap<Hash128, AABB>.ParallelWriter UpdatedMeshBoundsMapWriter;
@@ -427,7 +383,7 @@ namespace KrasCore.Mosaic
 			    var meshData = MeshDataArray[index];
 			    var terrainData = Terrains[HashesToUpdate[index]];
 
-			    var vertexSize = Layouts[terrainData.Layers.Length].ByteSize;
+			    //var vertexSize = Layouts[terrainData.Layers.Length].ByteSize;
 			    
 			    var vertices = meshData.GetVertexData<byte>();
 			    
@@ -436,11 +392,11 @@ namespace KrasCore.Mosaic
 
 			    for (int i = 0; i < terrainData.UniquePositionsSet.Count * 4; i++)
 			    {
-				    var position = GetPosition(vertices, vertexSize, i);
-				    minPos = math.min(minPos, position);
-				    maxPos = math.max(maxPos, position);
+				    // var position = GetPosition(vertices, vertexSize, i);
+				    // minPos = math.min(minPos, position);
+				    // maxPos = math.max(maxPos, position);
 			    }
-		        
+			    
 			    meshData.subMeshCount = 1;
 			    meshData.SetSubMesh(0, new SubMeshDescriptor(0, terrainData.UniquePositionsSet.Count * 6));
 			    
@@ -450,6 +406,16 @@ namespace KrasCore.Mosaic
 				    Extents = (maxPos - minPos) * 0.5f,
 			    });
 		    }
+	    }
+	    
+	    
+	    [StructLayout(LayoutKind.Sequential)]
+	    public struct Vertex
+	    {
+		    public float3 Position;
+		    public float3 Normal;
+		    public float2 TexCoord0;
+		    public float2 TexCoord4;
 	    }
     }
 }
