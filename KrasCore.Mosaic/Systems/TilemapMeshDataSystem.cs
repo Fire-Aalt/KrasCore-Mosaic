@@ -27,7 +27,7 @@ namespace KrasCore.Mosaic
             _layout = new NativeArray<VertexAttributeDescriptor>(3, Allocator.Persistent);
             _layout[0] = new VertexAttributeDescriptor(VertexAttribute.Position);
             _layout[1] = new VertexAttributeDescriptor(VertexAttribute.Normal);
-            _layout[2] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2);
+            _layout[2] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 2);
         }
         
         [BurstCompile]
@@ -43,13 +43,13 @@ namespace KrasCore.Mosaic
 	        var dataSingleton = SystemAPI.GetSingleton<TilemapDataSingleton>();
 	        var meshDataSingleton = SystemAPI.GetSingletonRW<TilemapMeshDataSingleton>().ValueRW;
 	        var tcb = SystemAPI.GetSingleton<TilemapCommandBufferSingleton>();
-return;
+
 	        var cullingBoundsChanged = !tcb.PrevCullingBounds.Value.Equals(tcb.CullingBounds.Value);
 	        tcb.PrevCullingBounds.Value = tcb.CullingBounds.Value;
 	        
 	        state.Dependency = new FindHashesToUpdateJob
 	        {
-		        MeshHashesToUpdate = meshDataSingleton.HashesToUpdate,
+		        MeshHashesToUpdate = meshDataSingleton.TilemapHashesToUpdate,
 		        IntGridLayers = dataSingleton.IntGridLayers,
 		        CullingBoundsChanged = cullingBoundsChanged,
 		        Data = _data,
@@ -82,7 +82,7 @@ return;
             var setBufferParamsHandle = new SetBufferParamsJob
             {
 	            Offsets = _data.DirtyOffsetCounts.AsDeferredJobArray(),
-	            MeshDataArray = meshDataSingleton.MeshDataArray,
+	            MeshDataArray = meshDataSingleton.TilemapMeshDataArray.Array,
 	            Layout = _layout,
             }.Schedule(_data.DirtyOffsetCounts, 1, state.Dependency);
             
@@ -104,7 +104,7 @@ return;
 	            Vertices = _data.Vertices.AsDeferredJobArray(),
 	            Indices = _data.Indices.AsDeferredJobArray(),
 	            UpdatedMeshBoundsMapWriter = meshDataSingleton.UpdatedMeshBoundsMap.AsParallelWriter(),
-	            MeshDataArray = meshDataSingleton.MeshDataArray,
+	            MeshDataArray = meshDataSingleton.TilemapMeshDataArray.Array,
             }.Schedule(_data.DirtyOffsetCounts, 1, JobHandle.CombineDependencies(setBufferParamsHandle, state.Dependency));
         }
         
@@ -336,10 +336,10 @@ return;
         		int vc = 4 * index;
         		int tc = 2 * 3 * index;
 
-		        var minUv = (half2)new float2(
+		        var minUv = new float2(
 			        spriteMesh.Flip.x ? spriteMesh.MaxUv.x : spriteMesh.MinUv.x,
 			        spriteMesh.Flip.y ? spriteMesh.MaxUv.y : spriteMesh.MinUv.y);
-		        var maxUv = (half2)new float2(
+		        var maxUv = new float2(
 			        spriteMesh.Flip.x ? spriteMesh.MinUv.x : spriteMesh.MaxUv.x,
 			        spriteMesh.Flip.y ? spriteMesh.MinUv.y : spriteMesh.MaxUv.y);
 		        
@@ -347,28 +347,28 @@ return;
         		{
         			Position = rotatedPos + MosaicUtils.Rotate(up - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
 			        Normal = normal,
-        			UV = new half2(minUv.x, maxUv.y)
+        			UV = new float2(minUv.x, maxUv.y)
         		};
 
 		        Vertices[vc + 1] = new Vertex
         		{
         			Position = rotatedPos + MosaicUtils.Rotate(up + right - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
 			        Normal = normal,
-        			UV = new half2(maxUv.x, maxUv.y)
+        			UV = new float2(maxUv.x, maxUv.y)
         		};
 
 		        Vertices[vc + 2] = new Vertex
         		{
         			Position = rotatedPos + MosaicUtils.Rotate(right - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
 			        Normal = normal,
-        			UV = new half2(maxUv.x, minUv.y)
+        			UV = new float2(maxUv.x, minUv.y)
         		};
 
 		        Vertices[vc + 3] = new Vertex
         		{
         			Position = rotatedPos + MosaicUtils.Rotate(-pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
 			        Normal = normal,
-        			UV = new half2(minUv.x, minUv.y)
+        			UV = new float2(minUv.x, minUv.y)
         		};
 		        
 		        vc -= offset.DataOffset * 4;
@@ -440,6 +440,6 @@ return;
     {
         public float3 Position;
         public float3 Normal;
-        public half2 UV;
+        public float2 UV;
     }
 }

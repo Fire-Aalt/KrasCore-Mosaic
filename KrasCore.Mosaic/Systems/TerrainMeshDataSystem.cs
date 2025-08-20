@@ -47,7 +47,6 @@ namespace KrasCore.Mosaic
 	            TilemapRendererData = terrainData.TilemapRendererData,
 	            CullingBoundsChanged = cullingBoundsChanged,
 	            TerrainHashesToUpdate = meshDataSingleton.TerrainHashesToUpdate,
-	            MeshHashesToUpdate = meshDataSingleton.HashesToUpdate,
 	            Terrains = terrainData.Terrains
             }.Schedule(state.Dependency);
 
@@ -58,29 +57,15 @@ namespace KrasCore.Mosaic
 	            Terrains = terrainData.Terrains,
 	            CullingBounds = tcb.CullingBounds.Value,
             }.Schedule(meshDataSingleton.TerrainHashesToUpdate, 1, state.Dependency);
-
-            state.Dependency = new SetBufferParamsJob
+            
+            state.Dependency = new GenerateTerrainMeshDataJob
             {
 	            Layout = terrainData.Layout,
 	            HashesToUpdate = meshDataSingleton.TerrainHashesToUpdate.AsDeferredJobArray(),
-	            MeshDataArray = meshDataSingleton.MeshDataArray,
-	            Terrains = terrainData.Terrains,
-            }.Schedule(meshDataSingleton.TerrainHashesToUpdate, 1, state.Dependency);
-            
-            state.Dependency = new GenerateVertexDataJob
-            {
-	            HashesToUpdate = meshDataSingleton.TerrainHashesToUpdate.AsDeferredJobArray(),
 	            LayerData = terrainData.TilemapRendererData.AsDeferredJobArray(),
 	            Terrains = terrainData.Terrains,
-	            MeshDataArray = meshDataSingleton.MeshDataArray,
+	            MeshDataArray = meshDataSingleton.TilemapMeshDataArray.Array,
 	            UpdatedMeshBoundsMapWriter = meshDataSingleton.UpdatedMeshBoundsMap.AsParallelWriter()
-            }.Schedule(meshDataSingleton.TerrainHashesToUpdate, 1, state.Dependency);
-            
-            state.Dependency = new FinalizeMeshDataJob
-            {
-	            HashesToUpdate = meshDataSingleton.TerrainHashesToUpdate.AsDeferredJobArray(),
-	            MeshDataArray = meshDataSingleton.MeshDataArray,
-
             }.Schedule(meshDataSingleton.TerrainHashesToUpdate, 1, state.Dependency);
         }
 
@@ -91,9 +76,8 @@ namespace KrasCore.Mosaic
             public NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer> IntGridLayers;
             
             public bool CullingBoundsChanged;
-            public NativeList<Hash128> TerrainHashesToUpdate; // For terrain only
-            public NativeList<Hash128> MeshHashesToUpdate; // For presentation system
-            public NativeList<TilemapRendererData> TilemapRendererData;//TODO: MeshDataArray is shared for Terrain and Tilemap -> CRASH!!!
+            public NativeList<Hash128> TerrainHashesToUpdate;
+            public NativeList<TilemapRendererData> TilemapRendererData;
             public NativeHashMap<Hash128, TilemapTerrainMeshDataSingleton.Terrain> Terrains;
             
             private void Execute(in TilemapTerrainData tilemapTerrainData, in TilemapRendererInitData tilemapRendererInitData, in TilemapRendererData rendererData)
@@ -114,14 +98,12 @@ namespace KrasCore.Mosaic
                     if (!dataLayer.RefreshedPositions.IsEmpty || CullingBoundsChanged || dataLayer.Cleared)
                     {
                         TerrainHashesToUpdate.Add(tilemapRendererInitData.MeshHash);
-                        MeshHashesToUpdate.Add(tilemapRendererInitData.MeshHash);
                         TilemapRendererData.Add(rendererData);
                         return;
                     }
                 }
             }
         }
-        
         
         [BurstCompile]
         private struct PrepareAndCullSpriteMeshDataJob : IJobParallelForDefer
@@ -162,36 +144,11 @@ namespace KrasCore.Mosaic
             }
         }
         
-        [BurstCompile]
-        private struct SetBufferParamsJob : IJobParallelForDefer
-        {
-            [ReadOnly]
-            public NativeArray<VertexAttributeDescriptor> Layout;
-            [ReadOnly]
-            public NativeHashMap<Hash128, TilemapTerrainMeshDataSingleton.Terrain> Terrains;
-            [ReadOnly]
-            public NativeArray<Hash128> HashesToUpdate;
-            
-            public Mesh.MeshDataArray MeshDataArray;
-	        
-            public void Execute(int index)
-            {
-                var meshData = MeshDataArray[index];
-                var terrainData = Terrains[HashesToUpdate[index]];
-
-                var count = terrainData.SpriteMeshMap.Count;
-                
-                var vertexCount = count * 4;
-                var indexCount = count * 6;
-		        
-                meshData.SetVertexBufferParams(vertexCount, Layout);
-                meshData.SetIndexBufferParams(indexCount, IndexFormat.UInt32);
-            }
-        }
-        
 	    [BurstCompile]
-        private struct GenerateVertexDataJob : IJobParallelForDefer
+        private struct GenerateTerrainMeshDataJob : IJobParallelForDefer
         {
+	        [ReadOnly]
+	        public NativeArray<VertexAttributeDescriptor> Layout;
 	        [ReadOnly]
 	        public NativeHashMap<Hash128, TilemapTerrainMeshDataSingleton.Terrain> Terrains;
 	        [ReadOnly]
@@ -205,18 +162,26 @@ namespace KrasCore.Mosaic
 	        
         	public void Execute(int index)
 	        {
+		        var hash = HashesToUpdate[index];
 		        var meshData = MeshDataArray[index];
 		        var rendererData = LayerData[index];
-		        ref var terrainData = ref Terrains.GetValueAsRef(HashesToUpdate[index]);
+		        ref var terrainData = ref Terrains.GetValueAsRef(hash);
 
-		        var orientation = rendererData.Orientation;
+		        var quadCount = terrainData.SpriteMeshMap.Count;
+                
+		        var vertexCount = quadCount * 4;
+		        var indexCount = quadCount * 6;
+		        
+		        PrepareMeshData(meshData, vertexCount, indexCount);
+
+		        terrainData.TileBuffer.Clear();
+		        terrainData.IndexBuffer.Clear();
 		        
 		        var vertices = meshData.GetVertexData<Vertex>();
 		        var indices = meshData.GetIndexData<int>();
 
-		        terrainData.TileBuffer.Clear();
-		        terrainData.IndexBuffer.Clear();
 		        var quadIndex = 0;
+		        var orientation = rendererData.Orientation;
 		        
 		        var minPos = new float3(float.MaxValue, float.MaxValue, float.MaxValue);
 		        var maxPos = new float3(float.MinValue, float.MinValue, float.MinValue);
@@ -291,35 +256,30 @@ namespace KrasCore.Mosaic
 			        quadIndex++;
 		        }
 		        
-		        UpdatedMeshBoundsMapWriter.TryAdd(HashesToUpdate[index], new AABB
+		        FinalizeMeshData(hash, meshData, indexCount, maxPos, minPos);
+	        }
+	        
+	        private void PrepareMeshData(Mesh.MeshData meshData, int vertexCount, int indexCount)
+	        {
+		        meshData.SetVertexBufferParams(vertexCount, Layout);
+		        meshData.SetIndexBufferParams(indexCount, IndexFormat.UInt32);
+	        }
+	        
+	        private void FinalizeMeshData(Hash128 hash, Mesh.MeshData meshData, int indexCount, float3 maxPos, float3 minPos)
+	        {
+		        meshData.subMeshCount = 1;
+		        meshData.SetSubMesh(0, new SubMeshDescriptor(0, indexCount));
+		        
+		        UpdatedMeshBoundsMapWriter.TryAdd(hash, new AABB
 		        {
 			        Center = (maxPos + minPos) * 0.5f,
 			        Extents = (maxPos - minPos) * 0.5f,
 		        });
-        	}
+	        }
         }
-        
-	    [BurstCompile]
-	    private struct FinalizeMeshDataJob : IJobParallelForDefer
-	    {
-		    [ReadOnly]
-		    public NativeArray<Hash128> HashesToUpdate;
-
-		    public Mesh.MeshDataArray MeshDataArray;
-		    
-		    public void Execute(int index)
-		    {
-			    var meshData = MeshDataArray[index];
-			    
-			    var indices = meshData.GetIndexData<int>();
-			    
-			    meshData.subMeshCount = 1;
-			    meshData.SetSubMesh(0, new SubMeshDescriptor(0, indices.Length));
-		    }
-	    }
 	    
 	    [StructLayout(LayoutKind.Sequential)]
-	    public struct Vertex
+	    private struct Vertex
 	    {
 		    public float3 Position;
 		    public float3 Normal;
