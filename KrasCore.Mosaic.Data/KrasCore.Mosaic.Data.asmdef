@@ -3,6 +3,7 @@
     "rootNamespace": "KrasCore.Mosaic.Data",
     "references": [
         "KrasCore",
+        "BovineLabs.Core",
         "Unity.Burst",
         "Unity.Collections",
         "Unity.Entities",

@@ -1,6 +1,7 @@
 using System;
 using UnityEngine;
 using Unity.Entities;
+using Unity.Mathematics;
 
 namespace KrasCore.Mosaic.Authoring
 {
@@ -20,8 +21,11 @@ namespace KrasCore.Mosaic.Authoring
                 }
                 
                 var entity = GetEntity(TransformUsageFlags.Dynamic);
-                
-                var materialTexture = BakerUtils.AddIntGridLayerData(this, entity, authoring.intGrid, null);
+
+                var tilePivot = float2.zero;
+                var tileSize = float2.zero;
+                var materialTexture = BakerUtils.AddIntGridLayerData(this, entity, authoring.intGrid,
+                    null, false, ref tilePivot, ref tileSize);
                 BakerUtils.AddRenderingData(this, entity, authoring.intGrid.Hash, authoring.renderingData, gridAuthoring, materialTexture);
             }
         }

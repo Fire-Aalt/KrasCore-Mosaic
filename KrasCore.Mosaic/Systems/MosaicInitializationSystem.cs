@@ -4,7 +4,6 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Rendering;
 using UnityEngine;
-using TerrainData = KrasCore.Mosaic.Data.TerrainData;
 
 namespace KrasCore.Mosaic
 {
@@ -16,7 +15,7 @@ namespace KrasCore.Mosaic
             var uninitializedQuery = SystemAPI.QueryBuilder().WithAll<TilemapRendererInitData, RuntimeMaterial>().WithNone<MaterialMeshInfo>().Build();
             if (!uninitializedQuery.IsEmpty)
             {
-                var meshSingleton = SystemAPI.ManagedAPI.GetSingleton<TilemapMeshSingleton>();
+                var meshSingleton = SystemAPI.ManagedAPI.GetSingleton<TilemapRenderingSingleton>();
                 var meshDataSingleton = SystemAPI.GetSingleton<TilemapMeshDataSingleton>();
                 var entitiesGraphicsSystem = World.GetExistingSystemManaged<EntitiesGraphicsSystem>();
 
@@ -32,8 +31,19 @@ namespace KrasCore.Mosaic
                     mesh.MarkDynamic();
                     meshSingleton.MeshMap.Add(tilemapRenderingData.MeshHash, mesh);
 
+                    var material = runtimeMaterials[i].Value.Value;
+                    if (EntityManager.HasComponent<TilemapTerrainData>(entities[i]))
+                    {
+                        material = new Material(material); // Force unique for terrains
+                        
+                        meshSingleton.TilemapTerrainMap.Add(tilemapRenderingData.MeshHash, new TilemapTerrainRenderingData
+                        {
+                            Material = material
+                        });
+                    }
+                    
                     var meshId = entitiesGraphicsSystem.RegisterMesh(mesh);
-                    var materialId = entitiesGraphicsSystem.RegisterMaterial(runtimeMaterials[i].Value);
+                    var materialId = entitiesGraphicsSystem.RegisterMaterial(material);
 
                     var desc = new RenderMeshDescription(
                         tilemapRenderingData.ShadowCastingMode,

@@ -35,13 +35,14 @@ namespace KrasCore.Mosaic.Authoring
             baker.AddComponent<RuntimeMaterial>(entity);
         }
         
-        public static Texture2D AddIntGridLayerData(IBaker baker, Entity entity, IntGridDefinition intGrid, Texture2D materialTexture)
+        public static Texture2D AddIntGridLayerData(IBaker baker, Entity entity, IntGridDefinition intGrid,
+            Texture2D materialTexture, bool constPivotAndSize, ref float2 tilePivot, ref float2 tileSize)
         {
             var ruleBlobBuffer = baker.AddBuffer<RuleBlobReferenceElement>(entity);
             var weightedEntityBuffer = baker.AddBuffer<WeightedEntityElement>(entity);
 
             var refreshPositions = new NativeHashSet<int2>(64, Allocator.Temp);
-            
+
             var entityCount = 0;
             baker.DependsOn(intGrid);
             foreach (var group in intGrid.ruleGroups)
@@ -59,7 +60,7 @@ namespace KrasCore.Mosaic.Authoring
                         Value = blob
                     });
                     
-                    materialTexture = AddResults(baker, rule, weightedEntityBuffer, materialTexture);
+                    materialTexture = AddResults(baker, rule, weightedEntityBuffer, materialTexture, constPivotAndSize, ref tilePivot, ref tileSize);
                     entityCount += rule.TileEntities.Count;
                 }
             }
@@ -76,8 +77,10 @@ namespace KrasCore.Mosaic.Authoring
             refreshPositionsBuffer.AddRange(refreshPositions.ToNativeArray(Allocator.Temp).Reinterpret<RefreshPositionElement>());
             return materialTexture;
         }
-
-        private static Texture2D AddResults(IBaker baker, RuleGroup.Rule rule, DynamicBuffer<WeightedEntityElement> weightedEntityBuffer, Texture2D materialTexture)
+        
+        private static Texture2D AddResults(IBaker baker, RuleGroup.Rule rule,
+            DynamicBuffer<WeightedEntityElement> weightedEntityBuffer, Texture2D materialTexture,
+            bool constPivotAndSize, ref float2 tilePivot, ref float2 tileSize)
         {
             for (var i = 0; i < rule.TileEntities.Count; i++)
             {
@@ -91,7 +94,33 @@ namespace KrasCore.Mosaic.Authoring
 
             for (int i = 0; i < rule.TileSprites.Count; i++)
             {
-                var spriteTexture = rule.TileSprites[i].result.texture;
+                var sprite = rule.TileSprites[i].result;
+                var spriteTexture = sprite.texture;
+
+                if (constPivotAndSize)
+                {
+                    var spriteMesh = new SpriteMesh(sprite);
+                    var uvPivot = spriteMesh.NormalizedPivot;
+                    var uvTileSize = spriteMesh.MaxUv - spriteMesh.MinUv;
+                    
+                    if (math.all(tilePivot == float2.zero))
+                    {
+                        tilePivot = uvPivot;
+                    }
+                    if (math.all(tileSize == float2.zero))
+                    {
+                        tileSize = uvTileSize;
+                    }
+
+                    if (math.any(tilePivot != uvPivot))
+                    {
+                        throw new Exception("Different pivots in one tilemap terrain. This is not supported");
+                    }
+                    if (math.any(tileSize != uvTileSize))
+                    {
+                        throw new Exception("Different tile sizes in one tilemap terrain. This is not supported");
+                    }
+                }
 
                 if (materialTexture == null)
                 {

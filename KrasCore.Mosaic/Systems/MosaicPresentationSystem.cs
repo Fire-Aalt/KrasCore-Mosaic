@@ -5,6 +5,8 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Rendering;
+using UnityEngine;
+using Hash128 = Unity.Entities.Hash128;
 using Mesh = UnityEngine.Mesh;
 
 namespace KrasCore.Mosaic
@@ -19,26 +21,40 @@ namespace KrasCore.Mosaic
 		{
 			EntityManager.CreateSingleton(new TilemapMeshDataSingleton
 			{
+				TerrainHashesToUpdate = new NativeList<Hash128>(1, Allocator.Persistent),
 				HashesToUpdate = new NativeList<Hash128>(8, Allocator.Persistent),
 				UpdatedMeshBoundsMap = new NativeParallelHashMap<Hash128, AABB>(8, Allocator.Persistent)
 			});
-			EntityManager.CreateSingleton(new TilemapMeshSingleton
+			EntityManager.CreateSingleton(new TilemapRenderingSingleton
 			{
-				MeshMap = new Dictionary<Hash128, Mesh>(8)
+				MeshMap = new Dictionary<Hash128, Mesh>(4),
+				TilemapTerrainMap = new Dictionary<Hash128, TilemapTerrainRenderingData>(1)
 			});
 		}
 
 		protected override void OnDestroy()
 		{
 			SystemAPI.GetSingleton<TilemapMeshDataSingleton>().Dispose();
-			SystemAPI.ManagedAPI.GetSingleton<TilemapMeshSingleton>().Dispose();
+			SystemAPI.ManagedAPI.GetSingleton<TilemapRenderingSingleton>().Dispose();
 		}
  
 		protected override void OnUpdate()
 		{
 			EntityManager.CompleteDependencyBeforeRW<TilemapMeshDataSingleton>();
+			EntityManager.CompleteDependencyBeforeRW<TilemapTerrainMeshDataSingleton>();
+			var meshSingleton = SystemAPI.ManagedAPI.GetSingleton<TilemapRenderingSingleton>();
+			var tilemapTerrainSingleton = SystemAPI.GetSingleton<TilemapTerrainMeshDataSingleton>();
 			ref var meshDataSingleton = ref SystemAPI.GetSingletonRW<TilemapMeshDataSingleton>().ValueRW;
-			var meshSingleton = SystemAPI.ManagedAPI.GetSingleton<TilemapMeshSingleton>();
+			
+			foreach (var terrainHash in meshDataSingleton.TerrainHashesToUpdate)
+			{
+				var terrainRenderingData = meshSingleton.TilemapTerrainMap[terrainHash];
+				var terrainData = tilemapTerrainSingleton.Terrains[terrainHash];
+				
+				terrainRenderingData.SetTileSize(terrainData.TileSize);
+				terrainRenderingData.SetTileBuffer(terrainData.TileBuffer);
+				terrainRenderingData.SetIndexBuffer(terrainData.IndexBuffer);
+			}
 			
 			foreach (var intGridHash in meshDataSingleton.HashesToUpdate)
 			{
@@ -71,6 +87,7 @@ namespace KrasCore.Mosaic
 				}.Run();
 				meshDataSingleton.UpdatedMeshBoundsMap.Clear();
 				meshDataSingleton.HashesToUpdate.Clear();
+				meshDataSingleton.TerrainHashesToUpdate.Clear();
 			}
 		}
 		

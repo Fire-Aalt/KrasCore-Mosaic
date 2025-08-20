@@ -9,6 +9,8 @@ namespace KrasCore.Mosaic.Data
 {
     internal struct TilemapMeshDataSingleton : IComponentData, IDisposable
     {
+        public NativeList<Hash128> TerrainHashesToUpdate;
+        
         public NativeList<Hash128> HashesToUpdate;
         public NativeParallelHashMap<Hash128, AABB> UpdatedMeshBoundsMap;
 
@@ -30,6 +32,7 @@ namespace KrasCore.Mosaic.Data
         
         public void Dispose()
         {
+            TerrainHashesToUpdate.Dispose();
             HashesToUpdate.Dispose();
             UpdatedMeshBoundsMap.Dispose();
         }
