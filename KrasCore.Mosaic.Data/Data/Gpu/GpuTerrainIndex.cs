@@ -6,6 +6,6 @@ namespace KrasCore.Mosaic.Data
     public struct GpuTerrainIndex
     {
         public uint StartIndex;
-        public uint Count;
+        public uint EndIndex;
     }
 }

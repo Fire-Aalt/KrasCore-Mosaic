@@ -51,8 +51,6 @@ namespace KrasCore.Mosaic.Data
             
             if (_tileBuffer == null || _tileBuffer.count < buffer.Length)
             {
-                if (_tileBuffer != null)
-                    Debug.Log($"Resize GpuTerrainTile buffer: old={_tileBuffer.count} | new={buffer.Length}");
                 _tileBuffer?.Dispose();
                 _tileBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, buffer.Length, UnsafeUtility.SizeOf<GpuTerrainTile>());
                 Material.SetBuffer(TileBufferId, _tileBuffer);
@@ -63,13 +61,13 @@ namespace KrasCore.Mosaic.Data
         
         public void SetIndexBuffer(UnsafeList<GpuTerrainIndex> buffer)
         {
-            if (buffer.Length == 0) return;
+            if (buffer.Length == 0)
+            {
+                return;
+            }
             
             if (_indexBuffer == null || _indexBuffer.count < buffer.Length)
             {
-                if (_indexBuffer != null)
-                    Debug.Log($"Resize GpuTerrainIndex buffer: old={_indexBuffer.count} | new={buffer.Length}");
-                
                 _indexBuffer?.Dispose();
                 _indexBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, buffer.Length, UnsafeUtility.SizeOf<GpuTerrainIndex>());
                 Material.SetBuffer(IndexBufferId, _indexBuffer);

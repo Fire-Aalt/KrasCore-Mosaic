@@ -11,10 +11,11 @@ namespace KrasCore.Mosaic.Data
     {
         public struct Terrain : IDisposable
         {
+            public const int MaxLayersBlend = 4;
+            
             public FixedList512Bytes<Hash128> Layers;
             public float2 TileSize;
 	        
-            public UnsafeHashSet<int2> UniquePositionsSet;
             public UnsafeHashMap<int2, FixedList64Bytes<GpuTerrainTile>> SpriteMeshMap;
 
             public UnsafeList<GpuTerrainTile> TileBuffer;
@@ -25,8 +26,13 @@ namespace KrasCore.Mosaic.Data
                 Layers = default;
                 TileSize = default;
                 
-                UniquePositionsSet = new UnsafeHashSet<int2>(capacity, allocator);
                 SpriteMeshMap = new UnsafeHashMap<int2, FixedList64Bytes<GpuTerrainTile>>(capacity, allocator);
+
+                var list = new FixedList64Bytes<GpuTerrainTile>();
+                if (list.Capacity < MaxLayersBlend)
+                {
+                    throw new Exception($"{nameof(Terrain)} has MaxLayersBlend set to {TilemapTerrainMeshDataSingleton.Terrain.MaxLayersBlend}, but the capacity of a fixed list is {list.Capacity}");
+                }
                 
                 TileBuffer = new UnsafeList<GpuTerrainTile>(capacity, allocator);
                 IndexBuffer = new UnsafeList<GpuTerrainIndex>(capacity, allocator);
@@ -34,7 +40,6 @@ namespace KrasCore.Mosaic.Data
             
             public void Dispose()
             {
-                UniquePositionsSet.Dispose();
                 SpriteMeshMap.Dispose();
 
                 TileBuffer.Dispose();

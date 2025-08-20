@@ -1,3 +1,4 @@
+using System;
 using System.Runtime.InteropServices;
 using BovineLabs.Core.Extensions;
 using KrasCore.Mosaic.Data;
@@ -69,16 +70,17 @@ namespace KrasCore.Mosaic
             state.Dependency = new GenerateVertexDataJob
             {
 	            HashesToUpdate = meshDataSingleton.TerrainHashesToUpdate.AsDeferredJobArray(),
-	            MeshDataArray = meshDataSingleton.MeshDataArray,
+	            LayerData = terrainData.TilemapRendererData.AsDeferredJobArray(),
 	            Terrains = terrainData.Terrains,
-	            LayerData = terrainData.TilemapRendererData.AsDeferredJobArray()
+	            MeshDataArray = meshDataSingleton.MeshDataArray,
+	            UpdatedMeshBoundsMapWriter = meshDataSingleton.UpdatedMeshBoundsMap.AsParallelWriter()
             }.Schedule(meshDataSingleton.TerrainHashesToUpdate, 1, state.Dependency);
             
             state.Dependency = new FinalizeMeshDataJob
             {
 	            HashesToUpdate = meshDataSingleton.TerrainHashesToUpdate.AsDeferredJobArray(),
 	            MeshDataArray = meshDataSingleton.MeshDataArray,
-	            UpdatedMeshBoundsMapWriter = meshDataSingleton.UpdatedMeshBoundsMap.AsParallelWriter()
+
             }.Schedule(meshDataSingleton.TerrainHashesToUpdate, 1, state.Dependency);
         }
 
@@ -135,29 +137,26 @@ namespace KrasCore.Mosaic
 	        
             public void Execute(int index)
             {
-                var hash = HashesToUpdate[index];
-                Debug.Log(index + " " + hash);
-                ref var terrainData = ref Terrains.GetValueAsRef(hash);
+                ref var terrainData = ref Terrains.GetValueAsRef(HashesToUpdate[index]);
                 
                 terrainData.SpriteMeshMap.Clear();
-                terrainData.UniquePositionsSet.Clear();
                 for (int stream = terrainData.Layers.Length - 1; stream >= 0; stream--)
                 {
                     var intGridLayer = IntGridLayers[terrainData.Layers[stream]];
 
                     foreach (var kvp in intGridLayer.RenderedSprites)
                     {
-                        if (CullingBounds.Contains(kvp.Key))
-                        {
-	                        ref var layers = ref terrainData.SpriteMeshMap.GetOrAddRef(kvp.Key);
+	                    if (!CullingBounds.Contains(kvp.Key)) continue;
+	                    
+	                    ref var layers = ref terrainData.SpriteMeshMap.GetOrAddRef(kvp.Key);
 
-	                        if (layers.Length + 1 <= layers.Capacity)
-	                        {
-		                        var spriteMesh = kvp.Value;
-								layers.Add(new GpuTerrainTile(spriteMesh.MinUv, 1, spriteMesh.Flip, spriteMesh.Rotation));
-								terrainData.UniquePositionsSet.Add(kvp.Key);
-	                        }
-                        }
+	                    if (layers.Length == TilemapTerrainMeshDataSingleton.Terrain.MaxLayersBlend)
+	                    {
+		                    continue;
+	                    }
+	                    
+	                    var spriteMesh = kvp.Value;
+	                    layers.Add(new GpuTerrainTile(spriteMesh.MinUv, 1, spriteMesh.Flip, spriteMesh.Rotation));
                     }
                 }
             }
@@ -180,7 +179,7 @@ namespace KrasCore.Mosaic
                 var meshData = MeshDataArray[index];
                 var terrainData = Terrains[HashesToUpdate[index]];
 
-                var count = terrainData.UniquePositionsSet.Count;
+                var count = terrainData.SpriteMeshMap.Count;
                 
                 var vertexCount = count * 4;
                 var indexCount = count * 6;
@@ -197,11 +196,12 @@ namespace KrasCore.Mosaic
 	        public NativeHashMap<Hash128, TilemapTerrainMeshDataSingleton.Terrain> Terrains;
 	        [ReadOnly]
 	        public NativeArray<Hash128> HashesToUpdate;
-            
-	        public Mesh.MeshDataArray MeshDataArray;
 	        
 	        [ReadOnly]
 	        public NativeArray<TilemapRendererData> LayerData;
+	        
+	        public Mesh.MeshDataArray MeshDataArray;
+	        public NativeParallelHashMap<Hash128, AABB>.ParallelWriter UpdatedMeshBoundsMapWriter;
 	        
         	public void Execute(int index)
 	        {
@@ -218,13 +218,21 @@ namespace KrasCore.Mosaic
 		        terrainData.IndexBuffer.Clear();
 		        var quadIndex = 0;
 		        
-		        foreach (var pos in terrainData.UniquePositionsSet)
+		        var minPos = new float3(float.MaxValue, float.MaxValue, float.MaxValue);
+		        var maxPos = new float3(float.MinValue, float.MinValue, float.MinValue);
+		        
+		        foreach (var kvp in terrainData.SpriteMeshMap)
 		        {
-			        var worldPos = MosaicUtils.ToWorldSpace(pos, rendererData)
+			        var worldPos = MosaicUtils.ToWorldSpace(kvp.Key, rendererData)
 			                         + MosaicUtils.ApplyOrientation(float2.zero, orientation);
 
 			        var rectSize = MosaicUtils.ApplySwizzle(rendererData.CellSize, rendererData.Swizzle).xy;
 			        var rotatedSize = MosaicUtils.ApplyOrientation(rectSize, orientation);
+
+			        var tileCenter = worldPos + rotatedSize * 0.5f;
+			        
+			        minPos = math.min(minPos, tileCenter);
+			        maxPos = math.max(maxPos, tileCenter);
 			        
 			        var normal = MosaicUtils.ApplyOrientation(new float3(0, 0, 1), orientation);
 			        
@@ -259,25 +267,17 @@ namespace KrasCore.Mosaic
 				        TexCoord0 = new float2(0f, 0f)
 			        };
 
-
 			        var startIndex = terrainData.TileBuffer.Length;
-			        const int MAX_LAYERS = 4;
-			        var layersBlended = 0;
-			        foreach (var terrainTile in terrainData.SpriteMeshMap[pos])
+			        
+			        foreach (var terrainTile in kvp.Value)
 			        {
 				        terrainData.TileBuffer.Add(terrainTile);
-
-				        layersBlended++;
-				        if (layersBlended == MAX_LAYERS)
-				        {
-					        break;
-				        }
 			        }
 			        
 			        terrainData.IndexBuffer.Add(new GpuTerrainIndex
 			        {
 				        StartIndex = (uint)startIndex,
-				        Count = (uint)layersBlended
+				        EndIndex = (uint)terrainData.TileBuffer.Length
 			        });
 			        
 			        indices[tc + 0] = (vc + 0);
@@ -290,6 +290,12 @@ namespace KrasCore.Mosaic
 			        
 			        quadIndex++;
 		        }
+		        
+		        UpdatedMeshBoundsMapWriter.TryAdd(HashesToUpdate[index], new AABB
+		        {
+			        Center = (maxPos + minPos) * 0.5f,
+			        Extents = (maxPos - minPos) * 0.5f,
+		        });
         	}
         }
         
@@ -298,38 +304,19 @@ namespace KrasCore.Mosaic
 	    {
 		    [ReadOnly]
 		    public NativeArray<Hash128> HashesToUpdate;
-		    
-		    public NativeParallelHashMap<Hash128, AABB>.ParallelWriter UpdatedMeshBoundsMapWriter;
+
 		    public Mesh.MeshDataArray MeshDataArray;
 		    
 		    public void Execute(int index)
 		    {
 			    var meshData = MeshDataArray[index];
 			    
-			    var vertices = meshData.GetVertexData<Vertex>();
 			    var indices = meshData.GetIndexData<int>();
-			    
-			    var minPos = new float3(float.MaxValue, float.MaxValue, float.MaxValue);
-			    var maxPos = new float3(float.MinValue, float.MinValue, float.MinValue);
-
-			    for (int i = 0; i < vertices.Length; i++)
-			    {
-				    var position = vertices[i].Position;
-				    minPos = math.min(minPos, position);
-				    maxPos = math.max(maxPos, position);
-			    }
 			    
 			    meshData.subMeshCount = 1;
 			    meshData.SetSubMesh(0, new SubMeshDescriptor(0, indices.Length));
-			    
-			    UpdatedMeshBoundsMapWriter.TryAdd(HashesToUpdate[index], new AABB
-			    {
-				    Center = (maxPos + minPos) * 0.5f,
-				    Extents = (maxPos - minPos) * 0.5f,
-			    });
 		    }
 	    }
-	    
 	    
 	    [StructLayout(LayoutKind.Sequential)]
 	    public struct Vertex

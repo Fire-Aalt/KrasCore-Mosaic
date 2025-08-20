@@ -83,6 +83,7 @@ namespace KrasCore.Mosaic.Data
             PrevCullingBounds = new NativeReference<AABB2D>(allocator);
             
             CullingBounds.Value = new AABB2D { Extents = new float2(float.MaxValue, float.MaxValue) / 2f };
+            PrevCullingBounds.Value = CullingBounds.Value;
         }
 
         public ParallelWriter AsParallelWriter() => new(ref _parallelWriteLayers);
