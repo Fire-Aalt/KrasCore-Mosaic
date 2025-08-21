@@ -7,5 +7,6 @@ namespace KrasCore.Mosaic.Data
     {
         public Hash128 TerrainHash;
         public float2 TileSize;
+        public int MaxLayersBlend;
     }
 }

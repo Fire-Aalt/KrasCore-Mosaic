@@ -21,11 +21,13 @@ namespace KrasCore.Mosaic
 	    {
 	        public struct Terrain : IDisposable
 	        {
-	            public const int MaxLayersBlend = 4;
-	            
 	            public Entity TerrainEntity;
 		        
+#if MOSAIC_BLEND_128
+	            public UnsafeHashMap<int2, FixedList128Bytes<GpuTerrainTile>> RawTilesToBlend;
+#else
 	            public UnsafeHashMap<int2, FixedList64Bytes<GpuTerrainTile>> RawTilesToBlend;
+#endif
 
 	            public UnsafeList<GpuTerrainTile> TileBuffer;
 	            public UnsafeList<GpuTerrainIndex> IndexBuffer;
@@ -34,14 +36,12 @@ namespace KrasCore.Mosaic
 	            {
 		            TerrainEntity = terrainEntity;
 	                
+#if MOSAIC_BLEND_128
+	                RawTilesToBlend = new UnsafeHashMap<int2, FixedList128Bytes<GpuTerrainTile>>(capacity, allocator);
+#else
 	                RawTilesToBlend = new UnsafeHashMap<int2, FixedList64Bytes<GpuTerrainTile>>(capacity, allocator);
+#endif
 
-	                var list = new FixedList64Bytes<GpuTerrainTile>();
-	                if (list.Capacity < MaxLayersBlend)
-	                {
-	                    throw new Exception($"{nameof(Terrain)} has MaxLayersBlend set to {MaxLayersBlend}, but the capacity of a fixed list is {list.Capacity}");
-	                }
-	                
 	                TileBuffer = new UnsafeList<GpuTerrainTile>(capacity, allocator);
 	                IndexBuffer = new UnsafeList<GpuTerrainIndex>(capacity, allocator);
 	            }
@@ -116,6 +116,8 @@ namespace KrasCore.Mosaic
 
             var cullingBoundsChanged = !tcb.PrevCullingBounds.Value.Equals(tcb.CullingBounds.Value);
             tcb.PrevCullingBounds.Value = tcb.CullingBounds.Value;
+
+            var terrainDataLookup = SystemAPI.GetComponentLookup<TerrainData>(true);
             
             state.Dependency = new FindHashesToUpdateJob
             {
@@ -127,6 +129,7 @@ namespace KrasCore.Mosaic
 
             state.Dependency = new PrepareAndCullSpriteMeshDataJob
             {
+	            TerrainDataLookup = terrainDataLookup,
 	            TerrainLayersBufferLookup = SystemAPI.GetBufferLookup<TilemapTerrainLayerElement>(true),
 	            IntGridLayers = dataSingleton.IntGridLayers,
 	            HashesToUpdate = singleton.HashesToUpdate.AsDeferredJobArray(),
@@ -136,7 +139,7 @@ namespace KrasCore.Mosaic
             
             state.Dependency = new GenerateTerrainMeshDataJob
             {
-	            TerrainDataLookup = SystemAPI.GetComponentLookup<TerrainData>(true),
+	            TerrainDataLookup = terrainDataLookup,
 	            TilemapRendererDataLookup = SystemAPI.GetComponentLookup<TilemapRendererData>(true),
 	            Layout = singleton.Layout,
 	            HashesToUpdate = singleton.HashesToUpdate.AsDeferredJobArray(),
@@ -180,6 +183,8 @@ namespace KrasCore.Mosaic
         [BurstCompile]
         private struct PrepareAndCullSpriteMeshDataJob : IJobParallelForDefer
         {
+	        [ReadOnly]
+	        public ComponentLookup<TerrainData> TerrainDataLookup;
             [ReadOnly]
             public BufferLookup<TilemapTerrainLayerElement> TerrainLayersBufferLookup;
             
@@ -197,7 +202,8 @@ namespace KrasCore.Mosaic
             {
                 ref var terrainData = ref Terrains.GetValueAsRef(HashesToUpdate[index]);
                 var terrainLayersBuffer = TerrainLayersBufferLookup[terrainData.TerrainEntity].Reinterpret<Hash128>();
-
+                var maxLayersBlend = TerrainDataLookup[terrainData.TerrainEntity].MaxLayersBlend;
+                
                 terrainData.RawTilesToBlend.Clear();
                 
                 for (int layerIndex = terrainLayersBuffer.Length - 1; layerIndex >= 0; layerIndex--)
@@ -210,7 +216,7 @@ namespace KrasCore.Mosaic
 	                    
 	                    ref var layers = ref terrainData.RawTilesToBlend.GetOrAddRef(kvp.Key);
 
-	                    if (layers.Length == Singleton.Terrain.MaxLayersBlend)
+	                    if (layers.Length == maxLayersBlend)
 	                    {
 		                    continue;
 	                    }

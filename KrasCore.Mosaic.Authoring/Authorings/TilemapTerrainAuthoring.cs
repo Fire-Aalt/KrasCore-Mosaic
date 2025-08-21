@@ -8,8 +8,6 @@ using UnityEditor;
 using UnityEngine;
 using Hash128 = Unity.Entities.Hash128;
 using Random = UnityEngine.Random;
-using TerrainData = KrasCore.Mosaic.Data.TerrainData;
-using TerrainLayer = KrasCore.Mosaic.Data.TerrainLayer;
 
 namespace KrasCore.Mosaic.Authoring
 {
@@ -17,8 +15,29 @@ namespace KrasCore.Mosaic.Authoring
     {
         public List<IntGridDefinition> intGridLayers = new();
         public RenderingData renderingData;
+        public int maxLayersBlend = 4;
         public Hash128 terrainHash;
 
+        private void OnValidate()
+        {
+            maxLayersBlend = math.max(1, maxLayersBlend);
+
+#if MOSAIC_BLEND_128
+            var blendCapacity = new FixedList128Bytes<GpuTerrainTile>();
+#else
+            var blendCapacity = new FixedList64Bytes<GpuTerrainTile>();
+#endif
+            
+            if (maxLayersBlend > blendCapacity.Capacity)
+            {
+#if MOSAIC_BLEND_128
+                Debug.LogWarning("You are trying to exceed a maximum blend FixedList capacity");
+#else
+                Debug.LogWarning("You are trying to exceed a maximum blend FixedList capacity. If you want more blends, consider adding a project define MOSAIC_BLEND_128");
+#endif
+                maxLayersBlend = blendCapacity.Capacity;
+            }
+        }
 
         [MenuItem("CONTEXT/TilemapTerrainAuthoring/Randomize Terrain Hash")]
         private static void RandomizeTerrainHash(MenuCommand command)
@@ -28,18 +47,6 @@ namespace KrasCore.Mosaic.Authoring
                 (uint)Random.Range(int.MinValue, int.MaxValue),
                 (uint)Random.Range(int.MinValue, int.MaxValue),
                 (uint)Random.Range(int.MinValue, int.MaxValue));
-        }
-        
-        private void OnValidate()
-        {
-            if (intGridLayers.Count > 8)
-            {
-                var exceed = intGridLayers.Count - 8;
-                for (var index = 0; index < exceed; index++)
-                {
-                    intGridLayers.RemoveAtSwapBack(8);
-                }
-            }
         }
 
         private class Baker : Baker<TilemapTerrainAuthoring>
@@ -69,14 +76,15 @@ namespace KrasCore.Mosaic.Authoring
                     materialTexture = BakerUtils.AddIntGridLayerData(this, intGridLayersEntities[i], authoring.intGridLayers[i],
                         materialTexture, true, ref tilePivot, ref tileSize);
                     layersBuffer.Add(new TilemapTerrainLayerElement { IntGridHash = authoring.intGridLayers[i].Hash });
-                    AddComponent(intGridLayersEntities[i], new TerrainLayer { TerrainEntity = entity });
+                    AddComponent(intGridLayersEntities[i], new Data.TerrainLayer { TerrainEntity = entity });
                 }
                 
                 // Bake terrain entity
-                AddComponent(entity, new TerrainData
+                AddComponent(entity, new Data.TerrainData
                 {
                     TerrainHash = authoring.terrainHash,
-                    TileSize = tileSize
+                    TileSize = tileSize,
+                    MaxLayersBlend = authoring.maxLayersBlend,
                 });
 
                 BakerUtils.AddRenderingData(this, entity, authoring.terrainHash, authoring.renderingData, gridAuthoring, materialTexture);
