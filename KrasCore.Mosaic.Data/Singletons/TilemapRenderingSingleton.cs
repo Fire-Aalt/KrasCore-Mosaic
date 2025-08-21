@@ -11,7 +11,7 @@ namespace KrasCore.Mosaic.Data
     internal class TilemapRenderingSingleton : IComponentData, IDisposable
     {
         public Dictionary<Hash128, Mesh> MeshMap;
-        public Dictionary<Hash128, TilemapTerrainRenderingData> TilemapTerrainMap;
+        public Dictionary<Hash128, TilemapTerrainRenderingData> TerrainMap;
         
         public void Dispose()
         {
@@ -19,7 +19,7 @@ namespace KrasCore.Mosaic.Data
             {
                 UnityEngine.Object.Destroy(kvp.Value);
             }
-            foreach (var kvp in TilemapTerrainMap)
+            foreach (var kvp in TerrainMap)
             {
                 kvp.Value.Dispose();
             }

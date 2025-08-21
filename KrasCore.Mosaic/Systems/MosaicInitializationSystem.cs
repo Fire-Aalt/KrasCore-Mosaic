@@ -16,7 +16,8 @@ namespace KrasCore.Mosaic
             if (!uninitializedQuery.IsEmpty)
             {
                 var meshSingleton = SystemAPI.ManagedAPI.GetSingleton<TilemapRenderingSingleton>();
-                var meshDataSingleton = SystemAPI.GetSingleton<TilemapMeshDataSingleton>();
+                var tilemapSingleton = SystemAPI.GetSingleton<TilemapMeshDataSystem.Singleton>();
+                var terrainSingleton = SystemAPI.GetSingleton<TerrainMeshDataSystem.Singleton>();
                 var entitiesGraphicsSystem = World.GetExistingSystemManaged<EntitiesGraphicsSystem>();
 
                 var entities = uninitializedQuery.ToEntityArray(Allocator.Temp);
@@ -26,20 +27,26 @@ namespace KrasCore.Mosaic
                 for (int i = 0; i < entities.Length; i++)
                 {
                     var tilemapRenderingData = tilemapRendererData[i];
-
+                    var entity = entities[i];
+                    
                     var mesh = new Mesh { name = "Mosaic.TilemapMesh" };
                     mesh.MarkDynamic();
                     meshSingleton.MeshMap.Add(tilemapRenderingData.MeshHash, mesh);
 
                     var material = runtimeMaterials[i].Value.Value;
-                    if (EntityManager.HasComponent<TilemapTerrainData>(entities[i]))
+                    if (EntityManager.HasComponent<TilemapTerrainData>(entity))
                     {
                         material = new Material(material); // Force unique for terrains
                         
-                        meshSingleton.TilemapTerrainMap.Add(tilemapRenderingData.MeshHash, new TilemapTerrainRenderingData
+                        meshSingleton.TerrainMap.Add(tilemapRenderingData.MeshHash, new TilemapTerrainRenderingData
                         {
                             Material = material
                         });
+                        terrainSingleton.RenderingEntities.Add(entity);
+                    }
+                    else
+                    {
+                        tilemapSingleton.RenderingEntities.Add(entity);
                     }
                     
                     var meshId = entitiesGraphicsSystem.RegisterMesh(mesh);
@@ -50,13 +57,11 @@ namespace KrasCore.Mosaic
                         tilemapRenderingData.ReceiveShadows);
                     var materialMeshInfo = new MaterialMeshInfo(materialId, meshId);
 
-                    RenderMeshUtility.AddComponents(entities[i], EntityManager, desc, materialMeshInfo);
+                    RenderMeshUtility.AddComponents(entity, EntityManager, desc, materialMeshInfo);
                 }
 
-                if (meshDataSingleton.UpdatedMeshBoundsMap.Capacity < meshSingleton.MeshMap.Count)
-                {
-                    meshDataSingleton.UpdatedMeshBoundsMap.Capacity = meshSingleton.MeshMap.Count;
-                }
+                tilemapSingleton.UpdatedMeshBoundsMap.EnsureMinCapacity(tilemapSingleton.RenderingEntities.Length);
+                terrainSingleton.UpdatedMeshBoundsMap.EnsureMinCapacity(terrainSingleton.RenderingEntities.Length);
             }
         
             Dependency = new RegisterJob

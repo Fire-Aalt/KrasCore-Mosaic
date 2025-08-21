@@ -1,3 +1,4 @@
+using System;
 using System.Runtime.InteropServices;
 using KrasCore.Mosaic.Data;
 using Unity.Burst;
@@ -16,96 +17,154 @@ namespace KrasCore.Mosaic
 	[UpdateInGroup(typeof(TilemapUpdateSystemGroup))]
     public partial struct TilemapMeshDataSystem : ISystem
     {
-        private Data _data;
-        private NativeArray<VertexAttributeDescriptor> _layout;
+	    public struct Singleton : IComponentData, IDisposable
+	    {
+		    public NativeArray<VertexAttributeDescriptor> Layout;
+		    public NativeList<Hash128> HashesToUpdate;
+		    public MeshDataArrayWrapper MeshDataArray;
+		    public NativeParallelHashMap<Hash128, AABB> UpdatedMeshBoundsMap;
+		    public NativeList<Entity> RenderingEntities;
+		    
+		    public NativeList<int2> Positions;
+		    public NativeList<SpriteMesh> SpriteMeshes;
+		    public NativeList<Vertex> Vertices;
+		    public NativeList<int> Indices;
+		    public NativeList<int> LayerPointers;
+        
+		    public NativeList<TilemapRendererData> DirtyTilemapsRendererData;
+		    public NativeList<OffsetData> DirtyOffsetCounts;
+        
+		    public Singleton(int capacity, Allocator allocator)
+		    {
+			    Layout = new NativeArray<VertexAttributeDescriptor>(3, Allocator.Persistent);
+			    Layout[0] = new VertexAttributeDescriptor(VertexAttribute.Position);
+			    Layout[1] = new VertexAttributeDescriptor(VertexAttribute.Normal);
+			    Layout[2] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 2);
+
+			    HashesToUpdate = new NativeList<Hash128>(8, allocator);
+			    MeshDataArray = default;
+			    UpdatedMeshBoundsMap = new NativeParallelHashMap<Hash128, AABB>(8, allocator);
+			    RenderingEntities = new NativeList<Entity>(capacity, allocator);
+			    
+			    Positions = new NativeList<int2>(capacity, allocator);
+			    SpriteMeshes = new NativeList<SpriteMesh>(capacity, allocator);
+			    Vertices = new NativeList<Vertex>(capacity, allocator);
+			    Indices = new NativeList<int>(capacity, allocator);
+			    LayerPointers = new NativeList<int>(capacity, allocator);
+
+			    DirtyTilemapsRendererData = new NativeList<TilemapRendererData>(8, allocator);
+			    DirtyOffsetCounts = new NativeList<OffsetData>(8, allocator);
+		    }
+
+		    public void Dispose()
+		    {
+			    Layout.Dispose();
+			    HashesToUpdate.Dispose();
+			    UpdatedMeshBoundsMap.Dispose();
+			    RenderingEntities.Dispose();
+			    
+			    Positions.Dispose();
+			    SpriteMeshes.Dispose();
+			    Vertices.Dispose();
+			    Indices.Dispose();
+			    LayerPointers.Dispose();
+
+			    DirtyTilemapsRendererData.Dispose();
+			    DirtyOffsetCounts.Dispose();
+		    }
+	    }
+	    
         
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
-	        _data = new Data(8, Allocator.Persistent);
-	        
-            _layout = new NativeArray<VertexAttributeDescriptor>(3, Allocator.Persistent);
-            _layout[0] = new VertexAttributeDescriptor(VertexAttribute.Position);
-            _layout[1] = new VertexAttributeDescriptor(VertexAttribute.Normal);
-            _layout[2] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 2);
+	        state.EntityManager.CreateSingleton(new Singleton(256, Allocator.Persistent));
         }
         
         [BurstCompile]
         public void OnDestroy(ref SystemState state)
         {
-	        _data.Dispose();
-	        _layout.Dispose();
+	        SystemAPI.GetSingleton<Singleton>().Dispose();
         }
 
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
 	        var dataSingleton = SystemAPI.GetSingleton<TilemapDataSingleton>();
-	        var meshDataSingleton = SystemAPI.GetSingletonRW<TilemapMeshDataSingleton>().ValueRW;
 	        var tcb = SystemAPI.GetSingleton<TilemapCommandBufferSingleton>();
+	        
+	        var singleton = SystemAPI.GetSingletonRW<Singleton>().ValueRW;
 
 	        var cullingBoundsChanged = !tcb.PrevCullingBounds.Value.Equals(tcb.CullingBounds.Value);
 	        tcb.PrevCullingBounds.Value = tcb.CullingBounds.Value;
 	        
 	        state.Dependency = new FindHashesToUpdateJob
 	        {
-		        MeshHashesToUpdate = meshDataSingleton.TilemapHashesToUpdate,
+		        HashesToUpdate = singleton.HashesToUpdate,
 		        IntGridLayers = dataSingleton.IntGridLayers,
 		        CullingBoundsChanged = cullingBoundsChanged,
-		        Data = _data,
+		        DirtyOffsetCounts = singleton.DirtyOffsetCounts,
+		        DirtyTilemapsRendererData = singleton.DirtyTilemapsRendererData,
+		        LayerPointers = singleton.LayerPointers,
 		        TilemapRendererDataLookup = SystemAPI.GetComponentLookup<TilemapRendererData>(true),
 	        }.Schedule(state.Dependency);
 	        
             state.Dependency = new ResizeLargeListsJob
             {
+	            HashesToUpdate = singleton.HashesToUpdate.AsDeferredJobArray(),
 	            IntGridLayers = dataSingleton.IntGridLayers,
-	            Data = _data
+	            DirtyOffsetCounts = singleton.DirtyOffsetCounts,
+	            Positions = singleton.Positions,
+	            SpriteMeshes = singleton.SpriteMeshes,
+	            Vertices = singleton.Vertices,
+	            Indices = singleton.Indices,
+	            LayerPointers = singleton.LayerPointers,
             }.Schedule(state.Dependency);
             
             state.Dependency = new PrepareAndCullSpriteMeshDataJob
             {
-	            HashesToUpdate = _data.TilemapHashesToUpdate.AsDeferredJobArray(),
+	            HashesToUpdate = singleton.HashesToUpdate.AsDeferredJobArray(),
 	            IntGridLayers = dataSingleton.IntGridLayers,
-	            OffsetData = _data.DirtyOffsetCounts.AsDeferredJobArray(),
-	            Positions = _data.Positions.AsDeferredJobArray(),
-	            SpriteMeshes = _data.SpriteMeshes.AsDeferredJobArray(),
+	            OffsetData = singleton.DirtyOffsetCounts.AsDeferredJobArray(),
+	            Positions = singleton.Positions.AsDeferredJobArray(),
+	            SpriteMeshes = singleton.SpriteMeshes.AsDeferredJobArray(),
 	            CullingBounds = tcb.CullingBounds.Value,
-            }.Schedule(_data.DirtyOffsetCounts, 1, state.Dependency);
+            }.Schedule(singleton.HashesToUpdate, 1, state.Dependency);
             
             state.Dependency = new PatchLayerPointersJob
             {
-	            HashesToUpdate = _data.TilemapHashesToUpdate.AsDeferredJobArray(),
-	            Offsets = _data.DirtyOffsetCounts.AsDeferredJobArray(),
-	            LayerPointers = _data.LayerPointers
+	            HashesToUpdate = singleton.HashesToUpdate.AsDeferredJobArray(),
+	            Offsets = singleton.DirtyOffsetCounts.AsDeferredJobArray(),
+	            LayerPointers = singleton.LayerPointers
             }.Schedule(state.Dependency);
             
             var setBufferParamsHandle = new SetBufferParamsJob
             {
-	            Offsets = _data.DirtyOffsetCounts.AsDeferredJobArray(),
-	            MeshDataArray = meshDataSingleton.TilemapMeshDataArray.Array,
-	            Layout = _layout,
-            }.Schedule(_data.DirtyOffsetCounts, 1, state.Dependency);
+	            Offsets = singleton.DirtyOffsetCounts.AsDeferredJobArray(),
+	            MeshDataArray = singleton.MeshDataArray.Array,
+	            Layout = singleton.Layout,
+            }.Schedule(singleton.DirtyOffsetCounts, 1, state.Dependency);
             
             state.Dependency = new GenerateVertexDataJob
             {
-	            LayerData = _data.DirtyTilemapsRendererData.AsDeferredJobArray(),
-	            OffsetCount = _data.DirtyOffsetCounts.AsDeferredJobArray(),
-	            Positions = _data.Positions.AsDeferredJobArray(),
-	            SpriteMeshes = _data.SpriteMeshes.AsDeferredJobArray(),
-	            LayerPointer = _data.LayerPointers.AsDeferredJobArray(),
-	            Vertices = _data.Vertices.AsDeferredJobArray(),
-	            Indices = _data.Indices.AsDeferredJobArray(),
-            }.Schedule(_data.LayerPointers, 128, state.Dependency);
+	            LayerData = singleton.DirtyTilemapsRendererData.AsDeferredJobArray(),
+	            OffsetCount = singleton.DirtyOffsetCounts.AsDeferredJobArray(),
+	            Positions = singleton.Positions.AsDeferredJobArray(),
+	            SpriteMeshes = singleton.SpriteMeshes.AsDeferredJobArray(),
+	            LayerPointer = singleton.LayerPointers.AsDeferredJobArray(),
+	            Vertices = singleton.Vertices.AsDeferredJobArray(),
+	            Indices = singleton.Indices.AsDeferredJobArray(),
+            }.Schedule(singleton.LayerPointers, 128, state.Dependency);
             
             state.Dependency = new FinalizeMeshDataJob
             {
-	            HashesToUpdate = _data.TilemapHashesToUpdate.AsDeferredJobArray(),
-	            Offsets = _data.DirtyOffsetCounts.AsDeferredJobArray(),
-	            Vertices = _data.Vertices.AsDeferredJobArray(),
-	            Indices = _data.Indices.AsDeferredJobArray(),
-	            UpdatedMeshBoundsMapWriter = meshDataSingleton.UpdatedMeshBoundsMap.AsParallelWriter(),
-	            MeshDataArray = meshDataSingleton.TilemapMeshDataArray.Array,
-            }.Schedule(_data.DirtyOffsetCounts, 1, JobHandle.CombineDependencies(setBufferParamsHandle, state.Dependency));
+	            HashesToUpdate = singleton.HashesToUpdate.AsDeferredJobArray(),
+	            Offsets = singleton.DirtyOffsetCounts.AsDeferredJobArray(),
+	            Vertices = singleton.Vertices.AsDeferredJobArray(),
+	            Indices = singleton.Indices.AsDeferredJobArray(),
+	            UpdatedMeshBoundsMapWriter = singleton.UpdatedMeshBoundsMap.AsParallelWriter(),
+	            MeshDataArray = singleton.MeshDataArray.Array,
+            }.Schedule(singleton.DirtyOffsetCounts, 1, JobHandle.CombineDependencies(setBufferParamsHandle, state.Dependency));
         }
         
         [BurstCompile]
@@ -118,15 +177,17 @@ namespace KrasCore.Mosaic
 	        public NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer> IntGridLayers;
 	        
 	        public bool CullingBoundsChanged;
-	        public Data Data;
-	        public NativeList<Hash128> MeshHashesToUpdate;
+	        
+	        public NativeList<Hash128> HashesToUpdate;
+	        public NativeList<TilemapRendererData> DirtyTilemapsRendererData;
+	        public NativeList<OffsetData> DirtyOffsetCounts;
+	        public NativeList<int> LayerPointers;
 	        
 	        public void Execute()
 	        {
-		        Data.TilemapHashesToUpdate.Clear();
-		        Data.DirtyTilemapsRendererData.Clear();
-		        Data.DirtyOffsetCounts.Clear();
-		        Data.LayerPointers.Clear();
+		        DirtyTilemapsRendererData.Clear();
+		        DirtyOffsetCounts.Clear();
+		        LayerPointers.Clear();
 	        
 		        foreach (var kvp in IntGridLayers)
 		        {
@@ -141,10 +202,9 @@ namespace KrasCore.Mosaic
 				        continue;
 			        }
 		        
-			        Data.TilemapHashesToUpdate.Add(intGridHash);
-			        MeshHashesToUpdate.Add(intGridHash);
-			        Data.DirtyTilemapsRendererData.Add(TilemapRendererDataLookup[dataLayer.IntGridEntity]);
-			        Data.DirtyOffsetCounts.Add(default);
+			        HashesToUpdate.Add(intGridHash);
+			        DirtyTilemapsRendererData.Add(TilemapRendererDataLookup[dataLayer.IntGridEntity]);
+			        DirtyOffsetCounts.Add(default);
 		        }
 	        }
         }
@@ -153,24 +213,32 @@ namespace KrasCore.Mosaic
         private struct ResizeLargeListsJob : IJob
         {
 	        [ReadOnly]
+	        public NativeArray<Hash128> HashesToUpdate;
+	        [ReadOnly]
 	        public NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer> IntGridLayers;
 
-	        public Data Data;
+	        public NativeList<OffsetData> DirtyOffsetCounts;
+	        
+	        public NativeList<int2> Positions;
+	        public NativeList<SpriteMesh> SpriteMeshes;
+	        public NativeList<Vertex> Vertices;
+	        public NativeList<int> Indices;
+	        public NativeList<int> LayerPointers;
 	        
 	        public void Execute()
 	        {
-		        if (Data.TilemapHashesToUpdate.Length == 0) return;
+		        if (HashesToUpdate.Length == 0) return;
 		        
 		        var spriteMeshesCount = 0;
-		        for (var i = 0; i < Data.TilemapHashesToUpdate.Length; i++)
+		        for (var i = 0; i < HashesToUpdate.Length; i++)
 		        {
-			        var data = IntGridLayers[Data.TilemapHashesToUpdate[i]];
+			        var data = IntGridLayers[HashesToUpdate[i]];
 
 			        var offset = spriteMeshesCount;
 			        var count = data.RenderedSprites.Count;
 			        spriteMeshesCount += count;
 			        
-			        Data.DirtyOffsetCounts[i] = new OffsetData
+			        DirtyOffsetCounts[i] = new OffsetData
 			        {
 				        DataOffset = offset,
 				        Count = count
@@ -180,11 +248,11 @@ namespace KrasCore.Mosaic
 		        var vertexCount = spriteMeshesCount * 4;
 		        var triangleCount = spriteMeshesCount * 6;		
 		        
-		        Data.Positions.EnsureCapacity(spriteMeshesCount, true);
-		        Data.SpriteMeshes.EnsureCapacity(spriteMeshesCount, true);
-		        Data.Vertices.EnsureCapacity(vertexCount, true);
-		        Data.Indices.EnsureCapacity(triangleCount, true);
-		        Data.LayerPointers.EnsureCapacity(spriteMeshesCount, true);
+		        Positions.EnsureCapacity(spriteMeshesCount, true);
+		        SpriteMeshes.EnsureCapacity(spriteMeshesCount, true);
+		        Vertices.EnsureCapacity(vertexCount, true);
+		        Indices.EnsureCapacity(triangleCount, true);
+		        LayerPointers.EnsureCapacity(spriteMeshesCount, true);
 	        }
         }
         
@@ -347,28 +415,28 @@ namespace KrasCore.Mosaic
         		{
         			Position = rotatedPos + MosaicUtils.Rotate(up - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
 			        Normal = normal,
-        			UV = new float2(minUv.x, maxUv.y)
+        			TexCoord0 = new float2(minUv.x, maxUv.y)
         		};
 
 		        Vertices[vc + 1] = new Vertex
         		{
         			Position = rotatedPos + MosaicUtils.Rotate(up + right - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
 			        Normal = normal,
-        			UV = new float2(maxUv.x, maxUv.y)
+        			TexCoord0 = new float2(maxUv.x, maxUv.y)
         		};
 
 		        Vertices[vc + 2] = new Vertex
         		{
         			Position = rotatedPos + MosaicUtils.Rotate(right - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
 			        Normal = normal,
-        			UV = new float2(maxUv.x, minUv.y)
+        			TexCoord0 = new float2(maxUv.x, minUv.y)
         		};
 
 		        Vertices[vc + 3] = new Vertex
         		{
         			Position = rotatedPos + MosaicUtils.Rotate(-pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
 			        Normal = normal,
-        			UV = new float2(minUv.x, minUv.y)
+        			TexCoord0 = new float2(minUv.x, minUv.y)
         		};
 		        
 		        vc -= offset.DataOffset * 4;
@@ -433,13 +501,13 @@ namespace KrasCore.Mosaic
 		        });
 	        }
         }
-    }
-
-	[StructLayout(LayoutKind.Sequential)]
-    public struct Vertex
-    {
-        public float3 Position;
-        public float3 Normal;
-        public float2 UV;
+        
+		[StructLayout(LayoutKind.Sequential)]
+	    public struct Vertex
+	    {
+	        public float3 Position;
+	        public float3 Normal;
+	        public float2 TexCoord0;
+	    }
     }
 }
