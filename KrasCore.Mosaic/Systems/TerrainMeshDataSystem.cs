@@ -146,7 +146,7 @@ namespace KrasCore.Mosaic
             {
 	            Layout = singleton.Layout,
 	            HashesToUpdate = singleton.HashesToUpdate.AsDeferredJobArray(),
-	            LayerData = singleton.TilemapRendererData.AsDeferredJobArray(),
+	            RendererData = singleton.TilemapRendererData.AsDeferredJobArray(),
 	            Terrains = singleton.Terrains,
 	            MeshDataArray = singleton.MeshDataArray.Array,
 	            UpdatedMeshBoundsMapWriter = singleton.UpdatedMeshBoundsMap.AsParallelWriter()
@@ -239,7 +239,7 @@ namespace KrasCore.Mosaic
 	        public NativeArray<Hash128> HashesToUpdate;
 	        
 	        [ReadOnly]
-	        public NativeArray<TilemapRendererData> LayerData;
+	        public NativeArray<TilemapRendererData> RendererData;
 	        
 	        public Mesh.MeshDataArray MeshDataArray;
 	        public NativeParallelHashMap<Hash128, AABB>.ParallelWriter UpdatedMeshBoundsMapWriter;
@@ -248,7 +248,7 @@ namespace KrasCore.Mosaic
 	        {
 		        var hash = HashesToUpdate[index];
 		        var meshData = MeshDataArray[index];
-		        var rendererData = LayerData[index];
+		        var rendererData = RendererData[index];
 		        ref var terrainData = ref Terrains.GetValueAsRef(hash);
 
 		        var quadCount = terrainData.RawTilesToBlend.Count;
@@ -278,19 +278,19 @@ namespace KrasCore.Mosaic
 			        var rectSize = MosaicUtils.ApplySwizzle(rendererData.CellSize, rendererData.Swizzle).xy;
 			        var rotatedSize = MosaicUtils.ApplyOrientation(rectSize, orientation);
 
-			        var tileCenter = worldPos + rotatedSize * 0.5f;
-			        
-			        minPos = math.min(minPos, tileCenter);
-			        maxPos = math.max(maxPos, tileCenter);
-			        
 			        var normal = MosaicUtils.ApplyOrientation(new float3(0, 0, 1), orientation);
-			        
 			        var up = MosaicUtils.ApplyOrientation(new float3(0, 1, 0), orientation) * rotatedSize;
 			        var right = MosaicUtils.ApplyOrientation(new float3(1, 0, 0), orientation) * rotatedSize;
 
 			        var vc = 4 * quadIndex;
 			        var tc = 6 * quadIndex;
+			        
+			        var minVertexPos = worldPos;
+			        var maxVertexPos = worldPos + up + right;
 
+			        minPos = math.min(minPos, minVertexPos);
+			        maxPos = math.max(maxPos, maxVertexPos);
+			        
 			        vertices[vc + 0] = new Vertex
 			        {
 				        Position = worldPos + up,
@@ -299,7 +299,7 @@ namespace KrasCore.Mosaic
 			        };
 			        vertices[vc + 1] = new Vertex
 			        {
-				        Position = worldPos + up + right,
+				        Position = maxVertexPos,
 				        Normal = normal,
 				        TexCoord0 = new float2(terrainData.TileSize.x, terrainData.TileSize.y)
 			        };
@@ -311,7 +311,7 @@ namespace KrasCore.Mosaic
 			        };
 			        vertices[vc + 3] = new Vertex
 			        {
-				        Position = worldPos,
+				        Position = minVertexPos,
 				        Normal = normal,
 				        TexCoord0 = new float2(0f, 0f)
 			        };
