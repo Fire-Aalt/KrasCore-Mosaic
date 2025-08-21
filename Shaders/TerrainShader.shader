@@ -263,7 +263,7 @@ Shader "TerrainShader"
 
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
-			#include "Assets/Submodules/KrasCore Mosaic/Rendering/MosaicTerrain.hlsl"
+			#include "Assets/Submodules/KrasCore Mosaic/Shaders/MosaicTerrain.hlsl"
 
 
 			#if defined(ASE_EARLY_Z_DEPTH_OPTIMIZE) && (SHADER_TARGET >= 45)
@@ -883,7 +883,7 @@ Shader "TerrainShader"
 
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
-			#include "Assets/Submodules/KrasCore Mosaic/Rendering/MosaicTerrain.hlsl"
+			#include "Assets/Submodules/KrasCore Mosaic/Shaders/MosaicTerrain.hlsl"
 
 
 			#if defined(ASE_EARLY_Z_DEPTH_OPTIMIZE) && (SHADER_TARGET >= 45)
@@ -1205,7 +1205,7 @@ Shader "TerrainShader"
 
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
-			#include "Assets/Submodules/KrasCore Mosaic/Rendering/MosaicTerrain.hlsl"
+			#include "Assets/Submodules/KrasCore Mosaic/Shaders/MosaicTerrain.hlsl"
 
 
 			#if defined(ASE_EARLY_Z_DEPTH_OPTIMIZE) && (SHADER_TARGET >= 45)
@@ -1502,7 +1502,7 @@ Shader "TerrainShader"
 
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
-			#include "Assets/Submodules/KrasCore Mosaic/Rendering/MosaicTerrain.hlsl"
+			#include "Assets/Submodules/KrasCore Mosaic/Shaders/MosaicTerrain.hlsl"
 
 
 			struct Attributes
@@ -1794,7 +1794,7 @@ Shader "TerrainShader"
 
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
-			#include "Assets/Submodules/KrasCore Mosaic/Rendering/MosaicTerrain.hlsl"
+			#include "Assets/Submodules/KrasCore Mosaic/Shaders/MosaicTerrain.hlsl"
 
 
 			struct Attributes
@@ -2080,7 +2080,7 @@ Shader "TerrainShader"
 
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
-			#include "Assets/Submodules/KrasCore Mosaic/Rendering/MosaicTerrain.hlsl"
+			#include "Assets/Submodules/KrasCore Mosaic/Shaders/MosaicTerrain.hlsl"
 
 
 			#if defined(ASE_EARLY_Z_DEPTH_OPTIMIZE) && (SHADER_TARGET >= 45)
@@ -2464,7 +2464,7 @@ Shader "TerrainShader"
 
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
-			#include "Assets/Submodules/KrasCore Mosaic/Rendering/MosaicTerrain.hlsl"
+			#include "Assets/Submodules/KrasCore Mosaic/Shaders/MosaicTerrain.hlsl"
 
 
 			#if defined(ASE_EARLY_Z_DEPTH_OPTIMIZE) && (SHADER_TARGET >= 45)
@@ -2954,7 +2954,7 @@ Shader "TerrainShader"
 
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
-			#include "Assets/Submodules/KrasCore Mosaic/Rendering/MosaicTerrain.hlsl"
+			#include "Assets/Submodules/KrasCore Mosaic/Shaders/MosaicTerrain.hlsl"
 
 
 			#if defined(ASE_EARLY_Z_DEPTH_OPTIMIZE) && (SHADER_TARGET >= 45)
@@ -3253,7 +3253,7 @@ Shader "TerrainShader"
 
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
-			#include "Assets/Submodules/KrasCore Mosaic/Rendering/MosaicTerrain.hlsl"
+			#include "Assets/Submodules/KrasCore Mosaic/Shaders/MosaicTerrain.hlsl"
 
 
 			#if defined(ASE_EARLY_Z_DEPTH_OPTIMIZE) && (SHADER_TARGET >= 45)
@@ -3555,7 +3555,7 @@ Shader "TerrainShader"
 
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
-			#include "Assets/Submodules/KrasCore Mosaic/Rendering/MosaicTerrain.hlsl"
+			#include "Assets/Submodules/KrasCore Mosaic/Shaders/MosaicTerrain.hlsl"
 
 
 			#if defined(ASE_EARLY_Z_DEPTH_OPTIMIZE) && (SHADER_TARGET >= 45)
@@ -3785,4 +3785,4 @@ WireConnection;1;0;55;0
 WireConnection;1;6;55;6
 WireConnection;1;7;28;0
 ASEEND*/
-//CHKSM=13B3FFBC845F2E64B68FE08A57519795096A6A11
+//CHKSM=0D1E74DFAFFF146A0D44DC0E9913DF612B2CA8FB

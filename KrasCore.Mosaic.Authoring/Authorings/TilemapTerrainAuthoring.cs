@@ -4,10 +4,7 @@ using KrasCore.Mosaic.Data;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
-using UnityEditor;
 using UnityEngine;
-using Hash128 = Unity.Entities.Hash128;
-using Random = UnityEngine.Random;
 
 namespace KrasCore.Mosaic.Authoring
 {
@@ -16,7 +13,6 @@ namespace KrasCore.Mosaic.Authoring
         public List<IntGridDefinition> intGridLayers = new();
         public RenderingData renderingData;
         public int maxLayersBlend = 4;
-        public Hash128 terrainHash;
 
         private void OnValidate()
         {
@@ -38,17 +34,7 @@ namespace KrasCore.Mosaic.Authoring
                 maxLayersBlend = blendCapacity.Capacity;
             }
         }
-
-        [MenuItem("CONTEXT/TilemapTerrainAuthoring/Randomize Terrain Hash")]
-        private static void RandomizeTerrainHash(MenuCommand command)
-        {
-            var body = (TilemapTerrainAuthoring)command.context;
-            body.terrainHash = new Hash128((uint)Random.Range(int.MinValue, int.MaxValue),
-                (uint)Random.Range(int.MinValue, int.MaxValue),
-                (uint)Random.Range(int.MinValue, int.MaxValue),
-                (uint)Random.Range(int.MinValue, int.MaxValue));
-        }
-
+        
         private class Baker : Baker<TilemapTerrainAuthoring>
         {
             public override void Bake(TilemapTerrainAuthoring authoring)
@@ -78,16 +64,19 @@ namespace KrasCore.Mosaic.Authoring
                     layersBuffer.Add(new TilemapTerrainLayerElement { IntGridHash = authoring.intGridLayers[i].Hash });
                     AddComponent(intGridLayersEntities[i], new Data.TerrainLayer { TerrainEntity = entity });
                 }
+
+                // The system ensures that IntGrids are not shared, so we can just use the first one as hash
+                var terrainHash = authoring.intGridLayers[0].Hash;
                 
                 // Bake terrain entity
                 AddComponent(entity, new Data.TerrainData
                 {
-                    TerrainHash = authoring.terrainHash,
+                    TerrainHash = terrainHash,
                     TileSize = tileSize,
                     MaxLayersBlend = authoring.maxLayersBlend,
                 });
 
-                BakerUtils.AddRenderingData(this, entity, authoring.terrainHash, authoring.renderingData, gridAuthoring, materialTexture);
+                BakerUtils.AddRenderingData(this, entity, terrainHash, authoring.renderingData, gridAuthoring, materialTexture);
             }
         }
     }

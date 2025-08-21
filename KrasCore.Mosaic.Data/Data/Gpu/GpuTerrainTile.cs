@@ -9,19 +9,18 @@ namespace KrasCore.Mosaic.Data
         public float2 Offset;
         public uint Flags;
 
-        public GpuTerrainTile(float2 offset, int weight, bool2 flip, int rot)
+        public GpuTerrainTile(float2 offset, bool2 flip, int rot)
         {
             Offset = offset;
 		            
             var flipX = flip.x ? 1 : 0;
             var flipY = flip.y ? 1 : 0;
           
-            weight &= 1;
             flipX &= 1;
             flipY &= 1;
             rot &= 3;
 
-            Flags = (uint)(weight | (flipX << 1) | (flipY << 2) | (rot << 3));
+            Flags = (uint)(flipX | (flipY << 1) | (rot << 2));
         }
     }
 }

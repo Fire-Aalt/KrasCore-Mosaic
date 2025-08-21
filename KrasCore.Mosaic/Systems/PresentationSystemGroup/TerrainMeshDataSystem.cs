@@ -222,7 +222,7 @@ namespace KrasCore.Mosaic
 	                    }
 	                    
 	                    var spriteMesh = kvp.Value;
-	                    layers.Add(new GpuTerrainTile(spriteMesh.MinUv, 1, spriteMesh.Flip, spriteMesh.Rotation));
+	                    layers.Add(new GpuTerrainTile(spriteMesh.MinUv, spriteMesh.Flip, spriteMesh.Rotation));
                     }
                 }
             }

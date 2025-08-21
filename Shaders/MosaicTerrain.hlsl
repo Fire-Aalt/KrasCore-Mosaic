@@ -3,7 +3,7 @@
 
 struct TerrainTile {
   float2 offset;
-  uint flags; // packed: weight(1) | flipX(1) | flipY(1) | rot(2)
+  uint flags; // packed: flipX(1) | flipY(1) | rot(2)
 };
 
 struct TerrainIndex {
@@ -14,10 +14,9 @@ struct TerrainIndex {
 StructuredBuffer<TerrainTile> _TerrainTileBuffer;
 StructuredBuffer<TerrainIndex> _TerrainIndexBuffer;
 
-inline uint GetWeight(uint flags) { return  flags        & 1u; }
-inline uint GetFlipX(uint flags)  { return (flags >> 1u) & 1u; }
-inline uint GetFlipY(uint flags)  { return (flags >> 2u) & 1u; }
-inline uint GetRot(uint flags)    { return (flags >> 3u) & 3u; }
+inline uint GetFlipX(uint flags)  { return (flags) & 1u; }
+inline uint GetFlipY(uint flags)  { return (flags >> 1u) & 1u; }
+inline uint GetRot(uint flags)    { return (flags >> 2u) & 3u; }
 
 // flipX: 0/1, flipY: 0/1
 inline float2 Flip(float2 uv, float flip_x, float flip_y, float2 rect_size) {
@@ -55,14 +54,12 @@ inline float2 Rotate90(float2 uv, uint rot, float2 rect_size) {
 // Read all params for an id
 inline void ReadTileParams(uint data_index,
                            out float2 offset,
-                           out float weight,
                            out float flip_x,
                            out float flip_y,
                            out uint rot) {
   TerrainTile p = _TerrainTileBuffer[data_index];
   offset = p.offset;
   uint flags = p.flags;
-  weight = GetWeight(flags);
   flip_x = GetFlipX(flags);
   flip_y = GetFlipY(flags);
   rot = GetRot(flags);
@@ -72,13 +69,12 @@ inline void ComputeLayer(
   uint index,
   float2 tile_size,
   float2 quad_uv,
-  out float2 uv,
-  out float weight
+  out float2 uv
 ) {
   float2 offset;
   float flip_x, flip_y;
   uint rot;
-  ReadTileParams(index, offset, weight, flip_x, flip_y, rot);
+  ReadTileParams(index, offset, flip_x, flip_y, rot);
 
   uv = Rotate90(quad_uv, rot, tile_size);
   uv = Flip(uv, flip_x, flip_y, tile_size);
@@ -110,8 +106,7 @@ inline void BlendLayers(
   [loop] for (uint index = indices.start_index; index < indices.end_index; ++index)
   {
     float2 uv;
-    float weight;
-    ComputeLayer(index, TileSize, BaseUV, uv, weight);
+    ComputeLayer(index, TileSize, BaseUV, uv);
     
     float4 layer = SAMPLE_TEXTURE2D(Texture, Sampler, uv);
     // TODO: either remove or unroll loop

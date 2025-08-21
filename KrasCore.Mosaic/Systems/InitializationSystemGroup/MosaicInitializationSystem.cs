@@ -4,8 +4,6 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Rendering;
 using UnityEngine;
-using TerrainData = KrasCore.Mosaic.Data.TerrainData;
-using TerrainLayer = KrasCore.Mosaic.Data.TerrainLayer;
 
 namespace KrasCore.Mosaic
 {
@@ -31,12 +29,18 @@ namespace KrasCore.Mosaic
                     var tilemapRenderingData = rendererData[i];
                     var entity = entities[i];
                     
+                    if (presentationSingleton.MeshMap.ContainsKey(tilemapRenderingData.MeshHash))
+                    {
+                        Debug.LogError($"A duplicate registry attempt detected. This may happen if a TilemapTerrain and a Tilemap share the same IntGrid. Culprit: {tilemapRenderingData.MeshHash}");
+                        continue;
+                    };
+                    
                     var mesh = new Mesh { name = "Mosaic.TilemapMesh" };
                     mesh.MarkDynamic();
                     presentationSingleton.MeshMap.Add(tilemapRenderingData.MeshHash, mesh);
 
                     var material = runtimeMaterials[i].Value.Value;
-                    if (EntityManager.HasComponent<TerrainData>(entity))
+                    if (EntityManager.HasComponent<Data.TerrainData>(entity))
                     {
                         material = new Material(material); // Force unique for terrains
                         
@@ -68,7 +72,7 @@ namespace KrasCore.Mosaic
         
             Dependency = new RegisterJob
             {
-                TilemapTerrainLayerTagLookup = SystemAPI.GetComponentLookup<TerrainLayer>(true),
+                TilemapTerrainLayerTagLookup = SystemAPI.GetComponentLookup<Data.TerrainLayer>(true),
                 Tcb = SystemAPI.GetSingletonRW<TilemapCommandBufferSingleton>().ValueRW,
                 DataSingleton = SystemAPI.GetSingletonRW<RuleEngineSystem.Singleton>().ValueRW,
             }.Schedule(Dependency);
@@ -84,7 +88,7 @@ namespace KrasCore.Mosaic
         private partial struct RegisterJob : IJobEntity
         {
             [ReadOnly]
-            public ComponentLookup<TerrainLayer> TilemapTerrainLayerTagLookup;
+            public ComponentLookup<Data.TerrainLayer> TilemapTerrainLayerTagLookup;
             
             public TilemapCommandBufferSingleton Tcb;
             public RuleEngineSystem.Singleton DataSingleton;
@@ -92,10 +96,16 @@ namespace KrasCore.Mosaic
             private void Execute(ref IntGridData intGridData, EnabledRefRW<IntGridData> enabled, Entity entity)
             {
                 var isTerrainLayer = TilemapTerrainLayerTagLookup.HasComponent(entity);
-                
-                Tcb.TryRegisterIntGridLayer(intGridData.Hash);
-                DataSingleton.TryRegisterIntGridLayer(intGridData, isTerrainLayer, entity);
-                enabled.ValueRW = true;
+
+                if (Tcb.TryRegisterIntGridLayer(intGridData.Hash) 
+                    && DataSingleton.TryRegisterIntGridLayer(intGridData, isTerrainLayer, entity))
+                {
+                    enabled.ValueRW = true;
+                }
+                else
+                {
+                    Debug.LogError($"A duplicate registry attempt detected. This may happen if a TilemapTerrain and a Tilemap share the same IntGrid. Culprit: {intGridData.DebugName}");
+                }
             }
         }
 
