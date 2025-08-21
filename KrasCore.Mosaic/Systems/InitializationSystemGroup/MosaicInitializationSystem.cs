@@ -14,7 +14,7 @@ namespace KrasCore.Mosaic
     {
         protected override void OnUpdate()
         {
-            var uninitializedQuery = SystemAPI.QueryBuilder().WithAll<TilemapRendererInitData, RuntimeMaterial>().WithNone<MaterialMeshInfo>().Build();
+            var uninitializedQuery = SystemAPI.QueryBuilder().WithAll<TilemapRendererData, RuntimeMaterial>().WithNone<MaterialMeshInfo>().Build();
             if (!uninitializedQuery.IsEmpty)
             {
                 var presentationSingleton = SystemAPI.ManagedAPI.GetSingleton<MosaicPresentationSystem.Singleton>();
@@ -23,12 +23,12 @@ namespace KrasCore.Mosaic
                 var entitiesGraphicsSystem = World.GetExistingSystemManaged<EntitiesGraphicsSystem>();
 
                 var entities = uninitializedQuery.ToEntityArray(Allocator.Temp);
-                var tilemapRendererData = uninitializedQuery.ToComponentDataArray<TilemapRendererInitData>(Allocator.Temp);
+                var rendererData = uninitializedQuery.ToComponentDataArray<TilemapRendererData>(Allocator.Temp);
                 var runtimeMaterials = uninitializedQuery.ToComponentDataArray<RuntimeMaterial>(Allocator.Temp);
 
                 for (int i = 0; i < entities.Length; i++)
                 {
-                    var tilemapRenderingData = tilemapRendererData[i];
+                    var tilemapRenderingData = rendererData[i];
                     var entity = entities[i];
                     
                     var mesh = new Mesh { name = "Mosaic.TilemapMesh" };
@@ -105,9 +105,9 @@ namespace KrasCore.Mosaic
             [ReadOnly]
             public ComponentLookup<GridData> GridDataLookup;
             
-            private void Execute(in TilemapRendererInitData data, ref TilemapRendererData rendererData)
+            private void Execute(ref TilemapRendererData rendererData)
             {
-                var gridData = GridDataLookup[data.GridEntity];
+                var gridData = GridDataLookup[rendererData.GridEntity];
                 rendererData.Swizzle = gridData.Swizzle;
                 rendererData.CellSize = gridData.CellSize;
             }

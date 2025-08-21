@@ -136,20 +136,20 @@ namespace KrasCore.Mosaic
 	        public NativeList<Hash128> HashesToUpdate;
 	        public NativeHashMap<Hash128, Singleton.IntGrid> Tilemaps;
             
-	        private void Execute(in IntGridData intGridData, in TilemapRendererInitData tilemapRendererInitData, Entity entity)
+	        private void Execute(in IntGridData intGridData, in TilemapRendererData tilemapRendererData, Entity entity)
 	        {
-		        if (!Tilemaps.ContainsKey(tilemapRendererInitData.MeshHash))
+		        if (!Tilemaps.ContainsKey(tilemapRendererData.MeshHash))
 		        {
 			        var terrain = new Singleton.IntGrid(entity, 256, Allocator.Persistent);
                     
-			        Tilemaps.Add(tilemapRendererInitData.MeshHash, terrain);
+			        Tilemaps.Add(tilemapRendererData.MeshHash, terrain);
 		        }
                 
 		        ref var dataLayer = ref IntGridLayers.GetValueAsRef(intGridData.Hash);
 		        
 		        if (!dataLayer.RefreshedPositions.IsEmpty || CullingBoundsChanged || dataLayer.Cleared)
 		        {
-			        HashesToUpdate.Add(tilemapRendererInitData.MeshHash);
+			        HashesToUpdate.Add(tilemapRendererData.MeshHash);
 		        }
 	        }
         }

@@ -20,15 +20,11 @@ namespace KrasCore.Mosaic.Authoring
             
             baker.AddComponent(entity, new TilemapRendererData
             {
-                Orientation = renderingData.orientation,
-            });
-            
-            baker.AddComponent(entity, new TilemapRendererInitData
-            {
                 MeshHash = meshHash,
                 GridEntity = baker.GetEntity(gridAuthoring, TransformUsageFlags.None),
                 ShadowCastingMode = renderingData.shadowCastingMode,
-                ReceiveShadows = renderingData.receiveShadows
+                ReceiveShadows = renderingData.receiveShadows,
+                Orientation = renderingData.orientation,
             });
             
             baker.AddComponent(entity, new RuntimeMaterialLookup(renderingData.material, materialTexture));
