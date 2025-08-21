@@ -1,6 +1,6 @@
 {
   "name": "com.firealt.krascore-mosaic",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "displayName": "KrasCore.Mosaic",
   "description": "Mosaic is a Next Gen Runtime Unity ECS Tilemap solution, heavily inspired by LDtk, built using Entity Component System and Odin Inspector",
   "unity": "6000.23",
