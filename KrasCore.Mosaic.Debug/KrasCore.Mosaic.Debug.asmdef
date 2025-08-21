@@ -2,6 +2,7 @@
     "name": "KrasCore.Mosaic.Debug",
     "rootNamespace": "KrasCore.Mosaic.Debug",
     "references": [
+        "KrasCore.Mosaic",
         "KrasCore.Mosaic.Data",
         "KrasCore",
         "BovineLabs.Core",

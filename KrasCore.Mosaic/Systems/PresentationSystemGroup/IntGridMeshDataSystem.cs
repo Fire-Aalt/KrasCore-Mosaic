@@ -7,24 +7,26 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
-using UnityEngine;
 using UnityEngine.Rendering;
-using Hash128 = Unity.Entities.Hash128;
+using Mesh = UnityEngine.Mesh;
 
 namespace KrasCore.Mosaic
 {
 	[UpdateAfter(typeof(RuleEngineSystem))]
 	[UpdateInGroup(typeof(TilemapUpdateSystemGroup))]
-    public partial struct TilemapMeshDataSystem : ISystem
+    public partial struct IntGridMeshDataSystem : ISystem
     {
 	    public struct Singleton : IComponentData, IDisposable
 	    {
-		    public struct Tilemap : IDisposable
+		    public struct IntGrid : IDisposable
 		    {
+			    public Entity IntGridEntity;
+			    
 			    public UnsafeHashMap<int2, SpriteMesh> SpriteMeshes;
 	            
-			    public Tilemap(int capacity, Allocator allocator)
+			    public IntGrid(Entity intGridEntity, int capacity, Allocator allocator)
 			    {
+				    IntGridEntity = intGridEntity;
 				    SpriteMeshes = new UnsafeHashMap<int2, SpriteMesh>(capacity, allocator);
 			    }
 	            
@@ -40,8 +42,7 @@ namespace KrasCore.Mosaic
 		    public NativeParallelHashMap<Hash128, AABB> UpdatedMeshBoundsMap;
 		    public NativeList<Entity> RenderingEntities;
 
-		    public NativeList<TilemapRendererData> TilemapsRendererData;
-		    public NativeHashMap<Hash128, Tilemap> Tilemaps;
+		    public NativeHashMap<Hash128, IntGrid> Tilemaps;
 		    
 		    public Singleton(int capacity, Allocator allocator)
 		    {
@@ -55,8 +56,7 @@ namespace KrasCore.Mosaic
 			    UpdatedMeshBoundsMap = new NativeParallelHashMap<Hash128, AABB>(capacity, allocator);
 			    RenderingEntities = new NativeList<Entity>(capacity, allocator);
 
-			    TilemapsRendererData = new NativeList<TilemapRendererData>(capacity, allocator);
-			    Tilemaps = new NativeHashMap<Hash128, Tilemap>(capacity, allocator);
+			    Tilemaps = new NativeHashMap<Hash128, IntGrid>(capacity, allocator);
 		    }
 
 		    public void Dispose()
@@ -66,7 +66,6 @@ namespace KrasCore.Mosaic
 			    UpdatedMeshBoundsMap.Dispose();
 			    RenderingEntities.Dispose();
 			    
-			    TilemapsRendererData.Dispose();
 			    foreach (var kvp in Tilemaps)
 			    {
 				    kvp.Value.Dispose();
@@ -91,7 +90,7 @@ namespace KrasCore.Mosaic
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-	        var dataSingleton = SystemAPI.GetSingleton<TilemapDataSingleton>();
+	        var dataSingleton = SystemAPI.GetSingleton<RuleEngineSystem.Singleton>();
 	        var tcb = SystemAPI.GetSingleton<TilemapCommandBufferSingleton>();
 	        
 	        var singleton = SystemAPI.GetSingletonRW<Singleton>().ValueRW;
@@ -99,15 +98,12 @@ namespace KrasCore.Mosaic
 	        var cullingBoundsChanged = !tcb.PrevCullingBounds.Value.Equals(tcb.CullingBounds.Value);
 	        tcb.PrevCullingBounds.Value = tcb.CullingBounds.Value;
 	        
-	        singleton.TilemapsRendererData.Clear();
-	        
 	        state.Dependency = new FindHashesToUpdateJob
 	        {
 		        HashesToUpdate = singleton.HashesToUpdate,
 		        IntGridLayers = dataSingleton.IntGridLayers,
 		        CullingBoundsChanged = cullingBoundsChanged,
 		        Tilemaps = singleton.Tilemaps,
-		        TilemapRendererData = singleton.TilemapsRendererData,
 	        }.Schedule(state.Dependency);
             
             state.Dependency = new PrepareAndCullSpriteMeshDataJob
@@ -118,10 +114,10 @@ namespace KrasCore.Mosaic
 	            Tilemaps = singleton.Tilemaps,
             }.Schedule(singleton.HashesToUpdate, 1, state.Dependency);
             
-            state.Dependency = new GenerateTilemapMeshDataJob
+            state.Dependency = new GenerateIntGridMeshDataJob
             {
+	            TilemapRendererDataLookup = SystemAPI.GetComponentLookup<TilemapRendererData>(true),
 	            Layout = singleton.Layout,
-	            RendererData = singleton.TilemapsRendererData.AsDeferredJobArray(),
 	            Tilemaps = singleton.Tilemaps,
 	            HashesToUpdate = singleton.HashesToUpdate.AsDeferredJobArray(),
 	            MeshDataArray = singleton.MeshDataArray.Array,
@@ -133,29 +129,27 @@ namespace KrasCore.Mosaic
         private partial struct FindHashesToUpdateJob : IJobEntity
         {
 	        [ReadOnly]
-	        public NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer> IntGridLayers;
+	        public NativeHashMap<Hash128, RuleEngineSystem.IntGridLayer> IntGridLayers;
             
 	        public bool CullingBoundsChanged;
 	        
 	        public NativeList<Hash128> HashesToUpdate;
-	        public NativeList<TilemapRendererData> TilemapRendererData;
-	        public NativeHashMap<Hash128, Singleton.Tilemap> Tilemaps;
+	        public NativeHashMap<Hash128, Singleton.IntGrid> Tilemaps;
             
-	        private void Execute(in TilemapData tilemapData, in TilemapRendererInitData tilemapRendererInitData, in TilemapRendererData rendererData)
+	        private void Execute(in IntGridData intGridData, in TilemapRendererInitData tilemapRendererInitData, Entity entity)
 	        {
 		        if (!Tilemaps.ContainsKey(tilemapRendererInitData.MeshHash))
 		        {
-			        var terrain = new Singleton.Tilemap(256, Allocator.Persistent);
+			        var terrain = new Singleton.IntGrid(entity, 256, Allocator.Persistent);
                     
 			        Tilemaps.Add(tilemapRendererInitData.MeshHash, terrain);
 		        }
                 
-		        ref var dataLayer = ref IntGridLayers.GetValueAsRef(tilemapData.IntGridHash);
+		        ref var dataLayer = ref IntGridLayers.GetValueAsRef(intGridData.Hash);
 		        
 		        if (!dataLayer.RefreshedPositions.IsEmpty || CullingBoundsChanged || dataLayer.Cleared)
 		        {
 			        HashesToUpdate.Add(tilemapRendererInitData.MeshHash);
-			        TilemapRendererData.Add(rendererData);
 		        }
 	        }
         }
@@ -166,9 +160,9 @@ namespace KrasCore.Mosaic
 	        [ReadOnly]
 	        public NativeArray<Hash128> HashesToUpdate;
 	        [ReadOnly]
-	        public NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer> IntGridLayers;
+	        public NativeHashMap<Hash128, RuleEngineSystem.IntGridLayer> IntGridLayers;
 	        [ReadOnly]
-	        public NativeHashMap<Hash128, Singleton.Tilemap> Tilemaps;
+	        public NativeHashMap<Hash128, Singleton.IntGrid> Tilemaps;
 
 	        public AABB2D CullingBounds;
 	        
@@ -188,29 +182,30 @@ namespace KrasCore.Mosaic
         }
         
         [BurstCompile]
-        private struct GenerateTilemapMeshDataJob : IJobParallelForDefer
+        private struct GenerateIntGridMeshDataJob : IJobParallelForDefer
         {
+	        [ReadOnly]
+	        public ComponentLookup<TilemapRendererData> TilemapRendererDataLookup;
+	        
 	        [ReadOnly]
 	        public NativeArray<VertexAttributeDescriptor> Layout;
 	        
 	        [ReadOnly]
 	        public NativeArray<Hash128> HashesToUpdate;
 	        [ReadOnly]
-	        public NativeArray<TilemapRendererData> RendererData;
-	        [ReadOnly]
-	        public NativeHashMap<Hash128, Singleton.Tilemap> Tilemaps;
+	        public NativeHashMap<Hash128, Singleton.IntGrid> Tilemaps;
 
-	        public NativeParallelHashMap<Hash128, AABB>.ParallelWriter UpdatedMeshBoundsMapWriter;
 	        public Mesh.MeshDataArray MeshDataArray;
+	        public NativeParallelHashMap<Hash128, AABB>.ParallelWriter UpdatedMeshBoundsMapWriter;
 	        
         	public void Execute(int index)
 	        {
 		        var hash = HashesToUpdate[index];
 		        var meshData = MeshDataArray[index];
-		        var rendererData = RendererData[index];
-		        ref var tilemap = ref Tilemaps.GetValueAsRef(hash);
+		        ref var intGrid = ref Tilemaps.GetValueAsRef(hash);
+		        var rendererData = TilemapRendererDataLookup[intGrid.IntGridEntity];
 		     
-				var quadCount = tilemap.SpriteMeshes.Count;
+				var quadCount = intGrid.SpriteMeshes.Count;
                 
 				var vertexCount = quadCount * 4;
 				var indexCount = quadCount * 6;
@@ -225,7 +220,7 @@ namespace KrasCore.Mosaic
 				var minPos = new float3(float.MaxValue, float.MaxValue, float.MaxValue);
 				var maxPos = new float3(float.MinValue, float.MinValue, float.MinValue);
 				
-		        foreach (var kvp in tilemap.SpriteMeshes)
+		        foreach (var kvp in intGrid.SpriteMeshes)
 		        {
 			        var spriteMesh = kvp.Value;
 			        var orientation = rendererData.Orientation;

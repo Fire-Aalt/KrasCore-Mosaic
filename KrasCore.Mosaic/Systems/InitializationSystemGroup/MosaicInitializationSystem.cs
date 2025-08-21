@@ -4,6 +4,8 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Rendering;
 using UnityEngine;
+using TerrainData = KrasCore.Mosaic.Data.TerrainData;
+using TerrainLayer = KrasCore.Mosaic.Data.TerrainLayer;
 
 namespace KrasCore.Mosaic
 {
@@ -15,8 +17,8 @@ namespace KrasCore.Mosaic
             var uninitializedQuery = SystemAPI.QueryBuilder().WithAll<TilemapRendererInitData, RuntimeMaterial>().WithNone<MaterialMeshInfo>().Build();
             if (!uninitializedQuery.IsEmpty)
             {
-                var meshSingleton = SystemAPI.ManagedAPI.GetSingleton<TilemapRenderingSingleton>();
-                var tilemapSingleton = SystemAPI.GetSingleton<TilemapMeshDataSystem.Singleton>();
+                var presentationSingleton = SystemAPI.ManagedAPI.GetSingleton<MosaicPresentationSystem.Singleton>();
+                var tilemapSingleton = SystemAPI.GetSingleton<IntGridMeshDataSystem.Singleton>();
                 var terrainSingleton = SystemAPI.GetSingleton<TerrainMeshDataSystem.Singleton>();
                 var entitiesGraphicsSystem = World.GetExistingSystemManaged<EntitiesGraphicsSystem>();
 
@@ -31,14 +33,14 @@ namespace KrasCore.Mosaic
                     
                     var mesh = new Mesh { name = "Mosaic.TilemapMesh" };
                     mesh.MarkDynamic();
-                    meshSingleton.MeshMap.Add(tilemapRenderingData.MeshHash, mesh);
+                    presentationSingleton.MeshMap.Add(tilemapRenderingData.MeshHash, mesh);
 
                     var material = runtimeMaterials[i].Value.Value;
-                    if (EntityManager.HasComponent<TilemapTerrainData>(entity))
+                    if (EntityManager.HasComponent<TerrainData>(entity))
                     {
                         material = new Material(material); // Force unique for terrains
                         
-                        meshSingleton.TerrainMap.Add(tilemapRenderingData.MeshHash, new TilemapTerrainRenderingData
+                        presentationSingleton.TerrainMap.Add(tilemapRenderingData.MeshHash, new TilemapTerrainRenderingData
                         {
                             Material = material
                         });
@@ -66,9 +68,9 @@ namespace KrasCore.Mosaic
         
             Dependency = new RegisterJob
             {
-                TilemapTerrainLayerTagLookup = SystemAPI.GetComponentLookup<TilemapTerrainLayer>(true),
+                TilemapTerrainLayerTagLookup = SystemAPI.GetComponentLookup<TerrainLayer>(true),
                 Tcb = SystemAPI.GetSingletonRW<TilemapCommandBufferSingleton>().ValueRW,
-                DataSingleton = SystemAPI.GetSingletonRW<TilemapDataSingleton>().ValueRW,
+                DataSingleton = SystemAPI.GetSingletonRW<RuleEngineSystem.Singleton>().ValueRW,
             }.Schedule(Dependency);
             
             Dependency = new UpdateTilemapRendererDataJob
@@ -78,21 +80,21 @@ namespace KrasCore.Mosaic
         }
 
         [BurstCompile]
-        [WithDisabled(typeof(TilemapData))]
+        [WithDisabled(typeof(IntGridData))]
         private partial struct RegisterJob : IJobEntity
         {
             [ReadOnly]
-            public ComponentLookup<TilemapTerrainLayer> TilemapTerrainLayerTagLookup;
+            public ComponentLookup<TerrainLayer> TilemapTerrainLayerTagLookup;
             
             public TilemapCommandBufferSingleton Tcb;
-            public TilemapDataSingleton DataSingleton;
+            public RuleEngineSystem.Singleton DataSingleton;
             
-            private void Execute(ref TilemapData tilemapData, EnabledRefRW<TilemapData> enabled, Entity entity)
+            private void Execute(ref IntGridData intGridData, EnabledRefRW<IntGridData> enabled, Entity entity)
             {
                 var isTerrainLayer = TilemapTerrainLayerTagLookup.HasComponent(entity);
                 
-                Tcb.TryRegisterIntGridLayer(tilemapData.IntGridHash);
-                DataSingleton.TryRegisterIntGridLayer(tilemapData, isTerrainLayer, entity);
+                Tcb.TryRegisterIntGridLayer(intGridData.Hash);
+                DataSingleton.TryRegisterIntGridLayer(intGridData, isTerrainLayer, entity);
                 enabled.ValueRW = true;
             }
         }

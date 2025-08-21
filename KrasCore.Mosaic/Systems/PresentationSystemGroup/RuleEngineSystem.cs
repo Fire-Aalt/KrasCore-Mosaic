@@ -1,3 +1,4 @@
+using System;
 using System.Runtime.CompilerServices;
 using KrasCore.Mosaic.Data;
 using KrasCore.NZCore;
@@ -7,7 +8,6 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
-using Hash128 = Unity.Entities.Hash128;
 using Random = Unity.Mathematics.Random;
 
 namespace KrasCore.Mosaic
@@ -15,20 +15,99 @@ namespace KrasCore.Mosaic
     [UpdateInGroup(typeof(TilemapUpdateSystemGroup))]
     public partial struct RuleEngineSystem : ISystem
     {
+        public struct IntGridLayer : IDisposable
+        {
+            public UnsafeHashMap<int2, IntGridValue> IntGrid;
+            public UnsafeHashMap<int2, int> RuleGrid;
+        
+            public UnsafeHashMap<int2, SpriteMesh> RenderedSprites;
+            public UnsafeHashMap<int2, Entity> SpawnedEntities;
+
+            public UnsafeHashSet<int2> ChangedPositions;
+            public UnsafeHashSet<int2> PositionsToRefresh;
+            public UnsafeList<int2> RefreshedPositions;
+
+            public bool Cleared;
+
+            public readonly bool DualGrid;
+            public readonly bool IsTerrainLayer;
+            public readonly Entity IntGridEntity;
+            
+            public IntGridLayer(int capacity, Allocator allocator, IntGridData intGridData, bool isTerrainLayer, Entity intGridEntity)
+            {
+                IntGrid = new UnsafeHashMap<int2, IntGridValue>(capacity, allocator);
+                RuleGrid = new UnsafeHashMap<int2, int>(capacity, allocator);
+                
+                ChangedPositions = new UnsafeHashSet<int2>(capacity, allocator);
+                PositionsToRefresh = new UnsafeHashSet<int2>(capacity, allocator);
+            
+                SpawnedEntities = new UnsafeHashMap<int2, Entity>(capacity, allocator);
+                RenderedSprites = new UnsafeHashMap<int2, SpriteMesh>(capacity, allocator);
+            
+                RefreshedPositions = new UnsafeList<int2>(capacity, allocator);
+
+                Cleared = false;
+                
+                DualGrid = intGridData.DualGrid;
+                IsTerrainLayer = isTerrainLayer;
+                IntGridEntity = intGridEntity;
+            }
+            
+            public void Dispose()
+            {
+                IntGrid.Dispose();
+                RuleGrid.Dispose();
+                
+                ChangedPositions.Dispose();
+                PositionsToRefresh.Dispose();
+            
+                SpawnedEntities.Dispose();
+                RenderedSprites.Dispose();
+
+                RefreshedPositions.Dispose();
+            }
+        }
+        
+        public struct Singleton : IComponentData, IDisposable
+        {
+            public NativeHashMap<Hash128, IntGridLayer> IntGridLayers;
+
+            // Store entity commands on a singleton to sort it later and instantiate using batch API
+            public ParallelToListMapper<EntityCommand> EntityCommands;
+            
+            public bool TryRegisterIntGridLayer(IntGridData intGridData, bool terrainLayer, Entity intGridEntity)
+            {
+                if (IntGridLayers.ContainsKey(intGridData.Hash)) return false;
+                
+                IntGridLayers.Add(intGridData.Hash, new IntGridLayer(64, Allocator.Persistent, intGridData, terrainLayer, intGridEntity));
+                return true;
+            }
+            
+            public void Dispose()
+            {
+                foreach (var layer in IntGridLayers)
+                {
+                    layer.Value.Dispose();
+                }
+                IntGridLayers.Dispose();
+                EntityCommands.Dispose();
+            }
+        }
+        
         private EntityQuery _query;
         
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
             state.EntityManager.CreateSingleton(new TilemapCommandBufferSingleton(8, Allocator.Persistent));
-            state.EntityManager.CreateSingleton(new TilemapDataSingleton
+            state.EntityManager.CreateSingleton(new Singleton
             {
-                IntGridLayers = new NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer>(256, Allocator.Persistent),
+                IntGridLayers = new NativeHashMap<Hash128, IntGridLayer>(256, Allocator.Persistent),
                 EntityCommands = new ParallelToListMapper<EntityCommand>(256, Allocator.Persistent)
             });
             
             _query = SystemAPI.QueryBuilder()
-                .WithAll<TilemapData, RuleBlobReferenceElement, RefreshPositionElement, WeightedEntityElement>()
+                .WithAll<IntGridData, RuleBlobReferenceElement, RefreshPositionElement, WeightedEntityElement>()
                 .Build();
             
             state.RequireForUpdate(_query);
@@ -38,24 +117,24 @@ namespace KrasCore.Mosaic
         public void OnDestroy(ref SystemState state)
         {
             SystemAPI.GetSingleton<TilemapCommandBufferSingleton>().Dispose();
-            SystemAPI.GetSingleton<TilemapDataSingleton>().Dispose();
+            SystemAPI.GetSingleton<Singleton>().Dispose();
         }
         
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         { 
             var tcb = SystemAPI.GetSingletonRW<TilemapCommandBufferSingleton>().ValueRW; 
-            var dataSingleton = SystemAPI.GetSingletonRW<TilemapDataSingleton>().ValueRW;
+            var dataSingleton = SystemAPI.GetSingletonRW<Singleton>().ValueRW;
             
             var intGridEntities = _query.ToEntityListAsync(state.WorldUpdateAllocator,
                 state.Dependency, out var dependency);
             
-            var tilemapDataLookup = SystemAPI.GetComponentLookup<TilemapData>(true);
+            var tilemapDataLookup = SystemAPI.GetComponentLookup<IntGridData>(true);
             
             state.Dependency = new ClearAndFindRefreshPositionsJob
             {
                 IntGridEntities = intGridEntities.AsDeferredJobArray(),
-                TilemapDataLookup = tilemapDataLookup,
+                IntGridLayerDataLookup = tilemapDataLookup,
                 RefreshOffsetsBufferLookup = SystemAPI.GetBufferLookup<RefreshPositionElement>(true),
                 IntGridLayers = dataSingleton.IntGridLayers,
                 TcbLayers = tcb.IntGridLayers,
@@ -76,23 +155,23 @@ namespace KrasCore.Mosaic
         }
         
         [BurstCompile]
-        private struct ClearAndFindRefreshPositionsJob : IJobParallelForDefer
+        private struct ClearAndFindRefreshPositionsJob : IJobParallelForDefer // This job has to be a IJobParallelForDefer because it is heavy and should be redistributed in parallel
         {
             public NativeArray<Entity> IntGridEntities;
             [ReadOnly]
-            public ComponentLookup<TilemapData> TilemapDataLookup;
+            public ComponentLookup<IntGridData> IntGridLayerDataLookup;
             [ReadOnly]
             public BufferLookup<RefreshPositionElement> RefreshOffsetsBufferLookup;
             
             [NativeDisableContainerSafetyRestriction]
             public NativeHashMap<Hash128, TilemapCommandBufferSingleton.IntGridLayer> TcbLayers;
             [NativeDisableParallelForRestriction]
-            public NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer> IntGridLayers;
+            public NativeHashMap<Hash128, IntGridLayer> IntGridLayers;
 
             public void Execute(int index)
             {
                 var intGridEntity = IntGridEntities[index];
-                var intGridHash = TilemapDataLookup[intGridEntity].IntGridHash;
+                var intGridHash = IntGridLayerDataLookup[intGridEntity].Hash;
                 
                 ref var commandsLayer = ref TcbLayers.GetValueAsRef(intGridHash);
                 ref var dataLayer = ref IntGridLayers.GetValueAsRef(intGridHash);
@@ -114,7 +193,7 @@ namespace KrasCore.Mosaic
             }
             
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            private bool TryClearAll(ref TilemapCommandBufferSingleton.IntGridLayer commandsLayer, ref TilemapDataSingleton.IntGridLayer dataLayer)
+            private bool TryClearAll(ref TilemapCommandBufferSingleton.IntGridLayer commandsLayer, ref IntGridLayer dataLayer)
             {
                 if (!commandsLayer.ClearCommand.Value) return false;
 
@@ -129,7 +208,7 @@ namespace KrasCore.Mosaic
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            private void ExecuteSetCommands(ref TilemapCommandBufferSingleton.IntGridLayer commandsLayer, ref TilemapDataSingleton.IntGridLayer dataLayer)
+            private void ExecuteSetCommands(ref TilemapCommandBufferSingleton.IntGridLayer commandsLayer, ref IntGridLayer dataLayer)
             {
                 foreach (var command in commandsLayer.SetCommands)
                 {
@@ -152,7 +231,7 @@ namespace KrasCore.Mosaic
             }
             
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            private static void FindPositionsToRefresh(ref TilemapDataSingleton.IntGridLayer dataLayer, in DynamicBuffer<RefreshPositionElement> refreshPositionsBuffer)
+            private static void FindPositionsToRefresh(ref IntGridLayer dataLayer, in DynamicBuffer<RefreshPositionElement> refreshPositionsBuffer)
             {
                 foreach (var changedPosition in dataLayer.ChangedPositions)
                 {
@@ -171,14 +250,14 @@ namespace KrasCore.Mosaic
         {
             public NativeArray<Entity> IntGridEntities;
             [ReadOnly]
-            public ComponentLookup<TilemapData> TilemapData;
+            public ComponentLookup<IntGridData> TilemapData;
             [ReadOnly]
             public BufferLookup<RuleBlobReferenceElement> RulesBufferLookup;
             [ReadOnly]
             public BufferLookup<WeightedEntityElement> EntitiesBufferLookup;
             
             [NativeDisableParallelForRestriction]
-            public NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer> IntGridLayers;
+            public NativeHashMap<Hash128, IntGridLayer> IntGridLayers;
             public ParallelList<EntityCommand>.ThreadWriter EntityCommands;
             
             public uint Seed;
@@ -195,7 +274,7 @@ namespace KrasCore.Mosaic
             {
                 var intGridEntity = IntGridEntities[index];
                 
-                _intGridHash = TilemapData[intGridEntity].IntGridHash;
+                _intGridHash = TilemapData[intGridEntity].Hash;
                 ref var dataLayer = ref IntGridLayers.GetValueAsRef(_intGridHash);
                 
                 if (dataLayer.PositionsToRefresh.Count == 0) 
@@ -223,7 +302,7 @@ namespace KrasCore.Mosaic
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            private bool RefreshPosition(ref TilemapDataSingleton.IntGridLayer dataLayer, int2 posToRefresh,
+            private bool RefreshPosition(ref IntGridLayer dataLayer, int2 posToRefresh,
                 bool ruleHashExists, int ruleHash)
             {
                 for (var ruleIndex = 0; ruleIndex < _rulesBuffer.Length; ruleIndex++)
@@ -316,7 +395,7 @@ namespace KrasCore.Mosaic
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            private static void TryAddSpriteMesh(ref TilemapDataSingleton.IntGridLayer dataLayer, ref RuleBlob rule, ref Random random, int2 posToRefresh,
+            private static void TryAddSpriteMesh(ref IntGridLayer dataLayer, ref RuleBlob rule, ref Random random, int2 posToRefresh,
                 bool2 appliedMirror, int appliedRotation)
             {
                 if (rule.TryGetSpriteMesh(ref random, out var newSprite))

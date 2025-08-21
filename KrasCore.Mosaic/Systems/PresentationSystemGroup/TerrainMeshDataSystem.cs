@@ -8,13 +8,12 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
-using UnityEngine;
 using UnityEngine.Rendering;
-using Hash128 = Unity.Entities.Hash128;
+using Mesh = UnityEngine.Mesh;
 
 namespace KrasCore.Mosaic
 {
-	[UpdateAfter(typeof(TilemapMeshDataSystem))]
+	[UpdateAfter(typeof(IntGridMeshDataSystem))]
 	[UpdateInGroup(typeof(TilemapUpdateSystemGroup))]
     public partial struct TerrainMeshDataSystem : ISystem
     {
@@ -24,25 +23,23 @@ namespace KrasCore.Mosaic
 	        {
 	            public const int MaxLayersBlend = 4;
 	            
-	            public FixedList512Bytes<Hash128> Layers;
-	            public float2 TileSize;
+	            public Entity TerrainEntity;
 		        
 	            public UnsafeHashMap<int2, FixedList64Bytes<GpuTerrainTile>> RawTilesToBlend;
 
 	            public UnsafeList<GpuTerrainTile> TileBuffer;
 	            public UnsafeList<GpuTerrainIndex> IndexBuffer;
 	            
-	            public Terrain(int capacity, Allocator allocator)
+	            public Terrain(Entity terrainEntity, int capacity, Allocator allocator)
 	            {
-	                Layers = default;
-	                TileSize = default;
+		            TerrainEntity = terrainEntity;
 	                
 	                RawTilesToBlend = new UnsafeHashMap<int2, FixedList64Bytes<GpuTerrainTile>>(capacity, allocator);
 
 	                var list = new FixedList64Bytes<GpuTerrainTile>();
 	                if (list.Capacity < MaxLayersBlend)
 	                {
-	                    throw new Exception($"{nameof(Terrain)} has MaxLayersBlend set to {Singleton.Terrain.MaxLayersBlend}, but the capacity of a fixed list is {list.Capacity}");
+	                    throw new Exception($"{nameof(Terrain)} has MaxLayersBlend set to {MaxLayersBlend}, but the capacity of a fixed list is {list.Capacity}");
 	                }
 	                
 	                TileBuffer = new UnsafeList<GpuTerrainTile>(capacity, allocator);
@@ -64,7 +61,6 @@ namespace KrasCore.Mosaic
 	        public NativeParallelHashMap<Hash128, AABB> UpdatedMeshBoundsMap;
 	        public NativeList<Entity> RenderingEntities;
 	        
-	        public NativeList<TilemapRendererData> TilemapRendererData;
 	        public NativeHashMap<Hash128, Terrain> Terrains;
 
 	        public Singleton(int capacity, Allocator allocator)
@@ -79,7 +75,6 @@ namespace KrasCore.Mosaic
 	            UpdatedMeshBoundsMap = new NativeParallelHashMap<Hash128, AABB>(capacity, allocator);
 	            RenderingEntities = new NativeList<Entity>(capacity, allocator);
 	            
-	            TilemapRendererData = new NativeList<TilemapRendererData>(capacity, allocator);
 	            Terrains = new NativeHashMap<Hash128, Terrain>(capacity, allocator);
 	        }
 
@@ -90,7 +85,6 @@ namespace KrasCore.Mosaic
 	            UpdatedMeshBoundsMap.Dispose();
 	            RenderingEntities.Dispose();
 	            
-	            TilemapRendererData.Dispose();
 	            foreach (var kvp in Terrains)
 	            {
 	                kvp.Value.Dispose();
@@ -115,27 +109,25 @@ namespace KrasCore.Mosaic
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            var dataSingleton = SystemAPI.GetSingleton<TilemapDataSingleton>();
+            var dataSingleton = SystemAPI.GetSingleton<RuleEngineSystem.Singleton>();
             var tcb = SystemAPI.GetSingleton<TilemapCommandBufferSingleton>();
             
             var singleton = SystemAPI.GetSingletonRW<Singleton>().ValueRW;
 
             var cullingBoundsChanged = !tcb.PrevCullingBounds.Value.Equals(tcb.CullingBounds.Value);
             tcb.PrevCullingBounds.Value = tcb.CullingBounds.Value;
-
-            singleton.TilemapRendererData.Clear();
             
             state.Dependency = new FindHashesToUpdateJob
             {
 	            IntGridLayers = dataSingleton.IntGridLayers,
 	            HashesToUpdate = singleton.HashesToUpdate,
-	            TilemapRendererData = singleton.TilemapRendererData,
 	            CullingBoundsChanged = cullingBoundsChanged,
 	            Terrains = singleton.Terrains
             }.Schedule(state.Dependency);
 
             state.Dependency = new PrepareAndCullSpriteMeshDataJob
             {
+	            TerrainLayersBufferLookup = SystemAPI.GetBufferLookup<TilemapTerrainLayerElement>(true),
 	            IntGridLayers = dataSingleton.IntGridLayers,
 	            HashesToUpdate = singleton.HashesToUpdate.AsDeferredJobArray(),
 	            Terrains = singleton.Terrains,
@@ -144,9 +136,10 @@ namespace KrasCore.Mosaic
             
             state.Dependency = new GenerateTerrainMeshDataJob
             {
+	            TerrainDataLookup = SystemAPI.GetComponentLookup<TerrainData>(true),
+	            TilemapRendererDataLookup = SystemAPI.GetComponentLookup<TilemapRendererData>(true),
 	            Layout = singleton.Layout,
 	            HashesToUpdate = singleton.HashesToUpdate.AsDeferredJobArray(),
-	            RendererData = singleton.TilemapRendererData.AsDeferredJobArray(),
 	            Terrains = singleton.Terrains,
 	            MeshDataArray = singleton.MeshDataArray.Array,
 	            UpdatedMeshBoundsMapWriter = singleton.UpdatedMeshBoundsMap.AsParallelWriter()
@@ -157,32 +150,27 @@ namespace KrasCore.Mosaic
         private partial struct FindHashesToUpdateJob : IJobEntity
         {
             [ReadOnly]
-            public NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer> IntGridLayers;
+            public NativeHashMap<Hash128, RuleEngineSystem.IntGridLayer> IntGridLayers;
             
             public bool CullingBoundsChanged;
             public NativeList<Hash128> HashesToUpdate;
-            public NativeList<TilemapRendererData> TilemapRendererData;
             public NativeHashMap<Hash128, Singleton.Terrain> Terrains;
             
-            private void Execute(in TilemapTerrainData tilemapTerrainData, in TilemapRendererInitData tilemapRendererInitData, in TilemapRendererData rendererData)
+            private void Execute(in TerrainData terrainData, in DynamicBuffer<TilemapTerrainLayerElement> layers, Entity entity)
             {
-                if (!Terrains.ContainsKey(tilemapRendererInitData.MeshHash))
+                if (!Terrains.ContainsKey(terrainData.TerrainHash))
                 {
-                    var terrain = new Singleton.Terrain(256, Allocator.Persistent);
-                    terrain.Layers = tilemapTerrainData.LayerHashes;
-                    terrain.TileSize = tilemapTerrainData.TileSize;
-                    
-                    Terrains.Add(tilemapRendererInitData.MeshHash, terrain);
+                    var terrain = new Singleton.Terrain(entity, 256, Allocator.Persistent);
+                    Terrains.Add(terrainData.TerrainHash, terrain);
                 }
                 
-                foreach (var intGridHash in tilemapTerrainData.LayerHashes)
+                foreach (var layer in layers)
                 {
-                    ref var dataLayer = ref IntGridLayers.GetValueAsRef(intGridHash);
+                    ref var dataLayer = ref IntGridLayers.GetValueAsRef(layer.IntGridHash);
                     
                     if (!dataLayer.RefreshedPositions.IsEmpty || CullingBoundsChanged || dataLayer.Cleared)
                     {
-                        HashesToUpdate.Add(tilemapRendererInitData.MeshHash);
-                        TilemapRendererData.Add(rendererData);
+                        HashesToUpdate.Add(terrainData.TerrainHash);
                         return;
                     }
                 }
@@ -193,22 +181,28 @@ namespace KrasCore.Mosaic
         private struct PrepareAndCullSpriteMeshDataJob : IJobParallelForDefer
         {
             [ReadOnly]
+            public BufferLookup<TilemapTerrainLayerElement> TerrainLayersBufferLookup;
+            
+            [ReadOnly]
             public NativeArray<Hash128> HashesToUpdate;
             [ReadOnly]
-            public NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer> IntGridLayers;
+            public NativeHashMap<Hash128, RuleEngineSystem.IntGridLayer> IntGridLayers;
             
             public AABB2D CullingBounds;
+            
             [ReadOnly]
             public NativeHashMap<Hash128, Singleton.Terrain> Terrains;
-	        
+            
             public void Execute(int index)
             {
                 ref var terrainData = ref Terrains.GetValueAsRef(HashesToUpdate[index]);
-                
+                var terrainLayersBuffer = TerrainLayersBufferLookup[terrainData.TerrainEntity].Reinterpret<Hash128>();
+
                 terrainData.RawTilesToBlend.Clear();
-                for (int stream = terrainData.Layers.Length - 1; stream >= 0; stream--)
+                
+                for (int layerIndex = terrainLayersBuffer.Length - 1; layerIndex >= 0; layerIndex--)
                 {
-                    var intGridLayer = IntGridLayers[terrainData.Layers[stream]];
+                    var intGridLayer = IntGridLayers[terrainLayersBuffer[layerIndex]];
 
                     foreach (var kvp in intGridLayer.RenderedSprites)
                     {
@@ -232,14 +226,16 @@ namespace KrasCore.Mosaic
         private struct GenerateTerrainMeshDataJob : IJobParallelForDefer
         {
 	        [ReadOnly]
-	        public NativeArray<VertexAttributeDescriptor> Layout;
+	        public ComponentLookup<TilemapRendererData> TilemapRendererDataLookup;
 	        [ReadOnly]
-	        public NativeHashMap<Hash128, Singleton.Terrain> Terrains;
-	        [ReadOnly]
-	        public NativeArray<Hash128> HashesToUpdate;
+	        public ComponentLookup<TerrainData> TerrainDataLookup;
 	        
 	        [ReadOnly]
-	        public NativeArray<TilemapRendererData> RendererData;
+	        public NativeArray<VertexAttributeDescriptor> Layout;
+	        [ReadOnly]
+	        public NativeArray<Hash128> HashesToUpdate;
+	        [ReadOnly]
+	        public NativeHashMap<Hash128, Singleton.Terrain> Terrains;
 	        
 	        public Mesh.MeshDataArray MeshDataArray;
 	        public NativeParallelHashMap<Hash128, AABB>.ParallelWriter UpdatedMeshBoundsMapWriter;
@@ -248,8 +244,9 @@ namespace KrasCore.Mosaic
 	        {
 		        var hash = HashesToUpdate[index];
 		        var meshData = MeshDataArray[index];
-		        var rendererData = RendererData[index];
 		        ref var terrainData = ref Terrains.GetValueAsRef(hash);
+		        var rendererData = TilemapRendererDataLookup[terrainData.TerrainEntity];
+		        var tileSize = TerrainDataLookup[terrainData.TerrainEntity].TileSize;
 
 		        var quadCount = terrainData.RawTilesToBlend.Count;
                 
@@ -295,19 +292,19 @@ namespace KrasCore.Mosaic
 			        {
 				        Position = worldPos + up,
 				        Normal = normal,
-				        TexCoord0 = new float2(0f, terrainData.TileSize.y)
+				        TexCoord0 = new float2(0f, tileSize.y)
 			        };
 			        vertices[vc + 1] = new Vertex
 			        {
 				        Position = maxVertexPos,
 				        Normal = normal,
-				        TexCoord0 = new float2(terrainData.TileSize.x, terrainData.TileSize.y)
+				        TexCoord0 = new float2(tileSize.x, tileSize.y)
 			        };
 			        vertices[vc + 2] = new Vertex
 			        {
 				        Position = worldPos + right,
 				        Normal = normal,
-				        TexCoord0 = new float2(terrainData.TileSize.x, 0f)
+				        TexCoord0 = new float2(tileSize.x, 0f)
 			        };
 			        vertices[vc + 3] = new Vertex
 			        {

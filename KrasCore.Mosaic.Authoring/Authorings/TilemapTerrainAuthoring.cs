@@ -8,6 +8,8 @@ using UnityEditor;
 using UnityEngine;
 using Hash128 = Unity.Entities.Hash128;
 using Random = UnityEngine.Random;
+using TerrainData = KrasCore.Mosaic.Data.TerrainData;
+using TerrainLayer = KrasCore.Mosaic.Data.TerrainLayer;
 
 namespace KrasCore.Mosaic.Authoring
 {
@@ -53,7 +55,7 @@ namespace KrasCore.Mosaic.Authoring
                 }
                 
                 var entity = GetEntity(TransformUsageFlags.Dynamic);
-                var intGridLayerHashes = new FixedList512Bytes<Hash128>();
+                var layersBuffer = AddBuffer<TilemapTerrainLayerElement>(entity);
                 Texture2D materialTexture = null;
                 
                 // Bake layers
@@ -66,16 +68,17 @@ namespace KrasCore.Mosaic.Authoring
                 {
                     materialTexture = BakerUtils.AddIntGridLayerData(this, intGridLayersEntities[i], authoring.intGridLayers[i],
                         materialTexture, true, ref tilePivot, ref tileSize);
-                    intGridLayerHashes.Add(authoring.intGridLayers[i].Hash);
-                    AddComponent(intGridLayersEntities[i], new TilemapTerrainLayer { TerrainEntity = entity });
+                    layersBuffer.Add(new TilemapTerrainLayerElement { IntGridHash = authoring.intGridLayers[i].Hash });
+                    AddComponent(intGridLayersEntities[i], new TerrainLayer { TerrainEntity = entity });
                 }
                 
                 // Bake terrain entity
-                AddComponent(entity, new TilemapTerrainData
+                AddComponent(entity, new TerrainData
                 {
-                    LayerHashes = intGridLayerHashes,
+                    TerrainHash = authoring.terrainHash,
                     TileSize = tileSize
                 });
+
                 BakerUtils.AddRenderingData(this, entity, authoring.terrainHash, authoring.renderingData, gridAuthoring, materialTexture);
             }
         }

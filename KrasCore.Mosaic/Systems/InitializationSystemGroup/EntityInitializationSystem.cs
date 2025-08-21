@@ -11,15 +11,15 @@ namespace KrasCore.Mosaic
     public partial struct EntityInitializationSystem : ISystem
     {
         private NativeList<EntityCommand> _commandsList;
-        private NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer> _intGridLayers;
+        private NativeHashMap<Hash128, RuleEngineSystem.IntGridLayer> _intGridLayers;
         
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            state.EntityManager.CompleteDependencyBeforeRO<TilemapDataSingleton>();
-            var singleton = SystemAPI.GetSingleton<TilemapDataSingleton>();
-            _commandsList = singleton.EntityCommands.List;
-            _intGridLayers = singleton.IntGridLayers;
+            state.EntityManager.CompleteDependencyBeforeRO<RuleEngineSystem.Singleton>();
+            var dataSingleton = SystemAPI.GetSingletonRW<RuleEngineSystem.Singleton>().ValueRW;
+            _commandsList = dataSingleton.EntityCommands.List;
+            _intGridLayers = dataSingleton.IntGridLayers;
             
             if (_commandsList.Length == 0) return;
             _commandsList.Sort(new DeferredCommandComparer());
@@ -36,7 +36,7 @@ namespace KrasCore.Mosaic
             }
             UploadBatch(ref state, beginBatchIndex, _commandsList.Length - 1, _commandsList[^1].SrcEntity);
             
-            singleton.EntityCommands.Clear();
+            dataSingleton.EntityCommands.Clear();
         }
         
         private void UploadBatch(ref SystemState state, int beginIndex, int endIndex, in Entity srcEntity)

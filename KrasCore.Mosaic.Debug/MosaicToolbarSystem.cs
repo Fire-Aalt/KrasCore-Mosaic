@@ -8,6 +8,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using Hash128 = Unity.Entities.Hash128;
 using Random = Unity.Mathematics.Random;
+using TerrainLayer = KrasCore.Mosaic.Data.TerrainLayer;
 
 #if BL_QUILL
 using BovineLabs.Quill;
@@ -28,7 +29,7 @@ namespace KrasCore.Mosaic.Debug
             
             _intGridsBuffer = new NativeList<MosaicToolbarViewModel.Data.IntGridName>(Allocator.Persistent);
             
-            state.RequireForUpdate<TilemapDataSingleton>();
+            state.RequireForUpdate<RuleEngineSystem.Singleton>();
         }
         
         public void OnDestroy(ref SystemState state)
@@ -53,11 +54,11 @@ namespace KrasCore.Mosaic.Debug
             if (_toolbar.IsVisible())
             {
                 _intGridsBuffer.Clear();
-                foreach (var tilemapDataRO in SystemAPI.Query<RefRO<TilemapData>>())
+                foreach (var tilemapDataRO in SystemAPI.Query<RefRO<IntGridData>>())
                 {
                     _intGridsBuffer.Add(new MosaicToolbarViewModel.Data.IntGridName
                     {
-                        IntGridHash = tilemapDataRO.ValueRO.IntGridHash,
+                        IntGridHash = tilemapDataRO.ValueRO.Hash,
                         Name = tilemapDataRO.ValueRO.DebugName,
                     });
                 }
@@ -66,7 +67,7 @@ namespace KrasCore.Mosaic.Debug
                 data.IntGrids = _intGridsBuffer;
             }
             
-            var singleton = SystemAPI.GetSingleton<TilemapDataSingleton>();
+            var singleton = SystemAPI.GetSingleton<RuleEngineSystem.Singleton>();
             
 #if BL_QUILL
             var drawer = SystemAPI.GetSingleton<DrawSystem.Singleton>().CreateDrawer();
@@ -79,7 +80,7 @@ namespace KrasCore.Mosaic.Debug
             {
                 Drawer = drawer,
                 TilemapRendererDataLookup = SystemAPI.GetComponentLookup<TilemapRendererData>(true),
-                TilemapTerrainLayerLookup = SystemAPI.GetComponentLookup<TilemapTerrainLayer>(true),
+                TilemapTerrainLayerLookup = SystemAPI.GetComponentLookup<TerrainLayer>(true),
                 SelectedIndices = data.IntGridValues.Value.ToArray(state.WorldUpdateAllocator),
                 IntGridsBuffer = _intGridsBuffer.AsArray(),
                 IntGridLayers = singleton.IntGridLayers,
@@ -96,7 +97,7 @@ namespace KrasCore.Mosaic.Debug
             [ReadOnly]
             public ComponentLookup<TilemapRendererData> TilemapRendererDataLookup;
             [ReadOnly]
-            public ComponentLookup<TilemapTerrainLayer> TilemapTerrainLayerLookup;
+            public ComponentLookup<TerrainLayer> TilemapTerrainLayerLookup;
             
             [ReadOnly]
             public NativeArray<int> SelectedIndices;
@@ -104,7 +105,7 @@ namespace KrasCore.Mosaic.Debug
             public NativeArray<MosaicToolbarViewModel.Data.IntGridName> IntGridsBuffer;
             
             [ReadOnly]
-            public NativeHashMap<Hash128, TilemapDataSingleton.IntGridLayer> IntGridLayers;
+            public NativeHashMap<Hash128, RuleEngineSystem.IntGridLayer> IntGridLayers;
             
             public void Execute(int index)
             {

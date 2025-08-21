@@ -1,31 +1,10 @@
 using System;
-using System.Collections.Generic;
 using Unity.Collections.LowLevel.Unsafe;
-using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
-using Hash128 = Unity.Entities.Hash128;
 
 namespace KrasCore.Mosaic.Data
 {
-    internal class TilemapRenderingSingleton : IComponentData, IDisposable
-    {
-        public Dictionary<Hash128, Mesh> MeshMap;
-        public Dictionary<Hash128, TilemapTerrainRenderingData> TerrainMap;
-        
-        public void Dispose()
-        {
-            foreach (var kvp in MeshMap)
-            {
-                UnityEngine.Object.Destroy(kvp.Value);
-            }
-            foreach (var kvp in TerrainMap)
-            {
-                kvp.Value.Dispose();
-            }
-        }
-    }
-
     public class TilemapTerrainRenderingData : IDisposable
     {
         private static readonly int TileSizeId = Shader.PropertyToID("_TileSize");

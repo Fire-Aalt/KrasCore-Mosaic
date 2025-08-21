@@ -1,13 +1,11 @@
 using Unity.Collections;
 using Unity.Entities;
-using Unity.Mathematics;
-using UnityEngine.Rendering;
 
 namespace KrasCore.Mosaic.Data
 {
-    public struct TilemapData : IComponentData, IEnableableComponent
+    public struct IntGridData : IComponentData, IEnableableComponent
     {
-        public Hash128 IntGridHash;
+        public Hash128 Hash;
         public FixedString128Bytes DebugName;
         
         public bool DualGrid;

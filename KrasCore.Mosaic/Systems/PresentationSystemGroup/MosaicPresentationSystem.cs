@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using KrasCore.Mosaic.Data;
 using Unity.Burst;
@@ -13,13 +14,31 @@ namespace KrasCore.Mosaic
 	[UpdateInGroup(typeof(PresentationSystemGroup), OrderFirst = true)]
 	public partial class MosaicPresentationSystem : SystemBase
 	{
-		private readonly List<Mesh> _tilemapMeshesToUpdate = new();
+		public class Singleton : IComponentData, IDisposable
+		{
+			public Dictionary<Hash128, Mesh> MeshMap;
+			public Dictionary<Hash128, TilemapTerrainRenderingData> TerrainMap;
+        
+			public void Dispose()
+			{
+				foreach (var kvp in MeshMap)
+				{
+					UnityEngine.Object.Destroy(kvp.Value);
+				}
+				foreach (var kvp in TerrainMap)
+				{
+					kvp.Value.Dispose();
+				}
+			}
+		}
+		
+		private readonly List<Mesh> _intGridMeshesToUpdate = new();
 		private readonly List<Mesh> _terrainMeshesToUpdate = new();
 		private readonly Mesh _dummyMesh = new();
 		
 		protected override void OnCreate()
 		{
-			EntityManager.CreateSingleton(new TilemapRenderingSingleton
+			EntityManager.CreateSingleton(new Singleton
 			{
 				MeshMap = new Dictionary<Hash128, Mesh>(4),
 				TerrainMap = new Dictionary<Hash128, TilemapTerrainRenderingData>(1)
@@ -28,50 +47,51 @@ namespace KrasCore.Mosaic
 
 		protected override void OnDestroy()
 		{
-			SystemAPI.ManagedAPI.GetSingleton<TilemapRenderingSingleton>().Dispose();
+			SystemAPI.ManagedAPI.GetSingleton<Singleton>().Dispose();
 		}
  
 		protected override void OnUpdate()
 		{
-			EntityManager.CompleteDependencyBeforeRW<TilemapMeshDataSystem.Singleton>();
+			EntityManager.CompleteDependencyBeforeRW<IntGridMeshDataSystem.Singleton>();
 			EntityManager.CompleteDependencyBeforeRW<TerrainMeshDataSystem.Singleton>();
-			var meshSingleton = SystemAPI.ManagedAPI.GetSingleton<TilemapRenderingSingleton>();
-			ref var tilemapSingleton = ref SystemAPI.GetSingletonRW<TilemapMeshDataSystem.Singleton>().ValueRW;
+			var singleton = SystemAPI.ManagedAPI.GetSingleton<Singleton>();
+			ref var intGridSingleton = ref SystemAPI.GetSingletonRW<IntGridMeshDataSystem.Singleton>().ValueRW;
 			ref var terrainSingleton = ref SystemAPI.GetSingletonRW<TerrainMeshDataSystem.Singleton>().ValueRW;
 			
-			foreach (var intGridHash in tilemapSingleton.HashesToUpdate)
+			foreach (var intGridHash in intGridSingleton.HashesToUpdate)
 			{
-				_tilemapMeshesToUpdate.Add(meshSingleton.MeshMap[intGridHash]);
+				_intGridMeshesToUpdate.Add(singleton.MeshMap[intGridHash]);
 			}
 			
 			foreach (var terrainHash in terrainSingleton.HashesToUpdate)
 			{
-				var terrainRenderingData = meshSingleton.TerrainMap[terrainHash];
+				var terrainRenderingData = singleton.TerrainMap[terrainHash];
 				var terrainData = terrainSingleton.Terrains[terrainHash];
+				var tilemapTerrainData = EntityManager.GetComponentData<TerrainData>(terrainData.TerrainEntity);
 				
-				terrainRenderingData.SetTileSize(terrainData.TileSize);
+				terrainRenderingData.SetTileSize(tilemapTerrainData.TileSize);
 				terrainRenderingData.SetTileBuffer(terrainData.TileBuffer);
 				terrainRenderingData.SetIndexBuffer(terrainData.IndexBuffer);
 				
-				_terrainMeshesToUpdate.Add(meshSingleton.MeshMap[terrainHash]);
+				_terrainMeshesToUpdate.Add(singleton.MeshMap[terrainHash]);
 			}
 			
-			UpdateMeshes(ref tilemapSingleton.MeshDataArray, _tilemapMeshesToUpdate, tilemapSingleton.RenderingEntities.Length);
+			UpdateMeshes(ref intGridSingleton.MeshDataArray, _intGridMeshesToUpdate, intGridSingleton.RenderingEntities.Length);
 			UpdateMeshes(ref terrainSingleton.MeshDataArray, _terrainMeshesToUpdate, terrainSingleton.RenderingEntities.Length);
 			
-			if (_tilemapMeshesToUpdate.Count != 0 || _terrainMeshesToUpdate.Count != 0)
+			if (_intGridMeshesToUpdate.Count != 0 || _terrainMeshesToUpdate.Count != 0)
 			{
 				new UpdateBoundsJob
 				{
-					TilemapUpdatedMeshBoundsMap = tilemapSingleton.UpdatedMeshBoundsMap,
+					IntGridUpdatedMeshBoundsMap = intGridSingleton.UpdatedMeshBoundsMap,
 					TerrainUpdatedMeshBoundsMap = terrainSingleton.UpdatedMeshBoundsMap
 				}.Run();
 				
-				tilemapSingleton.HashesToUpdate.Clear();
-				tilemapSingleton.UpdatedMeshBoundsMap.Clear();
+				intGridSingleton.HashesToUpdate.Clear();
+				intGridSingleton.UpdatedMeshBoundsMap.Clear();
 				terrainSingleton.HashesToUpdate.Clear();
 				terrainSingleton.UpdatedMeshBoundsMap.Clear();
-				_tilemapMeshesToUpdate.Clear();
+				_intGridMeshesToUpdate.Clear();
 				_terrainMeshesToUpdate.Clear();
 			}
 		}
@@ -99,13 +119,13 @@ namespace KrasCore.Mosaic
 		private partial struct UpdateBoundsJob : IJobEntity
 		{
 			[ReadOnly]
-			public NativeParallelHashMap<Hash128, AABB> TilemapUpdatedMeshBoundsMap;
+			public NativeParallelHashMap<Hash128, AABB> IntGridUpdatedMeshBoundsMap;
 			[ReadOnly]
 			public NativeParallelHashMap<Hash128, AABB> TerrainUpdatedMeshBoundsMap;
 			
 			private void Execute(in TilemapRendererInitData rendererData, ref RenderBounds renderBounds)
 			{
-				if (TilemapUpdatedMeshBoundsMap.TryGetValue(rendererData.MeshHash, out var aabb) 
+				if (IntGridUpdatedMeshBoundsMap.TryGetValue(rendererData.MeshHash, out var aabb) 
 				    || TerrainUpdatedMeshBoundsMap.TryGetValue(rendererData.MeshHash, out aabb))
 				{
 					renderBounds.Value = aabb;

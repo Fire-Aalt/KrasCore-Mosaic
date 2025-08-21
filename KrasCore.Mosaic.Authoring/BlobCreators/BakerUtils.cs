@@ -65,13 +65,13 @@ namespace KrasCore.Mosaic.Authoring
                 }
             }
             
-            baker.AddComponent(entity, new TilemapData
+            baker.AddComponent(entity, new IntGridData
             {
-                IntGridHash = intGrid.Hash,
+                Hash = intGrid.Hash,
                 DebugName = intGrid.name,
                 DualGrid = intGrid.useDualGrid
             });
-            baker.SetComponentEnabled<TilemapData>(entity, false);
+            baker.SetComponentEnabled<IntGridData>(entity, false);
             
             var refreshPositionsBuffer = baker.AddBuffer<RefreshPositionElement>(entity);
             refreshPositionsBuffer.AddRange(refreshPositions.ToNativeArray(Allocator.Temp).Reinterpret<RefreshPositionElement>());
