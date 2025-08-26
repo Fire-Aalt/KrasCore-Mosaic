@@ -1405,34 +1405,34 @@ Shader "TerrainShader"
 				UNITY_SETUP_INSTANCE_ID(input);
 				UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX( input );
 
-				#if defined(MAIN_LIGHT_CALCULATE_SHADOWS) && defined(ASE_NEEDS_FRAG_SHADOWCOORDS)
-					float4 shadowCoord = TransformWorldToShadowCoord(input.positionWS);
-				#else
-					float4 shadowCoord = float4(0, 0, 0, 0);
-				#endif
+				// #if defined(MAIN_LIGHT_CALCULATE_SHADOWS) && defined(ASE_NEEDS_FRAG_SHADOWCOORDS)
+				// 	float4 shadowCoord = TransformWorldToShadowCoord(input.positionWS);
+				// #else
+				// 	float4 shadowCoord = float4(0, 0, 0, 0);
+				// #endif
 
-				float3 PositionWS = input.positionWS;
-				float3 PositionRWS = GetCameraRelativePositionWS( input.positionWS );
-				float4 ShadowCoord = shadowCoord;
-				float4 ScreenPosNorm = float4( GetNormalizedScreenSpaceUV( input.positionCS ), input.positionCS.zw );
-				float4 ClipPos = ComputeClipSpacePosition( ScreenPosNorm.xy, input.positionCS.z ) * input.positionCS.w;
-				float4 ScreenPos = ComputeScreenPos( ClipPos );
+				// float3 PositionWS = input.positionWS;
+				// float3 PositionRWS = GetCameraRelativePositionWS( input.positionWS );
+				// float4 ShadowCoord = shadowCoord;
+				//float4 ScreenPosNorm = float4( GetNormalizedScreenSpaceUV( input.positionCS ), input.positionCS.zw );
+				//float4 ClipPos = ComputeClipSpacePosition( ScreenPosNorm.xy, input.positionCS.z ) * input.positionCS.w;
+				//float4 ScreenPos = ComputeScreenPos( ClipPos );
+				//
+				// float localBlendLayers4_g22 = ( 0.0 );
+				// int VertexID4_g22 = input.ase_texcoord1.x;
+				// float2 TileSize4_g22 = _TileSize;
+				// float2 BaseUV4_g22 = input.ase_texcoord1.yz;
+				// float4 DefaultBlendColor4_g22 = _DefaultBlendColor;
+				// TEXTURE2D(Texture4_g22) = _MainTex;
+				// SamplerState Sampler4_g22 = sampler_MainTex;
+				// float4 RGBA4_g22 = float4( 0,0,0,0 );
+				// {
+				// //BlendLayers(VertexID4_g22, TileSize4_g22, BaseUV4_g22, DefaultBlendColor4_g22, Texture4_g22, Sampler4_g22, RGBA4_g22);
+				// }
+				// float4 temp_output_2_0_g23 = RGBA4_g22;
+				//
 
-				float localBlendLayers4_g22 = ( 0.0 );
-				int VertexID4_g22 = input.ase_texcoord1.x;
-				float2 TileSize4_g22 = _TileSize;
-				float2 BaseUV4_g22 = input.ase_texcoord1.yz;
-				float4 DefaultBlendColor4_g22 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g22) = _MainTex;
-				SamplerState Sampler4_g22 = sampler_MainTex;
-				float4 RGBA4_g22 = float4( 0,0,0,0 );
-				{
-				BlendLayers(VertexID4_g22, TileSize4_g22, BaseUV4_g22, DefaultBlendColor4_g22, Texture4_g22, Sampler4_g22, RGBA4_g22);
-				}
-				float4 temp_output_2_0_g23 = RGBA4_g22;
-				
-
-				float Alpha = (temp_output_2_0_g23).w;
+				float Alpha = 1;
 				float AlphaClipThreshold = 0.1;
 
 				#if defined( ASE_DEPTH_WRITE_ON )
