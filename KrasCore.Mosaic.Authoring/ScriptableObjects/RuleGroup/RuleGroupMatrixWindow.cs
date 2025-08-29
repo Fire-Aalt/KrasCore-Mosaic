@@ -1,10 +1,12 @@
 using System.Collections.Generic;
+using BovineLabs.Core.Utility;
 using KrasCore.Mosaic.Data;
 using Sirenix.OdinInspector;
 using Sirenix.OdinInspector.Editor;
 using Sirenix.Utilities.Editor;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace KrasCore.Mosaic.Authoring
 {
@@ -18,7 +20,7 @@ namespace KrasCore.Mosaic.Authoring
         [SerializeField] private IntGridValueSelector _selectedIntGridValue;
         
         [HorizontalGroup("Split", width: 0.4f)]
-        [IntGridMatrix(nameof(OnBeforeDrawMatrixCell))]
+        [IntGridMatrix(OnBeforeDrawCellMethod = nameof(OnBeforeDrawMatrixCell))]
         [SerializeField] private IntGridMatrix _matrix;
         
         [HorizontalGroup("Split", width: 0.2f)]
@@ -135,25 +137,35 @@ namespace KrasCore.Mosaic.Authoring
                 Close();
         }
         
-        private IntGridValue OnBeforeDrawMatrixCell(Rect rect, IntGridValue value)
+        private void OnBeforeDrawMatrixCell(VisualElement cell, Ptr<IntGridValue> value)
         {
-            UpdateIntGridValue(rect, ref value.value);
-            return value;
+            var leftMouse = new Clickable(s => LeftClick(value));
+            leftMouse.activators.Add(new ManipulatorActivationFilter { button = MouseButton.LeftMouse });
+            cell.AddManipulator(leftMouse);
+            
+            var rightMouse = new Clickable(s => RightClick(value));
+            rightMouse.activators.Add(new ManipulatorActivationFilter { button = MouseButton.RightMouse });
+            cell.AddManipulator(rightMouse);
         }
 
-        private void UpdateIntGridValue(Rect rect, ref short slot)
+        private void LeftClick(Ptr<IntGridValue> value)
         {
-            if (Event.current.OnMouseDown(rect, 0))
+            ref var slot = ref value.Ref;
+            
+            slot = _selectedIntGridValue.value;
+        }        
+        
+        private void RightClick(Ptr<IntGridValue> value)
+        {
+            ref var slot = ref value.Ref;
+
+            if (slot == 0 || slot == _selectedIntGridValue.value)
             {
-                slot = _selectedIntGridValue.value;
-                GUI.changed = true;
+                slot = (short)-_selectedIntGridValue.value;
             }
-            else if (Event.current.OnMouseDown(rect, 1))
+            else
             {
-                if (slot == 0) slot = (short)-_selectedIntGridValue.value;
-                else if (slot == _selectedIntGridValue.value) slot = (short)-_selectedIntGridValue.value;
-                else slot = 0;
-                GUI.changed = true;
+                slot = 0;
             }
         }
     }

@@ -6,6 +6,7 @@ using Unity.Mathematics;
 using UnityEditor;
 using UnityEngine;
 using Sirenix.Utilities.Editor;
+using UnityEngine.UIElements;
 
 namespace KrasCore.Mosaic.Authoring
 {
@@ -45,6 +46,8 @@ namespace KrasCore.Mosaic.Authoring
             Enabled = 1
         }
 
+
+        
         [Serializable]
         public class Rule
         {
@@ -93,12 +96,15 @@ namespace KrasCore.Mosaic.Authoring
                 ruleChance = Mathf.Clamp(ruleChance, 0f, 100f);
             }
 
-            private void MatrixControlRect(Rect rect)
+            private void MatrixControlRect(VisualElement matrix)
             {
-                if (Event.current.OnMouseDown(rect, 0))
-                {
-                    RuleGroupMatrixWindow.OpenWindow(this);
-                }
+                matrix.RegisterCallback<ClickEvent>(OnMatrixClicked);
+            }
+            
+            private void OnMatrixClicked(ClickEvent clickEvent)
+            {
+                if (clickEvent.button != 0) return;
+                RuleGroupMatrixWindow.OpenWindow(this);
             }
             
             // Handles both even and odd matrices
