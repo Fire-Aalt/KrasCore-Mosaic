@@ -13,6 +13,8 @@ namespace KrasCore.Mosaic.Editor
     [CustomPropertyDrawer(typeof(IntGridMatrixAttribute))]
     public class IntGridMatrixUITKDrawer : PropertyDrawer
     {
+        public StyleSheet StyleSheet;
+        
         // State per drawer instance
         private MethodInfo _matrixRectMethod;
         private MethodInfo _onBeforeDrawCellMethod;
@@ -21,88 +23,39 @@ namespace KrasCore.Mosaic.Editor
         public override VisualElement CreatePropertyGUI(SerializedProperty property)
         {
             var attr = (IntGridMatrixAttribute)attribute;
-
-            // Target owner object: the object that contains the field
             var owner = GetParentObject(property);
 
             ReflectionUtils.TryGetCallMethod(owner, attr.MatrixRectMethod, out _matrixRectMethod);
             ReflectionUtils.TryGetCallMethod(owner, attr.OnBeforeDrawCellMethod, out _onBeforeDrawCellMethod);
 
-            var root = new VisualElement
-            {
-                name = "IntGridMatrix_Root",
-                style =
-                {
-                    position = Position.Relative,
-                    display = DisplayStyle.Flex,
-                    flexGrow = 1,
-                    width = Length.Percent(100),
-                }
-            };
+            var root = new VisualElement { name = "IntGridMatrix_Root" };
+            root.styleSheets.Add(StyleSheet);
 
-            var matrixContainer = new VisualElement
-            {
-                name = "IntGridMatrix_Container",
-                style =
-                {
-                    position = Position.Relative,
-                    display = DisplayStyle.Flex,
-                    borderBottomWidth = 5,
-                    borderTopWidth = 5,
-                    borderLeftWidth = 5,
-                    borderRightWidth = 5,
-                    borderBottomColor = new Color(0, 0, 0, 0.15f),
-                    borderTopColor = new Color(0, 0, 0, 0.15f),
-                    borderLeftColor = new Color(0, 0, 0, 0.15f),
-                    borderRightColor = new Color(0, 0, 0, 0.15f)
-                }
-            };
+            var matrixContainer = new VisualElement { name = "IntGridMatrix_Container" };
 
             if (_matrixRectMethod != null)
             {
                 _matrixRectMethod.Invoke(owner, new object[] { matrixContainer });
             }
             
-            // Center icon element
             var centerIcon = new VisualElement
             {
                 name = "IntGridMatrix_CenterIcon",
                 pickingMode = PickingMode.Ignore,
                 style =
                 {
-                    position = Position.Absolute,
-                    display = DisplayStyle.Flex,
-                    backgroundSize = new BackgroundSize(BackgroundSizeType.Contain),
                     backgroundImage = new StyleBackground(EditorResources.MatrixCenterTexture as Texture2D)
                 }
             };
 
-            // Cells container on top of center icon
-            var cellsContainer = new VisualElement
-            {
-                name = "CellsContainer",
-                style =
-                {
-                    position = Position.Absolute,
-                }
-            };
+            var cellsContainer = new VisualElement { name = "CellsContainer" };
             matrixContainer.Add(cellsContainer);
             matrixContainer.Add(centerIcon);
 
-            // Overlay for readonly
             VisualElement readOnlyOverlay = null;
             if (attr.IsReadonly)
             {
-                readOnlyOverlay = new VisualElement
-                {
-                    name = "ReadOnlyOverlay",
-                    style =
-                    {
-                        position = Position.Absolute,
-                        display = DisplayStyle.Flex,
-                        backgroundColor = new Color(0f, 0f, 0f, 0.3f)
-                    }
-                };
+                readOnlyOverlay = new VisualElement { name = "ReadOnlyOverlay" };
                 matrixContainer.Add(readOnlyOverlay);
             }
             
@@ -134,8 +87,9 @@ namespace KrasCore.Mosaic.Editor
                 
                 matrixContainer.style.width = size;
                 matrixContainer.style.height = size;
+
+                size = matrixContainer.contentRect.width;
                 
-                size -= 5 * 2;
                 if (readOnlyOverlay != null)
                 {
                     readOnlyOverlay.style.width = size;
@@ -211,7 +165,6 @@ namespace KrasCore.Mosaic.Editor
                             _onBeforeDrawCellMethod.Invoke(owner, new object[] { cell, slot });
                         }
 
-                        // Draw based on IntGridValue
                         DrawCell(cell, slot.Ref, intGrid);
                     }
                 }
@@ -221,7 +174,7 @@ namespace KrasCore.Mosaic.Editor
             root.RegisterCallback<GeometryChangedEvent>(_ => Refresh());
 
             // Also refresh when data changes (best-effort)
-            root.TrackSerializedObjectValue(property.serializedObject, _ => Refresh());
+            root.TrackPropertyValue(property, _ => Refresh());
 
             // Initial
             Refresh();
@@ -229,7 +182,6 @@ namespace KrasCore.Mosaic.Editor
             return root;
         }
         
-        // ---- Helpers ----
         private static void EnsureCellsCount(VisualElement cellsMatrix, int cellsCount)
         {
             if (cellsMatrix.childCount == cellsCount)
@@ -246,30 +198,12 @@ namespace KrasCore.Mosaic.Editor
                     name = $"Cell_{i}",
                     style =
                     {
-                        position = Position.Absolute,
                         backgroundColor = EditorResources.BackgroundCellColor
                     }
                 };
-                var cellIcon = new VisualElement
-                {
-                    name = "CellIcon",
-                    style =
-                    {
-                        position = Position.Absolute,
-                        alignSelf = Align.Center,
-                        backgroundSize = new BackgroundSize(BackgroundSizeType.Contain),
-                    }
-                };
-                var notIcon = new VisualElement
-                {
-                    name = "NotIcon",
-                    style =
-                    {
-                        position = Position.Absolute,
-                        alignSelf = Align.Center,
-                        backgroundSize = new BackgroundSize(BackgroundSizeType.Contain),
-                    }
-                };
+                var cellIcon = new VisualElement { name = "CellIcon" };
+                var notIcon = new VisualElement { name = "NotIcon" };
+                
                 cell.Add(cellIcon);
                 cell.Add(notIcon);
                 cellsMatrix.Add(cell);
@@ -287,7 +221,7 @@ namespace KrasCore.Mosaic.Editor
             cell.style.borderTopColor = Color.clear;
             cell.style.borderLeftColor = Color.clear;
             cell.style.borderRightColor = Color.clear;
-
+            
             // Default background
             cell.style.backgroundColor = EditorResources.BackgroundCellColor;
 
@@ -308,7 +242,7 @@ namespace KrasCore.Mosaic.Editor
             
             if (Mathf.Abs(value) == RuleGridConsts.AnyIntGridValue)
             {
-                DrawBuiltInCell(cell, cellIcon, EditorResources.AnyTexture, Color.white);
+                DrawIconWithBorders(cell, cellIcon, EditorResources.AnyTexture, Color.white);
             }
             else
             {
@@ -317,25 +251,22 @@ namespace KrasCore.Mosaic.Editor
                 {
                     if (def.texture == null)
                     {
-                        // Solid color cell
                         cell.style.backgroundColor = def.color;
                     }
                     else
                     {
-                        // Texture over background
-                        DrawBuiltInCell(cell, cellIcon, def.texture, def.color);
+                        DrawIconWithBorders(cell, cellIcon, def.texture, def.color);
                     }
                 }
             }
             
             if (value < 0)
             {
-                // Negative or unknown -> draw "Not" icon + red border
-                DrawBuiltInCell(cell, notIcon, EditorResources.NotTexture, Color.red);
+                DrawIconWithBorders(cell, notIcon, EditorResources.NotTexture, Color.red);
             }
         }
 
-        private static void DrawBuiltInCell(VisualElement cell, VisualElement icon, Texture texture, Color borderColor)
+        private static void DrawIconWithBorders(VisualElement cell, VisualElement icon, Texture texture, Color borderColor)
         {
             cell.style.borderBottomWidth = 2;
             cell.style.borderTopWidth = 2;

@@ -1,0 +1,40 @@
+#IntGridMatrix_Root {
+    position: relative;
+    display: flex;
+    flex-grow: 1;
+    width: 100%;
+}
+
+#IntGridMatrix_Container {
+    position: relative;
+    display: flex;
+    border-width: 5px;
+    border-color: rgba(0, 0, 0, 0.15);
+}
+
+#IntGridMatrix_CenterIcon {
+    position: absolute;
+    display: flex;
+    background-size: contain;
+}
+
+#CellsContainer {
+    position: absolute;
+}
+
+#CellsContainer > * {
+    position: absolute;
+}
+
+#CellIcon,
+#NotIcon {
+    position: absolute;
+    align-self: center;
+    background-size: contain;
+}
+
+#ReadOnlyOverlay {
+    position: absolute;
+    display: flex;
+    background-color: rgba(0, 0, 0, 0.3);
+}
