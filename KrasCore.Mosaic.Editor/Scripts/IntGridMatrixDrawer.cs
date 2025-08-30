@@ -111,7 +111,6 @@ namespace KrasCore.Mosaic.Editor
             // Build/refresh grid whenever geometry or data changes
             void Refresh()
             {
-                // Get the actual IntGridMatrix instance
                 var matrixObj = GetFieldValue<IntGridMatrix>(owner, fieldInfo);
 
                 if (matrixObj == null)
@@ -119,7 +118,6 @@ namespace KrasCore.Mosaic.Editor
                     throw new Exception("Matrix is null");
                 }
 
-                // Validate square size
                 var length = matrixObj.singleGridMatrix.Length;
                 var n = (int)Mathf.Sqrt(length);
 
@@ -130,94 +128,84 @@ namespace KrasCore.Mosaic.Editor
 
                 var currentValues = matrixObj.GetCurrentMatrix();
                 var currentSize = matrixObj.GetCurrentSize();
-
                 var intGrid = matrixObj.intGrid;
-
-                var size = Mathf.Max(1f, root.contentRect.width);
+                
+                var size = root.contentRect.width;
                 
                 matrixContainer.style.width = size;
                 matrixContainer.style.height = size;
                 
+                size -= 5 * 2;
                 if (readOnlyOverlay != null)
                 {
                     readOnlyOverlay.style.width = size;
                     readOnlyOverlay.style.height = size;
                 }
                 
-                // Solve for square size s:
-                // N*s + (N-1)*(s*paddingFrac) = W
-                // s = W / (N + (N-1)*paddingFrac)
-                size -= 5 * 2; // for dual grid it is different
-                
-                var paddingFrac = Mathf.Max(0f, attr.Padding);
-                var s = size / n;
-                var padding = s * paddingFrac;
-                var sizeNoPadding = size - padding * (n - 1); 
-                s = sizeNoPadding / n;
-                
-                float p = s * paddingFrac;
+                var padding = size * attr.Padding;
+                var paddingCount = intGrid.useDualGrid ? n : n - 1;
+                var sizeNoPadding = size - padding * paddingCount; 
+                var cellSize = sizeNoPadding / n;
 
-                // Layout center icon (same size as a cell, centered)
-                centerIcon.style.width = s;
-                centerIcon.style.height = s;
-                centerIcon.style.left = (size - s) * 0.5f;
-                centerIcon.style.top = (size - s) * 0.5f;
+                centerIcon.style.width = cellSize;
+                centerIcon.style.height = cellSize;
+                centerIcon.style.left = (size - cellSize) * 0.5f;
+                centerIcon.style.top = (size - cellSize) * 0.5f;
 
-                // Build or reuse cells
-                int cellCount = currentSize * currentSize;
-                EnsureChildCount(cellsContainer, cellCount);
+                var cellCount = currentSize * currentSize;
+                EnsureCellsCount(cellsContainer, cellCount);
 
                 // Draw each cell
                 for (int i = 0; i < currentSize; i++)
                 {
                     for (int j = 0; j < currentSize; j++)
                     {
-                        int idx = i * currentSize + j;
-                        var cell = (VisualElement)cellsContainer[idx];
-                        cell.name = $"Cell_{i}_{j}";
-                        cell.style.position = Position.Absolute;
-                        cell.style.width = s;
-                        cell.style.height = s;
-                        cell.style.backgroundColor = EditorResources.BackgroundCellColor;
+                        var cellIndex = i * currentSize + j;
+                        var cell = cellsContainer[cellIndex];
+                        
+                        var x = j * (cellSize + padding);
+                        var y = i * (cellSize + padding);
 
-                        float x = j * (s + p);
-                        float y = i * (s + p);
-
+                        var finalCellSize = new Vector2(cellSize, cellSize);
+                        
                         if (intGrid.useDualGrid)
                         {
-                            x -= s * 0.5f;
-                            y -= s * 0.5f;
+                            x -= cellSize * 0.5f;
+                            y -= cellSize * 0.5f;
                             x = Mathf.Max(x, 0f);
                             y = Mathf.Max(y, 0f);
 
                             if ((i == 0 && j == 0) || (i == currentSize - 1 && j == currentSize - 1) ||
                                 (i == 0 && j == currentSize - 1) || (i == currentSize - 1 && j == 0))
                             {
-                                cell.style.width = s / 2f;
-                                cell.style.height = s / 2f;
+                                finalCellSize.x /= 2f;
+                                finalCellSize.y /= 2f;
                             }
                             else if (i == 0 || i == currentSize - 1)
                             {
-                                cell.style.height = s / 2f;
+                                finalCellSize.y /= 2f;
                             }
                             else if (j == 0 || j == currentSize - 1)
                             {
-                                cell.style.width = s / 2f;
+                                finalCellSize.x /= 2f;
                             }
                         }
                         
+                        cell.style.width = finalCellSize.x;
+                        cell.style.height = finalCellSize.y;
+                        
                         var cellIcon = cell[0];
-                        cellIcon.style.width = cell.style.width;
-                        cellIcon.style.height = cell.style.height;
+                        cellIcon.style.width = finalCellSize.x;
+                        cellIcon.style.height = finalCellSize.y;
                         
                         var notIcon = cell[1];
-                        notIcon.style.width = cell.style.width;
-                        notIcon.style.height = cell.style.height;
+                        notIcon.style.width = finalCellSize.x;
+                        notIcon.style.height = finalCellSize.y;
                         
                         cell.style.left = x;
                         cell.style.top = y;
 
-                        var slot = new Ptr<IntGridValue>(ref currentValues[idx]);
+                        var slot = new Ptr<IntGridValue>(ref currentValues[cellIndex]);
                         if (_onBeforeDrawCellMethod != null)
                         {
                             _onBeforeDrawCellMethod.Invoke(owner, new object[] { cell, slot });
@@ -230,66 +218,65 @@ namespace KrasCore.Mosaic.Editor
             }
 
             // Rebuild on geometry changes (width changes)
-            matrixContainer.RegisterCallback<GeometryChangedEvent>(_ => Refresh());
+            root.RegisterCallback<GeometryChangedEvent>(_ => Refresh());
 
             // Also refresh when data changes (best-effort)
             root.TrackSerializedObjectValue(property.serializedObject, _ => Refresh());
 
             // Initial
-            root.schedule.Execute(Refresh);
+            Refresh();
 
             return root;
         }
         
         // ---- Helpers ----
-        private static void EnsureChildCount(VisualElement parent, int count)
+        private static void EnsureCellsCount(VisualElement cellsMatrix, int cellsCount)
         {
-            int diff = count - parent.childCount;
-            if (diff > 0)
+            if (cellsMatrix.childCount == cellsCount)
             {
-                for (int i = 0; i < diff; i++)
-                {
-                    var cell = new VisualElement();
-                    
-                    var cellIcon = new VisualElement
-                    {
-                        name = "CellIcon",
-                        style =
-                        {
-                            position = Position.Absolute,
-                            alignSelf = Align.Center,
-                            backgroundSize = new BackgroundSize(BackgroundSizeType.Contain),
-                        }
-                    };
-                    var notIcon = new VisualElement
-                    {
-                        name = "NotIcon",
-                        style =
-                        {
-                            position = Position.Absolute,
-                            alignSelf = Align.Center,
-                            backgroundSize = new BackgroundSize(BackgroundSizeType.Contain),
-                        }
-                    };
-                    cell.Add(cellIcon);
-                    cell.Add(notIcon);
-                    parent.Add(cell);
-                }
+                return;
             }
-            else if (diff < 0)
+            
+            cellsMatrix.Clear();
+            
+            for (int i = 0; i < cellsCount; i++)
             {
-                for (int i = parent.childCount - 1; i >= count; i--)
+                var cell = new VisualElement
                 {
-                    parent.RemoveAt(i);
-                }
+                    name = $"Cell_{i}",
+                    style =
+                    {
+                        position = Position.Absolute,
+                        backgroundColor = EditorResources.BackgroundCellColor
+                    }
+                };
+                var cellIcon = new VisualElement
+                {
+                    name = "CellIcon",
+                    style =
+                    {
+                        position = Position.Absolute,
+                        alignSelf = Align.Center,
+                        backgroundSize = new BackgroundSize(BackgroundSizeType.Contain),
+                    }
+                };
+                var notIcon = new VisualElement
+                {
+                    name = "NotIcon",
+                    style =
+                    {
+                        position = Position.Absolute,
+                        alignSelf = Align.Center,
+                        backgroundSize = new BackgroundSize(BackgroundSizeType.Contain),
+                    }
+                };
+                cell.Add(cellIcon);
+                cell.Add(notIcon);
+                cellsMatrix.Add(cell);
             }
         }
 
-        private void DrawCell(
-            VisualElement cell,
-            IntGridValue value,
-            IntGridDefinition intGrid
-        )
+        private void DrawCell(VisualElement cell, IntGridValue value, IntGridDefinition intGrid)
         {
             // Reset visuals
             cell.style.borderBottomWidth = 0;
@@ -304,12 +291,15 @@ namespace KrasCore.Mosaic.Editor
             // Default background
             cell.style.backgroundColor = EditorResources.BackgroundCellColor;
 
+            var cellIcon = cell[0];
+            var notIcon = cell[1];
+            
             // Clear icon
-            cell[0].style.display = DisplayStyle.None;
-            cell[0].style.backgroundImage = StyleKeyword.None;
+            cellIcon.style.display = DisplayStyle.None;
+            cellIcon.style.backgroundImage = StyleKeyword.None;
 
-            cell[1].style.display = DisplayStyle.None;
-            cell[1].style.backgroundImage = StyleKeyword.None;
+            notIcon.style.display = DisplayStyle.None;
+            notIcon.style.backgroundImage = StyleKeyword.None;
             
             if (value == 0)
             {
@@ -318,37 +308,34 @@ namespace KrasCore.Mosaic.Editor
             
             if (Mathf.Abs(value) == RuleGridConsts.AnyIntGridValue)
             {
-                DrawBuiltInCell(cell, cell[0], EditorResources.AnyTexture, Color.white);
+                DrawBuiltInCell(cell, cellIcon, EditorResources.AnyTexture, Color.white);
             }
-
-            var def = IntGridValueToDefinition(value, intGrid);
-            if (def != null)
+            else
             {
-                if (def.texture == null)
+                var def = IntGridValueToDefinition(value, intGrid);
+                if (def != null)
                 {
-                    // Solid color cell
-                    cell.style.backgroundColor = def.color;
-                }
-                else
-                {
-                    // Texture over background
-                    DrawBuiltInCell(cell, cell[0], def.texture, def.color);
+                    if (def.texture == null)
+                    {
+                        // Solid color cell
+                        cell.style.backgroundColor = def.color;
+                    }
+                    else
+                    {
+                        // Texture over background
+                        DrawBuiltInCell(cell, cellIcon, def.texture, def.color);
+                    }
                 }
             }
             
             if (value < 0)
             {
                 // Negative or unknown -> draw "Not" icon + red border
-                DrawBuiltInCell(cell, cell[1], EditorResources.NotTexture, Color.red);
+                DrawBuiltInCell(cell, notIcon, EditorResources.NotTexture, Color.red);
             }
         }
 
-        private static void DrawBuiltInCell(
-            VisualElement cell,
-            VisualElement icon,
-            Texture texture,
-            Color borderColor
-        )
+        private static void DrawBuiltInCell(VisualElement cell, VisualElement icon, Texture texture, Color borderColor)
         {
             cell.style.borderBottomWidth = 2;
             cell.style.borderTopWidth = 2;
@@ -367,9 +354,6 @@ namespace KrasCore.Mosaic.Editor
         
         private static IntGridValueDefinition IntGridValueToDefinition(IntGridValue v, IntGridDefinition intGrid)
         {
-            if (v == 0 || intGrid == null || intGrid.IntGridValuesDict == null)
-                return null;
-
             var key = Mathf.Abs(v);
             intGrid.IntGridValuesDict.TryGetValue(key, out var def);
             return def;
