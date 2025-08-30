@@ -15,7 +15,8 @@
         "Unity.Mathematics.Extensions",
         "Unity.Physics",
         "Unity.Transforms",
-        "KrasCore"
+        "KrasCore",
+        "KrasCore.Editor"
     ],
     "optionalUnityReferences": [],
     "includePlatforms": [

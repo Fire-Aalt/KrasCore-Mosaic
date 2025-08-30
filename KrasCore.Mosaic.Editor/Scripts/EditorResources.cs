@@ -1,3 +1,4 @@
+using KrasCore.Editor;
 using UnityEditor;
 using UnityEngine;
 
@@ -13,14 +14,16 @@ namespace KrasCore.Mosaic.Editor
         public static readonly Texture NotTexture;
         public static readonly Texture AnyTexture;
         public static readonly Texture MatrixCenterTexture;
+
+        private const string ValidationRoot = "KrasCore.Mosaic.Editor";
         
         static EditorResources()
         {
-            TextureMat = Resources.Load("default") as Material;
+            TextureMat = AssetDatabaseUtils.LoadEditorResource<Material>("default.mat", ValidationRoot);
             
-            NotTexture = Resources.Load("not") as Texture;
-            AnyTexture = Resources.Load("any") as Texture;
-            MatrixCenterTexture = Resources.Load("matrixCenter") as Texture;
+            NotTexture = AssetDatabaseUtils.LoadEditorResource<Texture>("not.png", ValidationRoot);
+            AnyTexture = AssetDatabaseUtils.LoadEditorResource<Texture>("any.png", ValidationRoot);
+            MatrixCenterTexture = AssetDatabaseUtils.LoadEditorResource<Texture>("matrixCenter.png", ValidationRoot);
         }
     }
 }
