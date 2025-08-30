@@ -1,3 +1,4 @@
+using System;
 using System.Reflection;
 using BovineLabs.Core.Utility;
 using KrasCore.Mosaic.Authoring;
@@ -27,102 +28,95 @@ namespace KrasCore.Mosaic.Editor
             ReflectionUtils.TryGetCallMethod(owner, attr.MatrixRectMethod, out _matrixRectMethod);
             ReflectionUtils.TryGetCallMethod(owner, attr.OnBeforeDrawCellMethod, out _onBeforeDrawCellMethod);
 
-            var root = new VisualElement { name = "IntGridMatrix_Root" };
-            root.style.flexDirection = FlexDirection.Column;
-            root.style.marginBottom = 4;
-            
-            var matrixContainer = new VisualElement { name = "IntGridMatrix_Container" };
-            matrixContainer.style.position = Position.Relative;
-            matrixContainer.style.flexGrow = 1;
-            matrixContainer.style.width = Length.Percent(100);
-            matrixContainer.style.borderBottomWidth = 1;
-            matrixContainer.style.borderTopWidth = 1;
-            matrixContainer.style.borderLeftWidth = 1;
-            matrixContainer.style.borderRightWidth = 1;
-            matrixContainer.style.borderBottomColor = new Color(0, 0, 0, 0.15f);
-            matrixContainer.style.borderTopColor = new Color(0, 0, 0, 0.15f);
-            matrixContainer.style.borderLeftColor = new Color(0, 0, 0, 0.15f);
-            matrixContainer.style.borderRightColor = new Color(0, 0, 0, 0.15f);
+            var root = new VisualElement
+            {
+                name = "IntGridMatrix_Root",
+                style =
+                {
+                    position = Position.Relative,
+                    display = DisplayStyle.Flex,
+                    flexGrow = 1,
+                    width = Length.Percent(100),
+                }
+            };
+
+            var matrixContainer = new VisualElement
+            {
+                name = "IntGridMatrix_Container",
+                style =
+                {
+                    position = Position.Relative,
+                    display = DisplayStyle.Flex,
+                    borderBottomWidth = 5,
+                    borderTopWidth = 5,
+                    borderLeftWidth = 5,
+                    borderRightWidth = 5,
+                    borderBottomColor = new Color(0, 0, 0, 0.15f),
+                    borderTopColor = new Color(0, 0, 0, 0.15f),
+                    borderLeftColor = new Color(0, 0, 0, 0.15f),
+                    borderRightColor = new Color(0, 0, 0, 0.15f)
+                }
+            };
 
             if (_matrixRectMethod != null)
             {
                 _matrixRectMethod.Invoke(owner, new object[] { matrixContainer });
             }
             
-            var errorBox = new HelpBox(
-                "Matrix cannot be drawn. The collection size must be square.",
-                HelpBoxMessageType.Error
-            )
+            // Center icon element
+            var centerIcon = new VisualElement
             {
-                name = "IntGridMatrix_Error"
+                name = "IntGridMatrix_CenterIcon",
+                pickingMode = PickingMode.Ignore,
+                style =
+                {
+                    position = Position.Absolute,
+                    display = DisplayStyle.Flex,
+                    backgroundSize = new BackgroundSize(BackgroundSizeType.Contain),
+                    backgroundImage = new StyleBackground(EditorResources.MatrixCenterTexture as Texture2D)
+                }
             };
-            errorBox.style.display = DisplayStyle.None;
+
+            // Cells container on top of center icon
+            var cellsContainer = new VisualElement
+            {
+                name = "CellsContainer",
+                style =
+                {
+                    position = Position.Absolute,
+                }
+            };
+            matrixContainer.Add(cellsContainer);
+            matrixContainer.Add(centerIcon);
 
             // Overlay for readonly
             VisualElement readOnlyOverlay = null;
             if (attr.IsReadonly)
             {
-                readOnlyOverlay = new VisualElement { name = "ReadOnlyOverlay" };
-                readOnlyOverlay.style.position = Position.Absolute;
-                readOnlyOverlay.style.left = 0;
-                readOnlyOverlay.style.top = 0;
-                readOnlyOverlay.style.right = 0;
-                readOnlyOverlay.style.bottom = 0;
-                readOnlyOverlay.style.backgroundColor =
-                    new Color(0f, 0f, 0f, 0.3f);
-                // Block input if readonly
-                readOnlyOverlay.pickingMode = PickingMode.Position;
+                readOnlyOverlay = new VisualElement
+                {
+                    name = "ReadOnlyOverlay",
+                    style =
+                    {
+                        position = Position.Absolute,
+                        display = DisplayStyle.Flex,
+                        backgroundColor = new Color(0f, 0f, 0f, 0.3f)
+                    }
+                };
                 matrixContainer.Add(readOnlyOverlay);
             }
-
-            // Center icon element
-            var centerIcon = new VisualElement { name = "IntGridMatrix_CenterIcon" };
-            centerIcon.style.position = Position.Absolute;
-            centerIcon.pickingMode = PickingMode.Ignore;
-            centerIcon.style.backgroundPositionX = new BackgroundPosition(
-                BackgroundPositionKeyword.Center
-            );
-            centerIcon.style.backgroundPositionY = new BackgroundPosition(
-                BackgroundPositionKeyword.Center
-            );
-            centerIcon.style.backgroundSize = new BackgroundSize(
-                BackgroundSizeType.Contain
-            );
-            if (EditorResources.MatrixCenterTexture != null)
-            {
-                centerIcon.style.backgroundImage = new StyleBackground(
-                    EditorResources.MatrixCenterTexture  as Texture2D
-                );
-            }
-
-            // Cells container on top of center icon
-            var cellsContainer = new VisualElement { name = "CellsContainer" };
-            cellsContainer.style.position = Position.Absolute;
-            cellsContainer.style.left = 0;
-            cellsContainer.style.top = 0;
-            cellsContainer.style.right = 0;
-            cellsContainer.style.bottom = 0;
-            matrixContainer.Add(cellsContainer);
-            matrixContainer.Add(centerIcon);
-
+            
             root.Add(matrixContainer);
-            root.Add(errorBox);
-
+            
             // Build/refresh grid whenever geometry or data changes
             void Refresh()
             {
                 // Get the actual IntGridMatrix instance
-                var matrixObj = GetFieldValue<IntGridMatrix>(
-                    owner,
-                    fieldInfo
-                );
+                var matrixObj = GetFieldValue<IntGridMatrix>(owner, fieldInfo);
 
                 if (matrixObj == null)
                 {
-                    errorBox.text = "Matrix is null.";
-                    errorBox.style.display = DisplayStyle.Flex;
-                    cellsContainer.Clear();
-                    return;
+                    throw new Exception("Matrix is null");
                 }
 
                 // Validate square size
@@ -131,42 +125,43 @@ namespace KrasCore.Mosaic.Editor
 
                 if (n * n != length)
                 {
-                    errorBox.text =
-                        "Matrix cannot be drawn. The collection size must be square.";
-                    errorBox.style.display = DisplayStyle.Flex;
-                    cellsContainer.Clear();
-                    return;
+                    throw new Exception("Matrix cannot be drawn. The collection size must be square.");
                 }
-
-                errorBox.style.display = DisplayStyle.None;
 
                 var currentValues = matrixObj.GetCurrentMatrix();
                 var currentSize = matrixObj.GetCurrentSize();
 
                 var intGrid = matrixObj.intGrid;
-                var useDual = intGrid != null && intGrid.useDualGrid;
 
-                var bounds = matrixContainer.contentRect;
-                float W = Mathf.Max(1f, bounds.width);
-
+                var size = Mathf.Max(1f, root.contentRect.width);
+                
+                matrixContainer.style.width = size;
+                matrixContainer.style.height = size;
+                
+                if (readOnlyOverlay != null)
+                {
+                    readOnlyOverlay.style.width = size;
+                    readOnlyOverlay.style.height = size;
+                }
+                
                 // Solve for square size s:
                 // N*s + (N-1)*(s*paddingFrac) = W
                 // s = W / (N + (N-1)*paddingFrac)
-                float paddingFrac = Mathf.Max(0f, attr.Padding);
-                float denom = n + (n - 1) * paddingFrac;
-                float s = denom > 0.0001f ? W / denom : 1f;
+                size -= 5 * 2; // for dual grid it is different
+                
+                var paddingFrac = Mathf.Max(0f, attr.Padding);
+                var s = size / n;
+                var padding = s * paddingFrac;
+                var sizeNoPadding = size - padding * (n - 1); 
+                s = sizeNoPadding / n;
                 
                 float p = s * paddingFrac;
 
                 // Layout center icon (same size as a cell, centered)
                 centerIcon.style.width = s;
                 centerIcon.style.height = s;
-                centerIcon.style.left = (W - s) * 0.5f;
-                centerIcon.style.top = (W - s) * 0.5f;
-                centerIcon.style.display =
-                    EditorResources.MatrixCenterTexture != null
-                        ? DisplayStyle.Flex
-                        : DisplayStyle.None;
+                centerIcon.style.left = (size - s) * 0.5f;
+                centerIcon.style.top = (size - s) * 0.5f;
 
                 // Build or reuse cells
                 int cellCount = currentSize * currentSize;
@@ -183,13 +178,12 @@ namespace KrasCore.Mosaic.Editor
                         cell.style.position = Position.Absolute;
                         cell.style.width = s;
                         cell.style.height = s;
-                        cell.style.backgroundColor =
-                            EditorResources.BackgroundCellColor;
+                        cell.style.backgroundColor = EditorResources.BackgroundCellColor;
 
                         float x = j * (s + p);
                         float y = i * (s + p);
 
-                        if (useDual)
+                        if (intGrid.useDualGrid)
                         {
                             x -= s * 0.5f;
                             y -= s * 0.5f;
@@ -212,34 +206,16 @@ namespace KrasCore.Mosaic.Editor
                             }
                         }
                         
+                        var cellIcon = cell[0];
+                        cellIcon.style.width = cell.style.width;
+                        cellIcon.style.height = cell.style.height;
+                        
+                        var notIcon = cell[1];
+                        notIcon.style.width = cell.style.width;
+                        notIcon.style.height = cell.style.height;
+                        
                         cell.style.left = x;
                         cell.style.top = y;
-
-                        // Prepare inner icon (child[0]) for textures
-                        VisualElement icon;
-                        if (cell.childCount == 0)
-                        {
-                            icon = new VisualElement { name = "Icon" };
-                            icon.style.position = Position.Relative;
-                            icon.style.alignSelf = Align.Center;
-                            icon.style.backgroundSize = new BackgroundSize(
-                                BackgroundSizeType.Contain
-                            );
-                            cell.Add(icon);
-                        }
-                        else
-                        {
-                            icon = cell[0];
-                        }
-
-                        var ratio = new Vector2(cell.style.width.value.value, cell.style.height.value.value) / s;
-                        
-                        // 60% pad like original DrawBuiltInCellTexture
-                        var inner = s * 0.6f * ratio;
-                        icon.style.width = inner.x;
-                        icon.style.height = inner.y;
-                        icon.style.top = (s * ratio.y - inner.y) / 2f;
-                        
 
                         var slot = new Ptr<IntGridValue>(ref currentValues[idx]);
                         if (_onBeforeDrawCellMethod != null)
@@ -248,14 +224,8 @@ namespace KrasCore.Mosaic.Editor
                         }
 
                         // Draw based on IntGridValue
-                        DrawCell(cell, icon, slot.Ref, intGrid);
+                        DrawCell(cell, slot.Ref, intGrid);
                     }
-                }
-
-                // Place readonly overlay as last child, so it captures input
-                if (readOnlyOverlay != null)
-                {
-                    readOnlyOverlay.BringToFront();
                 }
             }
 
@@ -272,7 +242,6 @@ namespace KrasCore.Mosaic.Editor
         }
         
         // ---- Helpers ----
-
         private static void EnsureChildCount(VisualElement parent, int count)
         {
             int diff = count - parent.childCount;
@@ -280,12 +249,35 @@ namespace KrasCore.Mosaic.Editor
             {
                 for (int i = 0; i < diff; i++)
                 {
-                    parent.Add(new VisualElement());
+                    var cell = new VisualElement();
+                    
+                    var cellIcon = new VisualElement
+                    {
+                        name = "CellIcon",
+                        style =
+                        {
+                            position = Position.Absolute,
+                            alignSelf = Align.Center,
+                            backgroundSize = new BackgroundSize(BackgroundSizeType.Contain),
+                        }
+                    };
+                    var notIcon = new VisualElement
+                    {
+                        name = "NotIcon",
+                        style =
+                        {
+                            position = Position.Absolute,
+                            alignSelf = Align.Center,
+                            backgroundSize = new BackgroundSize(BackgroundSizeType.Contain),
+                        }
+                    };
+                    cell.Add(cellIcon);
+                    cell.Add(notIcon);
+                    parent.Add(cell);
                 }
             }
             else if (diff < 0)
             {
-                // Remove extra children
                 for (int i = parent.childCount - 1; i >= count; i--)
                 {
                     parent.RemoveAt(i);
@@ -295,7 +287,6 @@ namespace KrasCore.Mosaic.Editor
 
         private void DrawCell(
             VisualElement cell,
-            VisualElement icon,
             IntGridValue value,
             IntGridDefinition intGrid
         )
@@ -314,49 +305,41 @@ namespace KrasCore.Mosaic.Editor
             cell.style.backgroundColor = EditorResources.BackgroundCellColor;
 
             // Clear icon
-            icon.style.display = DisplayStyle.None;
-            icon.style.backgroundImage = StyleKeyword.None;
+            cell[0].style.display = DisplayStyle.None;
+            cell[0].style.backgroundImage = StyleKeyword.None;
 
-            if (Mathf.Abs(value) == RuleGridConsts.AnyIntGridValue)
-            {
-                // Any cell: paint BG then icon
-                cell.style.backgroundColor = EditorResources.BackgroundCellColor;
-                icon.style.display = DisplayStyle.Flex;
-                icon.style.backgroundImage = new StyleBackground(EditorResources.AnyTexture as Texture2D);
-                return;
-            }
-
+            cell[1].style.display = DisplayStyle.None;
+            cell[1].style.backgroundImage = StyleKeyword.None;
+            
             if (value == 0)
             {
-                // Empty BG only
                 return;
+            }
+            
+            if (Mathf.Abs(value) == RuleGridConsts.AnyIntGridValue)
+            {
+                DrawBuiltInCell(cell, cell[0], EditorResources.AnyTexture, Color.white);
             }
 
             var def = IntGridValueToDefinition(value, intGrid);
-            if (def == null)
+            if (def != null)
             {
-                // Negative or unknown -> draw "Not" icon + red border
-                DrawBuiltInCell(cell, icon, EditorResources.NotTexture, Color.red);
-                return;
+                if (def.texture == null)
+                {
+                    // Solid color cell
+                    cell.style.backgroundColor = def.color;
+                }
+                else
+                {
+                    // Texture over background
+                    DrawBuiltInCell(cell, cell[0], def.texture, def.color);
+                }
             }
-
-            if (def.texture == null)
-            {
-                // Solid color cell
-                cell.style.backgroundColor = def.color;
-            }
-            else
-            {
-                // Texture over background
-                cell.style.backgroundColor = EditorResources.BackgroundCellColor;
-                icon.style.display = DisplayStyle.Flex;
-                icon.style.backgroundImage = new StyleBackground(def.texture as Texture2D);
-            }
-
+            
             if (value < 0)
             {
-                // Negative -> red border + Not icon overlay
-                DrawBuiltInCell(cell, icon, EditorResources.NotTexture, Color.red);
+                // Negative or unknown -> draw "Not" icon + red border
+                DrawBuiltInCell(cell, cell[1], EditorResources.NotTexture, Color.red);
             }
         }
 
@@ -376,16 +359,13 @@ namespace KrasCore.Mosaic.Editor
             cell.style.borderLeftColor = borderColor;
             cell.style.borderRightColor = borderColor;
 
-            if (texture != null)
-            {
-                icon.style.backgroundImage = new StyleBackground(texture as Texture2D);
-            }
+            icon.style.top = -2;
+            
+            icon.style.display = DisplayStyle.Flex;
+            icon.style.backgroundImage = new StyleBackground(texture as Texture2D);
         }
         
-        private static IntGridValueDefinition IntGridValueToDefinition(
-            IntGridValue v,
-            IntGridDefinition intGrid
-        )
+        private static IntGridValueDefinition IntGridValueToDefinition(IntGridValue v, IntGridDefinition intGrid)
         {
             if (v == 0 || intGrid == null || intGrid.IntGridValuesDict == null)
                 return null;
