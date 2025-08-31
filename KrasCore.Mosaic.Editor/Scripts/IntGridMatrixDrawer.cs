@@ -11,7 +11,7 @@ using UnityEngine.UIElements;
 namespace KrasCore.Mosaic.Editor
 {
     [CustomPropertyDrawer(typeof(IntGridMatrixAttribute))]
-    public class IntGridMatrixUITKDrawer : PropertyDrawer
+    public class IntGridMatrixDrawer : PropertyDrawer
     {
         public StyleSheet StyleSheet;
         
@@ -24,7 +24,9 @@ namespace KrasCore.Mosaic.Editor
         {
             var attr = (IntGridMatrixAttribute)attribute;
             var owner = GetParentObject(property);
-
+            
+            Debug.Log(property.serializedObject.targetObject.GetType());
+            
             ReflectionUtils.TryGetCallMethod(owner, attr.MatrixRectMethod, out _matrixRectMethod);
             ReflectionUtils.TryGetCallMethod(owner, attr.OnBeforeDrawCellMethod, out _onBeforeDrawCellMethod);
 
@@ -64,9 +66,7 @@ namespace KrasCore.Mosaic.Editor
             // Build/refresh grid whenever geometry or data changes
             void Refresh()
             {
-                var matrixObj = GetFieldValue<IntGridMatrix>(owner, fieldInfo);
-
-                if (matrixObj == null)
+                if (fieldInfo.GetValue(owner) is not IntGridMatrix matrixObj)
                 {
                     throw new Exception("Matrix is null");
                 }
@@ -96,7 +96,7 @@ namespace KrasCore.Mosaic.Editor
                     readOnlyOverlay.style.height = size;
                 }
                 
-                var padding = size * attr.Padding;
+                var padding = Mathf.Max(1, size * attr.Padding);
                 var paddingCount = intGrid.useDualGrid ? n : n - 1;
                 var sizeNoPadding = size - padding * paddingCount; 
                 var cellSize = sizeNoPadding / n;
@@ -159,13 +159,12 @@ namespace KrasCore.Mosaic.Editor
                         cell.style.left = x;
                         cell.style.top = y;
 
-                        var slot = new Ptr<IntGridValue>(ref currentValues[cellIndex]);
                         if (_onBeforeDrawCellMethod != null)
                         {
-                            _onBeforeDrawCellMethod.Invoke(owner, new object[] { cell, slot });
+                            _onBeforeDrawCellMethod.Invoke(owner, new object[] { cell, cellIndex, property.serializedObject });
                         }
 
-                        DrawCell(cell, slot.Ref, intGrid);
+                        DrawCell(cell, currentValues[cellIndex], intGrid, size);
                     }
                 }
             }
@@ -174,7 +173,7 @@ namespace KrasCore.Mosaic.Editor
             root.RegisterCallback<GeometryChangedEvent>(_ => Refresh());
 
             // Also refresh when data changes (best-effort)
-            root.TrackPropertyValue(property, _ => Refresh());
+            root.TrackSerializedObjectValue(property.serializedObject, _ => Refresh());
 
             // Initial
             Refresh();
@@ -210,7 +209,7 @@ namespace KrasCore.Mosaic.Editor
             }
         }
 
-        private void DrawCell(VisualElement cell, IntGridValue value, IntGridDefinition intGrid)
+        private void DrawCell(VisualElement cell, IntGridValue value, IntGridDefinition intGrid, float size)
         {
             // Reset visuals
             cell.style.borderBottomWidth = 0;
@@ -242,7 +241,7 @@ namespace KrasCore.Mosaic.Editor
             
             if (Mathf.Abs(value) == RuleGridConsts.AnyIntGridValue)
             {
-                DrawIconWithBorders(cell, cellIcon, EditorResources.AnyTexture, Color.white);
+                DrawIconWithBorders(cell, cellIcon, EditorResources.AnyTexture, Color.white, size);
             }
             else
             {
@@ -255,29 +254,31 @@ namespace KrasCore.Mosaic.Editor
                     }
                     else
                     {
-                        DrawIconWithBorders(cell, cellIcon, def.texture, def.color);
+                        DrawIconWithBorders(cell, cellIcon, def.texture, def.color, size);
                     }
                 }
             }
             
             if (value < 0)
             {
-                DrawIconWithBorders(cell, notIcon, EditorResources.NotTexture, Color.red);
+                DrawIconWithBorders(cell, notIcon, EditorResources.NotTexture, Color.red, size);
             }
         }
 
-        private static void DrawIconWithBorders(VisualElement cell, VisualElement icon, Texture texture, Color borderColor)
+        private static void DrawIconWithBorders(VisualElement cell, VisualElement icon, Texture texture, Color borderColor, float size)
         {
-            cell.style.borderBottomWidth = 2;
-            cell.style.borderTopWidth = 2;
-            cell.style.borderLeftWidth = 2;
-            cell.style.borderRightWidth = 2;
+            var borderSize = size * 0.005f;
+            
+            cell.style.borderBottomWidth = borderSize;
+            cell.style.borderTopWidth = borderSize;
+            cell.style.borderLeftWidth = borderSize;
+            cell.style.borderRightWidth = borderSize;
             cell.style.borderBottomColor = borderColor;
             cell.style.borderTopColor = borderColor;
             cell.style.borderLeftColor = borderColor;
             cell.style.borderRightColor = borderColor;
 
-            icon.style.top = -2;
+            icon.style.top = -borderSize;
             
             icon.style.display = DisplayStyle.Flex;
             icon.style.backgroundImage = new StyleBackground(texture as Texture2D);
@@ -289,22 +290,7 @@ namespace KrasCore.Mosaic.Editor
             intGrid.IntGridValuesDict.TryGetValue(key, out var def);
             return def;
         }
-
-        private static T GetFieldValue<T>(object owner, FieldInfo fi) where T : class
-        {
-            if (owner == null || fi == null) return null;
-
-            try
-            {
-                var val = fi.GetValue(owner);
-                return val as T;
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
+        
         private static object GetParentObject(SerializedProperty property)
         {
             var path = property.propertyPath;

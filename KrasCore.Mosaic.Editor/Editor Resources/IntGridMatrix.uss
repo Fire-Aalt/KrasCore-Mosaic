@@ -1,3 +1,44 @@
+#IntGridValueSelector_Root {
+    position: relative;
+    display: flex;
+    flex-grow: 1;
+    width: 100%;
+}
+
+#IntGridValueSelector_Container {
+    position: relative;
+    display: flex;
+    flex-grow: 1;
+    flex-direction: column;
+}
+
+#IntGridValueSelector_Container > * {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex-direction: row;
+    flex-grow: 1;
+}
+
+#Icon {
+    position: relative;
+    width: 20%;
+    height: 30px;
+    display: flex;
+    background-size: contain;
+}
+
+#Text {
+    position: relative;
+    width: 80%;
+    -unity-text-align: middle-left;
+    padding-left: 10px;
+    height: 30px;
+    display: flex;
+}
+
+
+
 #IntGridMatrix_Root {
     position: relative;
     display: flex;

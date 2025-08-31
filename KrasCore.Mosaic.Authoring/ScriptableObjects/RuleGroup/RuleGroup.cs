@@ -36,6 +36,7 @@ namespace KrasCore.Mosaic.Authoring
             {
                 rule.Bind(this);
                 rule.Validate();
+                rule.Print();
             }
         }
 
@@ -89,6 +90,17 @@ namespace KrasCore.Mosaic.Authoring
                 ruleMatrix.intGrid = BoundIntGridDefinition;
             }
 
+            [Button]
+            public void Print()
+            {
+                var s = "";
+                for (int i = 0; i < ruleMatrix.dualGridMatrix.Length; i++)
+                {
+                    s += ruleMatrix.dualGridMatrix[i].value + "|";
+                }
+                Debug.Log(s);
+            }
+            
             public void Validate()
             {
                 TileSprites ??= new List<SpriteResult>();

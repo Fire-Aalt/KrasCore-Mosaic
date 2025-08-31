@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using BovineLabs.Core.Utility;
 using KrasCore.Mosaic.Data;
@@ -130,6 +131,19 @@ namespace KrasCore.Mosaic.Authoring
             }
         }
 
+        
+        [Button]
+        public void Print()
+        {
+            var s = "";
+            for (int i = 0; i < _matrix.dualGridMatrix.Length; i++)
+            {
+                s += _matrix.dualGridMatrix[i].value + "|";
+            }
+            Debug.Log(s);
+        }
+
+        
         private void OnInspectorUpdate()
         {
             SaveChanges();
@@ -137,27 +151,30 @@ namespace KrasCore.Mosaic.Authoring
                 Close();
         }
         
-        private void OnBeforeDrawMatrixCell(VisualElement cell, Ptr<IntGridValue> value)
+        private void OnBeforeDrawMatrixCell(VisualElement cell, int cellIndex, SerializedObject serializedObject)
         {
-            var leftMouse = new Clickable(s => LeftClick(value));
+            var leftMouse = new Clickable(_ => LeftClick(cellIndex, serializedObject));
             leftMouse.activators.Add(new ManipulatorActivationFilter { button = MouseButton.LeftMouse });
             cell.AddManipulator(leftMouse);
             
-            var rightMouse = new Clickable(s => RightClick(value));
+            var rightMouse = new Clickable(_ => RightClick(cellIndex, serializedObject));
             rightMouse.activators.Add(new ManipulatorActivationFilter { button = MouseButton.RightMouse });
             cell.AddManipulator(rightMouse);
         }
 
-        private void LeftClick(Ptr<IntGridValue> value)
+        private void LeftClick(int cellIndex, SerializedObject serializedObject)
         {
-            ref var slot = ref value.Ref;
+            ref var slot = ref _matrix.GetCurrentMatrix()[cellIndex];
             
             slot = _selectedIntGridValue.value;
+
+            serializedObject.ApplyModifiedProperties();
+            serializedObject.Update();
         }        
         
-        private void RightClick(Ptr<IntGridValue> value)
+        private void RightClick(int cellIndex, SerializedObject serializedObject)
         {
-            ref var slot = ref value.Ref;
+            ref var slot = ref _matrix.GetCurrentMatrix()[cellIndex];
 
             if (slot == 0 || slot == _selectedIntGridValue.value)
             {
@@ -167,6 +184,13 @@ namespace KrasCore.Mosaic.Authoring
             {
                 slot = 0;
             }
+            
+            serializedObject.ApplyModifiedProperties();
+            serializedObject.Update();
+
+            var s = new SerializedObject(_target.RuleGroup);
+            s.ApplyModifiedProperties();
+            s.Update();
         }
     }
 }

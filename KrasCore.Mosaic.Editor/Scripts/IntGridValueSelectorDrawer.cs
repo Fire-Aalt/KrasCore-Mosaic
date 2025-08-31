@@ -1,75 +1,156 @@
+using System;
 using KrasCore.Mosaic.Authoring;
 using KrasCore.Mosaic.Data;
 using Sirenix.OdinInspector.Editor;
 using Sirenix.Utilities.Editor;
 using UnityEditor;
+using UnityEditor.UIElements;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace KrasCore.Mosaic.Editor
 {
-    public class IntGridValueSelectorDrawer : OdinAttributeDrawer<IntGridValueSelectorDrawerAttribute, IntGridValueSelector>
+    [CustomPropertyDrawer(typeof(IntGridValueSelectorDrawerAttribute))]
+    public class IntGridValueSelectorDrawer : PropertyDrawer
     {
-        private IntGridValueSelector Selector => ValueEntry.SmartValue;
-        private IntGridDefinition IntGrid => Selector.intGrid;
-
-        protected override void DrawPropertyLayout(GUIContent label)
+        public StyleSheet StyleSheet;
+        
+        private static object GetParentObject(SerializedProperty property)
         {
-            SirenixEditorGUI.BeginBox();
-            for (int i = 0; i < IntGrid.intGridValues.Count; i++)
+            var path = property.propertyPath;
+            var i = path.LastIndexOf('.');
+            
+            if (i < 0)
             {
-                if (IntGridButton(0, IntGrid.intGridValues[i].name, Selector.value == IntGrid.intGridValues[i].value,
-                        IntGrid.intGridValues[i].texture, IntGrid.intGridValues[i].color))
-                {
-                    Selector.value = IntGrid.intGridValues[i].value;
-                }
+                return property.serializedObject.targetObject;
             }
             
-            if (IntGridButton(0, "Any Value/No Value", Selector.value == RuleGridConsts.AnyIntGridValue, EditorResources.AnyTexture, Color.white))
-            {
-                Selector.value = RuleGridConsts.AnyIntGridValue;
-            }
-            SirenixEditorGUI.EndBox();
+            var parent = property.serializedObject.FindProperty(path.Substring(0, i));
+            return parent.boxedValue;
         }
         
-        private static bool IntGridButton(int indent, string text, bool isActive, Texture icon, Color cellColor)
+        public override VisualElement CreatePropertyGUI(SerializedProperty property)
         {
-            bool flag1 = false;
-            Rect rect = EditorGUILayout.BeginHorizontal(SirenixGUIStyles.MenuButtonBackground);
-            bool flag2 = rect.Contains(Event.current.mousePosition);
-            if (isActive)
-                SirenixEditorGUI.DrawSolidRect(rect, flag2 ? SirenixGUIStyles.MenuButtonActiveBgColor : SirenixGUIStyles.MenuButtonActiveBgColor);
-            else
-                SirenixEditorGUI.DrawSolidRect(rect, flag2 ? SirenixGUIStyles.MenuButtonHoverColor : SirenixGUIStyles.MenuButtonColor);
-            SirenixEditorGUI.DrawBorders(rect, 0, 0, 0, 1, SirenixGUIStyles.MenuButtonBorderColor);
-            if (Event.current.type == EventType.MouseDown)
-            {
-                if (flag2)
-                {
-                    Event.current.Use();
-                    flag1 = true;
-                }
-                GUIHelper.RequestRepaint();
-            }
-            GUIStyle style = new GUIStyle(EditorStyles.label);
-            style.fixedHeight = 40f;
-            if (isActive)
-                style.normal.textColor = Color.white;
-            GUILayout.Space((float) (indent * 10));
-
-            var iconRect = new Rect(rect.position + new Vector2(0f, 3f), new Vector2(40f, 40f));
-            if (icon != null)
-            {
-                EditorGUI.DrawPreviewTexture(iconRect, icon, EditorResources.TextureMat, ScaleMode.ScaleToFit);
-            }
-            else
-            {
-                EditorGUI.DrawRect(iconRect, cellColor);
-            }
-            GUILayout.Space(45f);
+            var owner = GetParentObject(property);
             
-            GUILayout.Label(new GUIContent(text), style);
-            EditorGUILayout.EndHorizontal();
-            return flag1;
+            var root = new VisualElement { name = "IntGridValueSelector_Root" };
+            root.styleSheets.Add(StyleSheet);
+
+            var selectorContainer = new VisualElement { name = "IntGridValueSelector_Container" };
+            
+            root.Add(selectorContainer);
+            
+            // Build/refresh grid whenever geometry or data changes
+            void Refresh()
+            {
+                if (fieldInfo.GetValue(owner) is not IntGridValueSelector selectorObj)
+                {
+                    throw new Exception("Selector is null");
+                }
+                var intGrid = selectorObj.intGrid;
+                
+                var size = root.contentRect.width;
+                
+                selectorContainer.style.width = size;
+                selectorContainer.style.height = size;
+                
+                EnsureCellsCount(selectorContainer, intGrid);
+
+                for (int i = 0; i < intGrid.intGridValues.Count; i++)
+                {
+                    var val =  intGrid.intGridValues[i];
+                    CreateButton(selectorContainer, i, val.texture, val.color, val.name, selectorObj);
+                }
+                
+                CreateButton(selectorContainer, intGrid.intGridValues.Count, EditorResources.AnyTexture, Color.white, "Any Value/No Value", selectorObj);
+            }
+
+            // Rebuild on geometry changes (width changes)
+            root.RegisterCallback<GeometryChangedEvent>(_ => Refresh());
+
+            // Also refresh when data changes (best-effort)
+            root.TrackSerializedObjectValue(property.serializedObject, _ => Refresh());
+
+            // Initial
+            Refresh();
+
+            return root;
+        }
+
+        private void CreateButton(VisualElement root, int i, Texture texture, Color color, string name, IntGridValueSelector selectorObj)
+        {
+            var button = root[i];
+            button.ClearBindings();
+                    
+            var icon = button[0];
+            var text = button[1] as Label;
+
+            icon.style.backgroundImage = StyleKeyword.None;
+            icon.style.backgroundColor = StyleKeyword.None;
+            text.text = "";
+                    
+            if (texture != null)
+            {
+                icon.style.backgroundImage = texture as Texture2D;
+            }
+            else
+            {
+                icon.style.backgroundColor = color;
+            }
+            text.text = name;
+            
+                    
+            button.RegisterCallback<ClickEvent, ClickData>(Clicked, new ClickData()
+            {
+                Index = i,
+                Root = root,
+                Selector = selectorObj
+            });
+        }
+
+        private struct ClickData
+        {
+            public int Index;
+            public VisualElement Root;
+            public IntGridValueSelector Selector;
+        }
+        
+        private void Clicked(ClickEvent clickEvent, ClickData clickData)
+        {
+            for (int i = 0; i < clickData.Root.childCount; i++)
+            {
+                clickData.Root[i].style.backgroundColor = Color.clear;
+            }
+
+            var values = clickData.Selector.intGrid.intGridValues;
+            
+            clickData.Root[clickData.Index].style.backgroundColor = Color.cadetBlue;
+            
+            clickData.Selector.value = clickData.Index == values.Count
+                ? RuleGridConsts.AnyIntGridValue
+                : values[clickData.Index].value;
+        }
+        
+        private static void EnsureCellsCount(VisualElement cellsMatrix, IntGridDefinition cellsCount)
+        {
+            var buttonsCount = cellsCount.intGridValues.Count + 1;
+            if (cellsMatrix.childCount == buttonsCount)
+            {
+                return;
+            }
+            
+            cellsMatrix.Clear();
+            
+            for (int i = 0; i < buttonsCount; i++)
+            {
+                var button = new VisualElement { name = $"Button_{i}" };
+                var icon = new VisualElement { name = "Icon" };
+                var text = new Label { name = "Text" };
+                
+                button.Add(icon);
+                button.Add(text);
+                cellsMatrix.Add(button);
+            }
         }
     }
 }
