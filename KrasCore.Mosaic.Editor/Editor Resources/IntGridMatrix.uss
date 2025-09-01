@@ -22,17 +22,15 @@
 
 #Icon {
     position: relative;
-    width: 20%;
     height: 30px;
     display: flex;
+    margin: 5px;
     background-size: contain;
 }
 
 #Text {
     position: relative;
-    width: 80%;
     -unity-text-align: middle-left;
-    padding-left: 10px;
     height: 30px;
     display: flex;
 }

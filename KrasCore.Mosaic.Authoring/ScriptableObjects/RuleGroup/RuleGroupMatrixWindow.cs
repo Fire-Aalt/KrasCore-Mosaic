@@ -140,7 +140,7 @@ namespace KrasCore.Mosaic.Authoring
             {
                 s += _matrix.dualGridMatrix[i].value + "|";
             }
-            Debug.Log(s);
+            Debug.Log(_matrix.GetHashCode() + " : " + s);
         }
 
         
@@ -176,7 +176,7 @@ namespace KrasCore.Mosaic.Authoring
         {
             ref var slot = ref _matrix.GetCurrentMatrix()[cellIndex];
 
-            if (slot == 0 || slot == _selectedIntGridValue.value)
+            if (slot == 0)
             {
                 slot = (short)-_selectedIntGridValue.value;
             }
@@ -184,13 +184,6 @@ namespace KrasCore.Mosaic.Authoring
             {
                 slot = 0;
             }
-            
-            serializedObject.ApplyModifiedProperties();
-            serializedObject.Update();
-
-            var s = new SerializedObject(_target.RuleGroup);
-            s.ApplyModifiedProperties();
-            s.Update();
         }
     }
 }

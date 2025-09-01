@@ -36,7 +36,6 @@ namespace KrasCore.Mosaic.Authoring
             {
                 rule.Bind(this);
                 rule.Validate();
-                rule.Print();
             }
         }
 
@@ -46,8 +45,6 @@ namespace KrasCore.Mosaic.Authoring
             [InspectorName("Enabled")] [Tooltip("Enable/disable this rule")]
             Enabled = 1
         }
-
-
         
         [Serializable]
         public class Rule
@@ -98,7 +95,7 @@ namespace KrasCore.Mosaic.Authoring
                 {
                     s += ruleMatrix.dualGridMatrix[i].value + "|";
                 }
-                Debug.Log(s);
+                Debug.Log(ruleMatrix.GetHashCode() + " : " + GetHashCode()  + " | " + s);
             }
             
             public void Validate()
@@ -116,7 +113,7 @@ namespace KrasCore.Mosaic.Authoring
             private void OnMatrixClicked(ClickEvent clickEvent)
             {
                 if (clickEvent.button != 0) return;
-                RuleGroupMatrixWindow.OpenWindow(this);
+                RuleGroupMatrixWindowUITK.OpenWindow(this);
             }
             
             // Handles both even and odd matrices

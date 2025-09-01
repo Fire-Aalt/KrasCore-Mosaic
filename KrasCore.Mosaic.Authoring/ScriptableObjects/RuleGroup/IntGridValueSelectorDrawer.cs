@@ -59,17 +59,17 @@ namespace KrasCore.Mosaic.Editor
                 for (int i = 0; i < intGrid.intGridValues.Count; i++)
                 {
                     var val =  intGrid.intGridValues[i];
-                    CreateButton(selectorContainer, i, val.texture, val.color, val.name, selectorObj);
+                    CreateButton(selectorContainer, i, val.texture, val.color, val.name, selectorObj, size);
                 }
                 
-                CreateButton(selectorContainer, intGrid.intGridValues.Count, EditorResources.AnyTexture, Color.white, "Any Value/No Value", selectorObj);
+                CreateButton(selectorContainer, intGrid.intGridValues.Count, EditorResources.AnyTexture, Color.white, "Any Value/No Value", selectorObj, size);
             }
 
             // Rebuild on geometry changes (width changes)
             root.RegisterCallback<GeometryChangedEvent>(_ => Refresh());
 
             // Also refresh when data changes (best-effort)
-            root.TrackSerializedObjectValue(property.serializedObject, _ => Refresh());
+            root.TrackPropertyValue(property, _ => Refresh());
 
             // Initial
             Refresh();
@@ -77,7 +77,7 @@ namespace KrasCore.Mosaic.Editor
             return root;
         }
 
-        private void CreateButton(VisualElement root, int i, Texture texture, Color color, string name, IntGridValueSelector selectorObj)
+        private void CreateButton(VisualElement root, int i, Texture texture, Color color, string name, IntGridValueSelector selectorObj, float size)
         {
             var button = root[i];
             button.ClearBindings();
@@ -99,6 +99,8 @@ namespace KrasCore.Mosaic.Editor
             }
             text.text = name;
             
+            icon.style.width = size * 0.15f;
+            icon.style.height = size * 0.15f;
                     
             button.RegisterCallback<ClickEvent, ClickData>(Clicked, new ClickData()
             {

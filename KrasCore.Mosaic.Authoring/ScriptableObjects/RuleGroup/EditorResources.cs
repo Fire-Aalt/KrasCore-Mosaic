@@ -1,6 +1,7 @@
 using KrasCore.Editor;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace KrasCore.Mosaic.Editor
 {
@@ -15,6 +16,8 @@ namespace KrasCore.Mosaic.Editor
         public static readonly Texture AnyTexture;
         public static readonly Texture MatrixCenterTexture;
 
+        public static readonly StyleSheet StyleSheet;
+        
         private const string ValidationRoot = "KrasCore.Mosaic.Editor";
         
         static EditorResources()
@@ -24,6 +27,8 @@ namespace KrasCore.Mosaic.Editor
             NotTexture = AssetDatabaseUtils.LoadEditorResource<Texture>("not.png", ValidationRoot);
             AnyTexture = AssetDatabaseUtils.LoadEditorResource<Texture>("any.png", ValidationRoot);
             MatrixCenterTexture = AssetDatabaseUtils.LoadEditorResource<Texture>("matrixCenter.png", ValidationRoot);
+            
+            StyleSheet = AssetDatabaseUtils.LoadEditorResource<StyleSheet>("IntGridMatrix.uss", ValidationRoot);
         }
     }
 }

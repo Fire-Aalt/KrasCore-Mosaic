@@ -13,31 +13,24 @@ namespace KrasCore.Mosaic.Editor
     [CustomPropertyDrawer(typeof(IntGridMatrixAttribute))]
     public class IntGridMatrixDrawer : PropertyDrawer
     {
-        public StyleSheet StyleSheet;
-        
-        // State per drawer instance
-        private MethodInfo _matrixRectMethod;
-        private MethodInfo _onBeforeDrawCellMethod;
-        
-        // UI Toolkit path
-        public override VisualElement CreatePropertyGUI(SerializedProperty property)
+        public VisualElement Create(object methodsOwner, object targetObject, FieldInfo fieldInf, IntGridMatrixAttribute attr, SerializedProperty property)
         {
-            var attr = (IntGridMatrixAttribute)attribute;
-            var owner = GetParentObject(property);
+            if (fieldInf.GetValue(targetObject) is not IntGridMatrix matrixObj)
+            {
+                throw new Exception("Matrix is null");
+            }
             
-            Debug.Log(property.serializedObject.targetObject.GetType());
-            
-            ReflectionUtils.TryGetCallMethod(owner, attr.MatrixRectMethod, out _matrixRectMethod);
-            ReflectionUtils.TryGetCallMethod(owner, attr.OnBeforeDrawCellMethod, out _onBeforeDrawCellMethod);
+            ReflectionUtils.TryGetCallMethod(methodsOwner, attr.MatrixRectMethod, out var matrixRectMethod);
+            ReflectionUtils.TryGetCallMethod(methodsOwner, attr.OnBeforeDrawCellMethod, out var onBeforeDrawCellMethod);
 
             var root = new VisualElement { name = "IntGridMatrix_Root" };
-            root.styleSheets.Add(StyleSheet);
+            root.styleSheets.Add(EditorResources.StyleSheet);
 
             var matrixContainer = new VisualElement { name = "IntGridMatrix_Container" };
 
-            if (_matrixRectMethod != null)
+            if (matrixRectMethod != null)
             {
-                _matrixRectMethod.Invoke(owner, new object[] { matrixContainer });
+                matrixRectMethod.Invoke(methodsOwner, new object[] { matrixContainer });
             }
             
             var centerIcon = new VisualElement
@@ -66,11 +59,6 @@ namespace KrasCore.Mosaic.Editor
             // Build/refresh grid whenever geometry or data changes
             void Refresh()
             {
-                if (fieldInfo.GetValue(owner) is not IntGridMatrix matrixObj)
-                {
-                    throw new Exception("Matrix is null");
-                }
-
                 var length = matrixObj.singleGridMatrix.Length;
                 var n = (int)Mathf.Sqrt(length);
 
@@ -159,9 +147,9 @@ namespace KrasCore.Mosaic.Editor
                         cell.style.left = x;
                         cell.style.top = y;
 
-                        if (_onBeforeDrawCellMethod != null)
+                        if (onBeforeDrawCellMethod != null)
                         {
-                            _onBeforeDrawCellMethod.Invoke(owner, new object[] { cell, cellIndex, property.serializedObject });
+                            onBeforeDrawCellMethod.Invoke(methodsOwner, new object[] { cell, cellIndex, property.serializedObject });
                         }
 
                         DrawCell(cell, currentValues[cellIndex], intGrid, size);
@@ -173,12 +161,20 @@ namespace KrasCore.Mosaic.Editor
             root.RegisterCallback<GeometryChangedEvent>(_ => Refresh());
 
             // Also refresh when data changes (best-effort)
-            root.TrackSerializedObjectValue(property.serializedObject, _ => Refresh());
-
+            root.TrackPropertyValue(property, _ => Refresh());
+            
             // Initial
             Refresh();
 
             return root;
+        }
+        
+        public override VisualElement CreatePropertyGUI(SerializedProperty property)
+        {
+            var attr = (IntGridMatrixAttribute)attribute;
+            var owner = GetParentObject(property);
+            
+            return Create(owner, owner, fieldInfo, attr, property);
         }
         
         private static void EnsureCellsCount(VisualElement cellsMatrix, int cellsCount)
