@@ -1,8 +1,7 @@
 using System;
+using System.Reflection;
 using KrasCore.Mosaic.Authoring;
 using KrasCore.Mosaic.Data;
-using Sirenix.OdinInspector.Editor;
-using Sirenix.Utilities.Editor;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -10,31 +9,12 @@ using UnityEngine.UIElements;
 
 namespace KrasCore.Mosaic.Editor
 {
-    [CustomPropertyDrawer(typeof(IntGridValueSelectorDrawerAttribute))]
-    public class IntGridValueSelectorDrawer : PropertyDrawer
+    public static class IntGridValueSelectorDrawer
     {
-        public StyleSheet StyleSheet;
-        
-        private static object GetParentObject(SerializedProperty property)
+        public static VisualElement Create(FieldInfo fieldInf, SerializedProperty property)
         {
-            var path = property.propertyPath;
-            var i = path.LastIndexOf('.');
-            
-            if (i < 0)
-            {
-                return property.serializedObject.targetObject;
-            }
-            
-            var parent = property.serializedObject.FindProperty(path.Substring(0, i));
-            return parent.boxedValue;
-        }
-        
-        public override VisualElement CreatePropertyGUI(SerializedProperty property)
-        {
-            var owner = GetParentObject(property);
-            
             var root = new VisualElement { name = "IntGridValueSelector_Root" };
-            root.styleSheets.Add(StyleSheet);
+            root.styleSheets.Add(EditorResources.StyleSheet);
 
             var selectorContainer = new VisualElement { name = "IntGridValueSelector_Container" };
             
@@ -43,7 +23,8 @@ namespace KrasCore.Mosaic.Editor
             // Build/refresh grid whenever geometry or data changes
             void Refresh()
             {
-                if (fieldInfo.GetValue(owner) is not IntGridValueSelector selectorObj)
+                var owner = SerializationUtils.GetParentObject(property);
+                if (fieldInf.GetValue(owner) is not IntGridValueSelector selectorObj)
                 {
                     throw new Exception("Selector is null");
                 }
@@ -59,10 +40,51 @@ namespace KrasCore.Mosaic.Editor
                 for (int i = 0; i < intGrid.intGridValues.Count; i++)
                 {
                     var val =  intGrid.intGridValues[i];
-                    CreateButton(selectorContainer, i, val.texture, val.color, val.name, selectorObj, size);
+                    CreateButton(owner, fieldInf, i, val.texture, val.color, val.name, selectorObj, size);
                 }
                 
-                CreateButton(selectorContainer, intGrid.intGridValues.Count, EditorResources.AnyTexture, Color.white, "Any Value/No Value", selectorObj, size);
+                CreateButton(owner, fieldInf, intGrid.intGridValues.Count, EditorResources.AnyTexture, Color.white, "Any Value/No Value", selectorObj, size);
+            }
+            
+            void CreateButton(object owner, FieldInfo field, int i, Texture texture, Color color, string name, IntGridValueSelector selectorObj, float size)
+            {
+                var button = selectorContainer[i];
+                
+                var icon = button[0];
+                var text = button[1] as Label;
+
+                icon.style.backgroundImage = StyleKeyword.None;
+                icon.style.backgroundColor = StyleKeyword.None;
+                text.text = "";
+                
+                if (texture != null)
+                {
+                    icon.style.backgroundImage = texture as Texture2D;
+                }
+                else
+                {
+                    icon.style.backgroundColor = color;
+                }
+                text.text = name;
+                
+                icon.style.width = size * 0.15f;
+                icon.style.height = size * 0.15f;
+                
+                var buttonData = new ClickData
+                {
+                    Index = i,
+                    Root = selectorContainer,
+                    Selector = selectorObj
+                };
+                
+                button.RegisterCallback<ClickEvent, ClickData>(Clicked, buttonData);
+                
+                if (selectorObj.value == 0 && i == 0)
+                {
+                    Clicked(null, buttonData);
+                    selectorObj.value = selectorObj.intGrid.intGridValues[0].value;
+                    field.SetValue(owner, selectorObj);
+                }
             }
 
             // Rebuild on geometry changes (width changes)
@@ -77,38 +99,6 @@ namespace KrasCore.Mosaic.Editor
             return root;
         }
 
-        private void CreateButton(VisualElement root, int i, Texture texture, Color color, string name, IntGridValueSelector selectorObj, float size)
-        {
-            var button = root[i];
-            button.ClearBindings();
-                    
-            var icon = button[0];
-            var text = button[1] as Label;
-
-            icon.style.backgroundImage = StyleKeyword.None;
-            icon.style.backgroundColor = StyleKeyword.None;
-            text.text = "";
-                    
-            if (texture != null)
-            {
-                icon.style.backgroundImage = texture as Texture2D;
-            }
-            else
-            {
-                icon.style.backgroundColor = color;
-            }
-            text.text = name;
-            
-            icon.style.width = size * 0.15f;
-            icon.style.height = size * 0.15f;
-                    
-            button.RegisterCallback<ClickEvent, ClickData>(Clicked, new ClickData()
-            {
-                Index = i,
-                Root = root,
-                Selector = selectorObj
-            });
-        }
 
         private struct ClickData
         {
@@ -117,7 +107,7 @@ namespace KrasCore.Mosaic.Editor
             public IntGridValueSelector Selector;
         }
         
-        private void Clicked(ClickEvent clickEvent, ClickData clickData)
+        private static void Clicked(ClickEvent clickEvent, ClickData clickData)
         {
             for (int i = 0; i < clickData.Root.childCount; i++)
             {

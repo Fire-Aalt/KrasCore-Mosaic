@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using KrasCore.Mosaic.Editor;
 using UnityEditor;
 using UnityEditor.UIElements;
@@ -15,9 +16,8 @@ namespace KrasCore.Mosaic.Authoring
     {
         public static int NumberOfActiveInspectorWindows;
 
-        // These fields stay serialized on the EditorWindow so we can bind them.
-        [IntGridValueSelectorDrawer]
-        [SerializeField, HideInInspector] private IntGridValueSelector _selectedIntGridValue;
+        [SerializeField, HideInInspector] 
+        private IntGridValueSelector _selectedIntGridValue;
 
         private List<SpriteResult> _tileSprites;
         private List<EntityResult> _tileEntities;
@@ -25,13 +25,12 @@ namespace KrasCore.Mosaic.Authoring
         
         private SerializedObject _window;
         private SerializedObject _obj;
-        private RuleGroup.Rule _target => _ruleGroup.rules[index];
+        private RuleGroup.Rule Target => _ruleGroup.rules[index];
         private RuleGroup _ruleGroup;
         private int index;
 
         public static void OpenWindow(RuleGroup.Rule target)
         {
-            Debug.Log("OpenWindow + " + target.GetHashCode());
             var wnd = GetWindow<RuleGroupMatrixWindowUITK>(
                 true,
                 "Rule Matrix Window",
@@ -67,16 +66,14 @@ namespace KrasCore.Mosaic.Authoring
 
             _selectedIntGridValue = new IntGridValueSelector
             {
-                intGrid = target.BoundIntGridDefinition,
-                value = 1
+                intGrid = target.BoundIntGridDefinition
             };
 
             _ruleGroup = target.RuleGroup;
-            Debug.Log("Init" + _ruleGroup.GetHashCode());
             
             for (int i = 0; i < target.RuleGroup.rules.Count; i++)
             {
-                if (target.Equals(target.RuleGroup.rules[i]))
+                if (target.Equals(target.RuleGroup.rules[i]))// FAILS
                 {
                     index = i;
                     break;
@@ -119,70 +116,72 @@ namespace KrasCore.Mosaic.Authoring
                     style =
                     {
                         flexDirection = FlexDirection.Column,
-                        flexGrow = grow,
+                        width = Length.Percent(grow * 100f),
                         marginLeft = 4,
                         marginRight = 4
                     }
                 };
 
-            var colSelect = MakeCol(2); // 20%
-            var colMatrix = MakeCol(4); // 40%
-            // var colSprites = MakeCol(2); // 20%
-            // var colEntities = MakeCol(2); // 20%
+            var colSelect = MakeCol(0.2f); // 20%
+            var colMatrix = MakeCol(0.4f); // 40%
+            var colSprites = MakeCol(0.2f); // 20%
+            var colEntities = MakeCol(0.2f); // 20%
 
             row.Add(colSelect);
             row.Add(colMatrix);
-            // row.Add(colSprites);
-            // row.Add(colEntities);
-            Debug.Log(_target);
-            Debug.Log(_target.RuleGroup);
-            
+            row.Add(colSprites);
+            row.Add(colEntities);
 
-
-            // {
-            //     var box = new GroupBox { text = "Select IntGrid Value" };
-            //     var pf = new PropertyField(_window.FindProperty("_selectedIntGridValue"));
-            //     box.Add(pf);
-            //     colSelect.Add(box);
-            // }
+            {
+                var box = new GroupBox { text = "Select IntGrid Value" };
+                
+                
+                var fieldInfo = GetType().GetField("_selectedIntGridValue",BindingFlags.NonPublic | BindingFlags.Instance);
+                
+                var pf = IntGridValueSelectorDrawer.Create(fieldInfo, _window.FindProperty("_selectedIntGridValue"));
+                box.Add(pf);
+                colSelect.Add(box);
+            }
             
             // Column 2: Matrix (uses your PropertyDrawer if it's a Unity drawer)
             {
                 var matrixProperty = _obj.FindProperty("rules").GetArrayElementAtIndex(index)
                     .FindPropertyRelative("ruleMatrix");
 
-                var fieldInfo = _target.GetType().GetField("ruleMatrix");
+                var fieldInfo = Target.GetType().GetField("ruleMatrix");
                 
-                var pf = new IntGridMatrixDrawer().Create(this, _target, fieldInfo,
+                var pf = new IntGridMatrixDrawer().Create(this, fieldInfo,
                     new IntGridMatrixAttribute(nameof(OnBeforeDrawMatrixCell)), matrixProperty);
                 colMatrix.Add(pf);
             }
 
-            // Column 3: Sprites
-            // {
-            //     var spritesGroup = new GroupBox { text = "Sprites" };
-            //
-            //     var tileSpritesPF = new PropertyField(_so.FindProperty("_tileSprites"));
-            //     spritesGroup.Add(tileSpritesPF);
-            //
-            //     var convertSpritesPF =
-            //         new PropertyField(_so.FindProperty("_convertSprites"))
-            //         {
-            //             name = "ConvertSprites"
-            //         };
-            //     spritesGroup.Add(convertSpritesPF);
-            //
-            //     // Enforce "Assets only" on ObjectFields under this section
-            //     convertSpritesPF.RegisterCallback<AttachToPanelEvent>(_ =>
-            //     {
-            //         foreach (var of in convertSpritesPF.Query<ObjectField>().ToList())
-            //         {
-            //             of.allowSceneObjects = false;
-            //         }
-            //     });
-            //
-            //     colSprites.Add(spritesGroup);
-            // }
+            //Column 3: Sprites
+            {
+                var spritesGroup = new GroupBox { text = "Sprites" };
+            
+                var spritesListView = new ListView();
+                spritesListView.allowAdd = true;
+                spritesListView.allowRemove = true;
+                spritesListView.reorderable = true;
+                spritesListView.makeItem = () => new Image();
+                spritesListView.bindItem = (item, index) => { (item as Image).sprite = _tileSprites[index].result; };
+                spritesListView.itemsSource = _tileSprites;
+                
+
+                
+                spritesGroup.Add(spritesListView);
+            
+                // Enforce "Assets only" on ObjectFields under this section
+                // convertSpritesPF.RegisterCallback<AttachToPanelEvent>(_ =>
+                // {
+                //     foreach (var of in convertSpritesPF.Query<ObjectField>().ToList())
+                //     {
+                //         of.allowSceneObjects = false;
+                //     }
+                // });
+            
+                colSprites.Add(spritesGroup);
+            }
             //
             // // Column 4: Entities
             // {
@@ -235,9 +234,9 @@ namespace KrasCore.Mosaic.Authoring
             // _so.ApplyModifiedPropertiesWithoutUndo();
             // _so.Update();
 
-            if (_target != null)
+            if (Target != null)
             {
-                EditorUtility.SetDirty(_target.RuleGroup);
+                EditorUtility.SetDirty(Target.RuleGroup);
             }
 
             // Optional: auto-convert items like your old OnValidate
@@ -283,13 +282,13 @@ namespace KrasCore.Mosaic.Authoring
 
         private void Print()
         {
-            if (_target.ruleMatrix.dualGridMatrix == null) return;
+            if (Target.ruleMatrix.dualGridMatrix == null) return;
             var s = "";
-            for (int i = 0; i < _target.ruleMatrix.dualGridMatrix.Length; i++)
+            for (int i = 0; i < Target.ruleMatrix.dualGridMatrix.Length; i++)
             {
-                s += _target.ruleMatrix.dualGridMatrix[i].value + "|";
+                s += Target.ruleMatrix.dualGridMatrix[i].value + "|";
             }
-            Debug.Log(_target.ruleMatrix.GetHashCode() + " : " + _target.GetHashCode()  + " | " + s);
+            Debug.Log(Target.ruleMatrix.GetHashCode() + " : " + Target.GetHashCode()  + " | " + s);
         }
 
         // Keep your existing callback so your matrix drawer can call into it
@@ -310,7 +309,7 @@ namespace KrasCore.Mosaic.Authoring
 
         private void LeftClick(int cellIndex, SerializedObject serializedObject)
         {
-            ref var slot = ref _target.ruleMatrix.GetCurrentMatrix()[cellIndex];
+            ref var slot = ref Target.ruleMatrix.GetCurrentMatrix()[cellIndex];
             slot = _selectedIntGridValue.value;
 
             serializedObject.ApplyModifiedProperties();
@@ -319,7 +318,7 @@ namespace KrasCore.Mosaic.Authoring
 
         private void RightClick(int cellIndex, SerializedObject serializedObject)
         {
-            ref var slot = ref _target.ruleMatrix.GetCurrentMatrix()[cellIndex];
+            ref var slot = ref Target.ruleMatrix.GetCurrentMatrix()[cellIndex];
 
             if (slot == 0)
                 slot = (short)-_selectedIntGridValue.value;

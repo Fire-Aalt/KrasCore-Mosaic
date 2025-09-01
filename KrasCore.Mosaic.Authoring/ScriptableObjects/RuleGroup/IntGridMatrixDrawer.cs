@@ -13,13 +13,8 @@ namespace KrasCore.Mosaic.Editor
     [CustomPropertyDrawer(typeof(IntGridMatrixAttribute))]
     public class IntGridMatrixDrawer : PropertyDrawer
     {
-        public VisualElement Create(object methodsOwner, object targetObject, FieldInfo fieldInf, IntGridMatrixAttribute attr, SerializedProperty property)
+        public VisualElement Create(object methodsOwner, FieldInfo fieldInf, IntGridMatrixAttribute attr, SerializedProperty property)
         {
-            if (fieldInf.GetValue(targetObject) is not IntGridMatrix matrixObj)
-            {
-                throw new Exception("Matrix is null");
-            }
-            
             ReflectionUtils.TryGetCallMethod(methodsOwner, attr.MatrixRectMethod, out var matrixRectMethod);
             ReflectionUtils.TryGetCallMethod(methodsOwner, attr.OnBeforeDrawCellMethod, out var onBeforeDrawCellMethod);
 
@@ -59,6 +54,12 @@ namespace KrasCore.Mosaic.Editor
             // Build/refresh grid whenever geometry or data changes
             void Refresh()
             {
+                var targetObject = SerializationUtils.GetParentObject(property);
+                if (fieldInf.GetValue(targetObject) is not IntGridMatrix matrixObj)
+                {
+                    throw new Exception("Matrix is null");
+                }
+                
                 var length = matrixObj.singleGridMatrix.Length;
                 var n = (int)Mathf.Sqrt(length);
 
@@ -172,9 +173,9 @@ namespace KrasCore.Mosaic.Editor
         public override VisualElement CreatePropertyGUI(SerializedProperty property)
         {
             var attr = (IntGridMatrixAttribute)attribute;
-            var owner = GetParentObject(property);
+            var owner = SerializationUtils.GetParentObject(property);
             
-            return Create(owner, owner, fieldInfo, attr, property);
+            return Create(owner, fieldInfo, attr, property);
         }
         
         private static void EnsureCellsCount(VisualElement cellsMatrix, int cellsCount)
