@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using KrasCore.Mosaic.Editor;
+using Unity.Properties;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -25,9 +26,9 @@ namespace KrasCore.Mosaic.Authoring
         
         private SerializedObject _window;
         private SerializedObject _obj;
-        private RuleGroup.Rule Target => _ruleGroup.rules[index];
+        private RuleGroup.Rule Target => _ruleGroup.rules[_index];
         private RuleGroup _ruleGroup;
-        private int index;
+        private int _index;
 
         public static void OpenWindow(RuleGroup.Rule target)
         {
@@ -75,7 +76,7 @@ namespace KrasCore.Mosaic.Authoring
             {
                 if (target.Equals(target.RuleGroup.rules[i]))// FAILS
                 {
-                    index = i;
+                    _index = i;
                     break;
                 }
             }
@@ -92,7 +93,8 @@ namespace KrasCore.Mosaic.Authoring
             var root = rootVisualElement;
             root.Clear();
             root.style.flexDirection = FlexDirection.Column;
-
+            root.styleSheets.Add(EditorResources.StyleSheet);
+            
             // Optional: top toolbar
             var toolbar = new Toolbar();
             var printBtn = new ToolbarButton(Print) { text = "Print Matrix" };
@@ -145,7 +147,7 @@ namespace KrasCore.Mosaic.Authoring
             
             // Column 2: Matrix (uses your PropertyDrawer if it's a Unity drawer)
             {
-                var matrixProperty = _obj.FindProperty("rules").GetArrayElementAtIndex(index)
+                var matrixProperty = _obj.FindProperty("rules").GetArrayElementAtIndex(_index)
                     .FindPropertyRelative("ruleMatrix");
 
                 var fieldInfo = Target.GetType().GetField("ruleMatrix");
@@ -158,16 +160,45 @@ namespace KrasCore.Mosaic.Authoring
             //Column 3: Sprites
             {
                 var spritesGroup = new GroupBox { text = "Sprites" };
-            
-                var spritesListView = new ListView();
+                
+                const float borderSize = 4;
+                
+                var spritesListView = new ListView() {name = "SpritesListView"};
                 spritesListView.allowAdd = true;
                 spritesListView.allowRemove = true;
                 spritesListView.reorderable = true;
-                spritesListView.makeItem = () => new Image();
-                spritesListView.bindItem = (item, index) => { (item as Image).sprite = _tileSprites[index].result; };
-                spritesListView.itemsSource = _tileSprites;
+                spritesListView.fixedItemHeight = 24 * 2 + borderSize * 2;
+                spritesListView.dataSource = _ruleGroup;
+                spritesListView.makeItem = () =>
+                {
+                    // Instantiate the UXML template for the entry
+                    var newListEntry = EditorResources.WeightedListElementAsset.Instantiate();
+    
+                    // Instantiate a controller for the data
+                    var newListEntryLogic = new WeightedListEntryController();
+                    
+                    // Assign the controller script to the visual element
+                    newListEntry.userData = newListEntryLogic;
+                    
+                    // Initialize the controller script
+                    newListEntryLogic.SetVisualElement(newListEntry);
+                    
+                    // Return the root of the instantiated visual tree
+                    return newListEntry;
+                };
                 
-
+                var path = PropertyPath.AppendIndex(PropertyPath.FromName(nameof(RuleGroup.rules)), _index);
+                
+                spritesListView.bindItem = (item, index) =>
+                {
+                    (item.userData as WeightedListEntryController).SetCharacterData(index, path);
+                };
+                
+                spritesListView.SetBinding("itemsSource", new DataBinding
+                {
+                    dataSourcePath = PropertyPath.AppendName(path, "TileSprites"),
+                    bindingMode = BindingMode.TwoWay,
+                });
                 
                 spritesGroup.Add(spritesListView);
             

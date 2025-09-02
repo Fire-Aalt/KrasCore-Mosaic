@@ -18,6 +18,8 @@
     align-items: center;
     flex-direction: row;
     flex-grow: 1;
+    border-width: 5px;
+    border-color: rgba(0, 0, 0, 0.15);
 }
 
 #Icon {
@@ -26,6 +28,19 @@
     display: flex;
     margin: 5px;
     background-size: contain;
+}
+
+#SpritesListView {
+}
+
+#WeightedListElementImage {
+    display: flex;
+    flex-grow: 1;
+}
+
+#WeightedListElement {
+    border-width: 4px;
+    border-color: rgba(0, 0, 0, 0.15);
 }
 
 #Text {

@@ -75,8 +75,8 @@ namespace KrasCore.Mosaic.Authoring
             [EnumToggleButtons, HideLabel]
             public ResultTransform resultTransform;
 
-            [field: SerializeField, HideInInspector] public List<SpriteResult> TileSprites { get; set; }
-            [field: SerializeField, HideInInspector] public List<EntityResult> TileEntities { get; set; }
+            public List<SpriteResult> TileSprites = new();
+            public List<EntityResult> TileEntities = new();
             [field: SerializeField, HideInInspector] public IntGridDefinition BoundIntGridDefinition { get; private set; }
             [field: SerializeField, HideInInspector] public RuleGroup RuleGroup { get; private set; }
 

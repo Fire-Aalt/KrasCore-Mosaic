@@ -17,6 +17,7 @@ namespace KrasCore.Mosaic.Editor
         public static readonly Texture MatrixCenterTexture;
 
         public static readonly StyleSheet StyleSheet;
+        public static readonly VisualTreeAsset WeightedListElementAsset;
         
         private const string ValidationRoot = "KrasCore.Mosaic.Editor";
         
@@ -29,6 +30,7 @@ namespace KrasCore.Mosaic.Editor
             MatrixCenterTexture = AssetDatabaseUtils.LoadEditorResource<Texture>("matrixCenter.png", ValidationRoot);
             
             StyleSheet = AssetDatabaseUtils.LoadEditorResource<StyleSheet>("IntGridMatrix.uss", ValidationRoot);
+            WeightedListElementAsset = AssetDatabaseUtils.LoadEditorResource<VisualTreeAsset>("WeightedListViewItem.uxml", ValidationRoot);
         }
     }
 }
