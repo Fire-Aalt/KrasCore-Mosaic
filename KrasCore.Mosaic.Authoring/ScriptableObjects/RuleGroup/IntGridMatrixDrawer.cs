@@ -200,6 +200,8 @@ namespace KrasCore.Mosaic.Editor
                 var cellIcon = new VisualElement { name = "CellIcon" };
                 var notIcon = new VisualElement { name = "NotIcon" };
                 
+                cell.AddToClassList("int-grid-matrix-cell");
+                
                 cell.Add(cellIcon);
                 cell.Add(notIcon);
                 cellsMatrix.Add(cell);

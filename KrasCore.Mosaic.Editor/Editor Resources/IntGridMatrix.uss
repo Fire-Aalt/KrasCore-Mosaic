@@ -77,6 +77,10 @@
 
 /* IntGridMatrix */
 
+.int-grid-matrix-cell {
+    
+}
+
 #IntGridMatrix_Root {
     position: relative;
     display: flex;

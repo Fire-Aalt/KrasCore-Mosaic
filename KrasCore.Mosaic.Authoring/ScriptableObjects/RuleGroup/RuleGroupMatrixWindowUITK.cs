@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Reflection;
 using KrasCore.Mosaic.Editor;
 using UnityEditor;
@@ -123,9 +125,27 @@ namespace KrasCore.Mosaic.Authoring
                 var matrixProperty = targetRuleProperty.FindPropertyRelative(nameof(RuleGroup.Rule.ruleMatrix));
                 var fieldInfo = TargetRule.GetType().GetField(nameof(RuleGroup.Rule.ruleMatrix));
                 
-                var pf = new IntGridMatrixDrawer().Create(this, fieldInfo,
+                _matrix = new IntGridMatrixDrawer().Create(this, fieldInfo,
                     new IntGridMatrixAttribute(nameof(OnBeforeDrawMatrixCell)), matrixProperty);
-                colMatrix.Add(pf);
+                colMatrix.Add(_matrix);
+
+
+                var e = new ExampleDragger();
+                e.DragEnter = (cell, rightButton) =>
+                {
+                    for (int i = 0; i < cell.parent.childCount; i++)
+                    {
+                        if (ReferenceEquals(cell.parent[i], cell))
+                        {
+                            if (rightButton)
+                                RightClick(i, _serializedObject);
+                            else
+                                LeftClick(i, _serializedObject);
+                            break;
+                        }
+                    }
+                };
+                _matrix.AddManipulator(e);
             }
             
             // Column 3: Sprites
@@ -163,20 +183,11 @@ namespace KrasCore.Mosaic.Authoring
                 Close();
             }
         }
+        private VisualElement _matrix;
+        
         
         private void OnBeforeDrawMatrixCell(VisualElement cell, int cellIndex, SerializedObject serializedObject)
         {
-            var leftMouse = new Clickable(_ => LeftClick(cellIndex, serializedObject));
-            leftMouse.activators.Add(
-                new ManipulatorActivationFilter { button = MouseButton.LeftMouse }
-            );
-            cell.AddManipulator(leftMouse);
-
-            var rightMouse = new Clickable(_ => RightClick(cellIndex, serializedObject));
-            rightMouse.activators.Add(
-                new ManipulatorActivationFilter { button = MouseButton.RightMouse }
-            );
-            cell.AddManipulator(rightMouse);
         }
 
         private void LeftClick(int cellIndex, SerializedObject serializedObject)
@@ -199,6 +210,125 @@ namespace KrasCore.Mosaic.Authoring
 
             serializedObject.ApplyModifiedProperties();
             serializedObject.Update();
+        }
+    }
+    
+    public class ExampleDragger : PointerManipulator
+    {
+        protected bool m_Active;
+        private int m_PointerId;
+        private VisualElement currentDragHover;
+        private VisualElement currentHover;
+
+        private int _pressedButton;
+        
+        public Action<VisualElement> HoverEnter;
+        public Action<VisualElement> HoverLeave;
+        public Action<VisualElement, bool> DragEnter;
+        public Action<VisualElement> DragLeave;
+        
+        public ExampleDragger()
+        {
+            m_PointerId = -1;
+            activators.Add(new ManipulatorActivationFilter { button = MouseButton.LeftMouse });
+            activators.Add(new ManipulatorActivationFilter { button = MouseButton.RightMouse });
+            m_Active = false;
+        }
+
+        protected override void RegisterCallbacksOnTarget()
+        {
+            target.RegisterCallback<PointerDownEvent>(OnPointerDown, TrickleDown.TrickleDown);
+            target.RegisterCallback<PointerUpEvent>(OnPointerUp, TrickleDown.TrickleDown);
+            target.RegisterCallback<PointerEnterEvent>(OnPointerEnter, TrickleDown.TrickleDown);
+            target.RegisterCallback<PointerLeaveEvent>(OnPointerLeave, TrickleDown.TrickleDown);
+        }
+
+        protected override void UnregisterCallbacksFromTarget()
+        {
+            target.UnregisterCallback<PointerDownEvent>(OnPointerDown);
+            target.UnregisterCallback<PointerUpEvent>(OnPointerUp);
+            target.UnregisterCallback<PointerEnterEvent>(OnPointerEnter);
+            target.UnregisterCallback<PointerLeaveEvent>(OnPointerLeave);
+        }
+        
+        private void OnPointerDown(PointerDownEvent e)
+        {
+            if (m_Active)
+            {
+                e.StopImmediatePropagation();
+                return;
+            }
+
+            if (CanStartManipulation(e))
+            {
+                m_PointerId = e.pointerId;
+                _pressedButton = e.button;
+
+                m_Active = true;
+                target.CapturePointer(m_PointerId);
+                e.StopPropagation();
+            }
+        }
+        
+        private void OnPointerEnter(PointerEnterEvent e)
+        {
+            var target = FindTarget(e.target as VisualElement);
+            if (target != null && m_Active)
+            {
+                if (!ReferenceEquals(target, currentDragHover))
+                {
+                    DragEnter?.Invoke(target, _pressedButton == 1);
+                    currentDragHover = target;
+                }
+                else if (!ReferenceEquals(target, currentHover))
+                {
+                    HoverEnter?.Invoke(target);
+                    currentHover = target;
+                }
+            }
+            
+            e.StopPropagation();
+        }
+        
+        private void OnPointerLeave(PointerLeaveEvent e)
+        {
+            var target = FindTarget(e.target as VisualElement);
+            if (target != null && m_Active)
+            {
+                if (ReferenceEquals(target, currentDragHover))
+                {
+                    DragLeave?.Invoke(target);
+                    currentDragHover = null;
+                }
+                else if (ReferenceEquals(target, currentHover))
+                {
+                    HoverLeave?.Invoke(target);
+                    currentHover = null;
+                }
+            }
+            
+            e.StopPropagation();
+        }
+
+        private void OnPointerUp(PointerUpEvent e)
+        {
+            if (!m_Active || !target.HasPointerCapture(m_PointerId) || !CanStopManipulation(e))
+                return;
+
+            _pressedButton = -1;
+            m_Active = false;
+            target.ReleaseMouse();
+            e.StopPropagation();
+        }
+        
+        private VisualElement FindTarget(VisualElement ve)
+        {
+            for (var cur = ve; cur != null; cur = cur.hierarchy.parent)
+            {
+                if (cur.ClassListContains("int-grid-matrix-cell"))
+                    return cur;
+            }
+            return null;
         }
     }
 }
