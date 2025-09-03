@@ -20,16 +20,14 @@ namespace KrasCore.Mosaic.Authoring
 
         [SerializeField, HideInInspector] 
         private IntGridValueSelector _selectedIntGridValue;
-
-        private List<SpriteResult> _tileSprites;
-        private List<EntityResult> _tileEntities;
-
         
         private SerializedObject _window;
         private SerializedObject _obj;
-        private RuleGroup.Rule Target => _ruleGroup.rules[_index];
+        
         private RuleGroup _ruleGroup;
-        private int _index;
+        private int _ruleIndex;
+        
+        private RuleGroup.Rule TargetRule => _ruleGroup.rules[_ruleIndex];
 
         public static void OpenWindow(RuleGroup.Rule target)
         {
@@ -62,26 +60,14 @@ namespace KrasCore.Mosaic.Authoring
 
         private void Init(RuleGroup.Rule target)
         {
-            // Mirror your Odin window's Init
-            _tileEntities = target.TileEntities;
-            _tileSprites = target.TileSprites;
-
             _selectedIntGridValue = new IntGridValueSelector
             {
                 intGrid = target.BoundIntGridDefinition
             };
 
             _ruleGroup = target.RuleGroup;
+            _ruleIndex = target.RuleIndex;
             
-            for (int i = 0; i < target.RuleGroup.rules.Count; i++)
-            {
-                if (target.Equals(target.RuleGroup.rules[i]))// FAILS
-                {
-                    _index = i;
-                    break;
-                }
-            }
-
             _window = new SerializedObject(this);
             _obj = new SerializedObject(_ruleGroup);
             
@@ -90,7 +76,6 @@ namespace KrasCore.Mosaic.Authoring
 
         private ListView _spritesListView;
         
-        // Build the UI Toolkit layout
         private void Create()
         {
             var root = rootVisualElement;
@@ -144,10 +129,10 @@ namespace KrasCore.Mosaic.Authoring
             
             // Column 2: Matrix (uses your PropertyDrawer if it's a Unity drawer)
             {
-                var matrixProperty = _obj.FindProperty("rules").GetArrayElementAtIndex(_index)
+                var matrixProperty = _obj.FindProperty("rules").GetArrayElementAtIndex(_ruleIndex)
                     .FindPropertyRelative("ruleMatrix");
 
-                var fieldInfo = Target.GetType().GetField("ruleMatrix");
+                var fieldInfo = TargetRule.GetType().GetField("ruleMatrix");
                 
                 var pf = new IntGridMatrixDrawer().Create(this, fieldInfo,
                     new IntGridMatrixAttribute(nameof(OnBeforeDrawMatrixCell)), matrixProperty);
@@ -202,7 +187,7 @@ namespace KrasCore.Mosaic.Authoring
                     }
                 };
 
-                var path = PropertyPath.AppendIndex(PropertyPath.FromName(nameof(RuleGroup.rules)), _index);
+                var path = PropertyPath.AppendIndex(PropertyPath.FromName(nameof(RuleGroup.rules)), _ruleIndex);
                 
                 _spritesListView.bindItem = (item, index) =>
                 {
@@ -253,9 +238,9 @@ namespace KrasCore.Mosaic.Authoring
 
         private void OnAddClicked()
         {
-            Target.TileSprites.Add(new SpriteResult(1, null));
+            TargetRule.TileSprites.Add(new SpriteResult(1, null));
             _spritesListView.Rebuild();
-            var last = Target.TileSprites.Count - 1;
+            var last = TargetRule.TileSprites.Count - 1;
             if (last >= 0)
             {
                 _spritesListView.SetSelection(new[] { last });
@@ -273,8 +258,8 @@ namespace KrasCore.Mosaic.Authoring
 
             foreach (var i in indices)
             {
-                if (i >= 0 && i < Target.TileSprites.Count)
-                    Target.TileSprites.RemoveAt(i);
+                if (i >= 0 && i < TargetRule.TileSprites.Count)
+                    TargetRule.TileSprites.RemoveAt(i);
             }
 
             _spritesListView.Rebuild();
@@ -298,9 +283,9 @@ namespace KrasCore.Mosaic.Authoring
             // _so.ApplyModifiedPropertiesWithoutUndo();
             // _so.Update();
 
-            if (Target != null)
+            if (TargetRule != null)
             {
-                EditorUtility.SetDirty(Target.RuleGroup);
+                EditorUtility.SetDirty(TargetRule.RuleGroup);
             }
 
             // Optional: auto-convert items like your old OnValidate
@@ -362,7 +347,7 @@ namespace KrasCore.Mosaic.Authoring
 
         private void LeftClick(int cellIndex, SerializedObject serializedObject)
         {
-            ref var slot = ref Target.ruleMatrix.GetCurrentMatrix()[cellIndex];
+            ref var slot = ref TargetRule.ruleMatrix.GetCurrentMatrix()[cellIndex];
             slot = _selectedIntGridValue.value;
 
             serializedObject.ApplyModifiedProperties();
@@ -371,7 +356,7 @@ namespace KrasCore.Mosaic.Authoring
 
         private void RightClick(int cellIndex, SerializedObject serializedObject)
         {
-            ref var slot = ref Target.ruleMatrix.GetCurrentMatrix()[cellIndex];
+            ref var slot = ref TargetRule.ruleMatrix.GetCurrentMatrix()[cellIndex];
 
             if (slot == 0)
                 slot = (short)-_selectedIntGridValue.value;

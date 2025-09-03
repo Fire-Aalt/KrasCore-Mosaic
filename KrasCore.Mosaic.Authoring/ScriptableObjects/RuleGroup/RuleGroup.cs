@@ -25,16 +25,19 @@ namespace KrasCore.Mosaic.Authoring
         public void AddRule()
         {
             var rule = new Rule();
-            rule.Bind(this);
+            rule.Bind(this, -1);
             rules.Add(rule);
             EditorUtility.SetDirty(this);
+
+            OnValidate();
         }
 
         private void OnValidate()
         {
-            foreach (var rule in rules)
+            for (var ruleIndex = 0; ruleIndex < rules.Count; ruleIndex++)
             {
-                rule.Bind(this);
+                var rule = rules[ruleIndex];
+                rule.Bind(this, ruleIndex);
                 rule.Validate();
             }
         }
@@ -79,11 +82,13 @@ namespace KrasCore.Mosaic.Authoring
             public List<EntityResult> TileEntities = new();
             [field: SerializeField, HideInInspector] public IntGridDefinition BoundIntGridDefinition { get; private set; }
             [field: SerializeField, HideInInspector] public RuleGroup RuleGroup { get; private set; }
-
-            public void Bind(RuleGroup ruleGroup)
+            [field: SerializeField, HideInInspector] public int RuleIndex { get; private set; }
+            
+            public void Bind(RuleGroup ruleGroup, int index)
             {
                 BoundIntGridDefinition = ruleGroup.intGrid;
                 RuleGroup = ruleGroup;
+                RuleIndex = index;
                 ruleMatrix.intGrid = BoundIntGridDefinition;
             }
 
