@@ -34,7 +34,6 @@ namespace KrasCore.Mosaic
             
         [PreviewField]
         [AssetsOnly]
-        [LabelText("@result.name")]
         [LabelWidth(width: 100)]
         public Sprite result;
 

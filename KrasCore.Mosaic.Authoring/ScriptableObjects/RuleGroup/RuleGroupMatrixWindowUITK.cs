@@ -187,18 +187,23 @@ namespace KrasCore.Mosaic.Authoring
                     }
                 };
 
+                var tileSpritesSer = _obj.FindProperty(nameof(RuleGroup.rules)).GetArrayElementAtIndex(_ruleIndex)
+                    .FindPropertyRelative("TileSprites");
+                
                 var path = PropertyPath.AppendIndex(PropertyPath.FromName(nameof(RuleGroup.rules)), _ruleIndex);
                 
                 _spritesListView.bindItem = (item, index) =>
                 {
-                    (item.userData as WeightedListEntryController).SetSpriteData(index, path);
+                    (item.userData as WeightedListEntryController).SetSpriteData(index, path, tileSpritesSer);
                 };
+
+                _spritesListView.BindProperty(tileSpritesSer);
                 
-                _spritesListView.SetBinding("itemsSource", new DataBinding
-                {
-                    dataSourcePath = PropertyPath.AppendName(path, "TileSprites"),
-                    bindingMode = BindingMode.TwoWay,
-                });
+                // _spritesListView.SetBinding("itemsSource", new DataBinding
+                // {
+                //     dataSourcePath = PropertyPath.AppendName(path, "TileSprites"),
+                //     bindingMode = BindingMode.TwoWay,
+                // });
             
                 colSprites.Add(_spritesListView);
             }

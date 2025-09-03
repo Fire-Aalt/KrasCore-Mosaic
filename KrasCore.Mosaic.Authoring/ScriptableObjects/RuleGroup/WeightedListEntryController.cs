@@ -1,4 +1,5 @@
 using Unity.Properties;
+using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -21,25 +22,30 @@ namespace KrasCore.Mosaic.Authoring
             imageHolder.Add(_image);
         }
     
-        public void SetSpriteData(int index, PropertyPath path)
+        public void SetSpriteData(int index, PropertyPath path, SerializedProperty spriteResult)
         {
             var tileSpritesPath = PropertyPath.AppendName(path, "TileSprites");
             var spriteResultPath = PropertyPath.AppendIndex(tileSpritesPath, index);
+
+            var serializedTileSprites = spriteResult.GetArrayElementAtIndex(index);
 
             var spriteBinding = new DataBinding
             {
                 dataSourcePath = PropertyPath.AppendName(spriteResultPath, nameof(SpriteResult.result)),
                 bindingMode = BindingMode.TwoWay
             };
-            
-            _objectField.SetBinding("value", spriteBinding);
+
+            _objectField.BindProperty(serializedTileSprites.FindPropertyRelative(nameof(SpriteResult.result)));
+            //_objectField.SetBinding("value", spriteBinding);
             _image.SetBinding("sprite", spriteBinding);
             
-            _weightField.SetBinding("value", new DataBinding
-            {
-                dataSourcePath = PropertyPath.AppendName(spriteResultPath, nameof(SpriteResult.weight)),
-                bindingMode = BindingMode.TwoWay
-            });
+            _weightField.BindProperty(serializedTileSprites.FindPropertyRelative(nameof(SpriteResult.weight)));
+            
+            // _weightField.SetBinding("value", new DataBinding
+            // {
+            //     dataSourcePath = PropertyPath.AppendName(spriteResultPath, nameof(SpriteResult.weight)),
+            //     bindingMode = BindingMode.TwoWay
+            // });
         }
     }
 }
