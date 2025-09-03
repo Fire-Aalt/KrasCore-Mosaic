@@ -198,12 +198,7 @@ namespace KrasCore.Mosaic.Authoring
                 };
 
                 _spritesListView.BindProperty(tileSpritesSer);
-                
-                // _spritesListView.SetBinding("itemsSource", new DataBinding
-                // {
-                //     dataSourcePath = PropertyPath.AppendName(path, "TileSprites"),
-                //     bindingMode = BindingMode.TwoWay,
-                // });
+                RegisterDragAndDrop(_spritesListView);
             
                 colSprites.Add(_spritesListView);
             }
@@ -241,6 +236,63 @@ namespace KrasCore.Mosaic.Authoring
             EditorApplication.update += AutoSaveAndAutoClose;
         }
 
+        
+        private void RegisterDragAndDrop(VisualElement target)
+        {
+            target.RegisterCallback<DragUpdatedEvent>(evt =>
+            {
+                if (TryGetDraggedAssets(out _))
+                {
+                    DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
+                    evt.StopPropagation();
+                }
+            });
+
+            target.RegisterCallback<DragPerformEvent>(evt =>
+            {
+                if (!TryGetDraggedAssets(out var assets)) return;
+
+                DragAndDrop.AcceptDrag();
+
+                var sprites = assets.Where(o => IsAsset(o) && o is Sprite)
+                    .Select(sprite => new SpriteResult(1, sprite as Sprite))
+                    .ToList();
+                
+                AddObjects(sprites);
+                evt.StopPropagation();
+            });
+        }
+        
+        private void AddObjects(List<SpriteResult> sprites)
+        {
+            if (sprites.Count == 0) return;
+
+            TargetRule.TileSprites.AddRange(sprites);
+            _spritesListView.Rebuild();
+
+            _spritesListView.SetSelection(new[] { TargetRule.TileSprites.Count - 1 });
+            _spritesListView.ScrollToItem(TargetRule.TileSprites.Count - 1);
+        }
+
+        private static bool IsAsset(UnityEngine.Object o)
+        {
+            return o != null && EditorUtility.IsPersistent(o);
+        }
+
+        private bool TryGetDraggedAssets(out List<UnityEngine.Object> assets)
+        {
+            assets = DragAndDrop.objectReferences
+                .Where(IsAsset)
+                .Distinct()
+                .ToList();
+
+            return assets.Count > 0;
+        }
+        
+        
+        
+        
+        
         private void OnAddClicked()
         {
             TargetRule.TileSprites.Add(new SpriteResult(1, null));
