@@ -33,6 +33,25 @@
 #SpritesListView {
 }
 
+
+.list-view-label {
+    margin-left: 3px;
+    -unity-text-align: middle-center;
+}
+
+.list-view-header {
+    border-top-width: 1px;
+    border-left-width: 1px;
+}
+
+.list-view-header-spacer {
+    flex-grow: 1;
+}
+
+.list-view-button {
+    
+}
+
 #WeightedListElementImage {
     display: flex;
     flex-grow: 1;

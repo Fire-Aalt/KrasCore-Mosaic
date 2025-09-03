@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using KrasCore.Mosaic.Editor;
 using Unity.Properties;
@@ -87,6 +88,8 @@ namespace KrasCore.Mosaic.Authoring
             Create();
         }
 
+        private ListView _spritesListView;
+        
         // Build the UI Toolkit layout
         private void Create()
         {
@@ -94,12 +97,6 @@ namespace KrasCore.Mosaic.Authoring
             root.Clear();
             root.style.flexDirection = FlexDirection.Column;
             root.styleSheets.Add(EditorResources.StyleSheet);
-            
-            // Optional: top toolbar
-            var toolbar = new Toolbar();
-            var printBtn = new ToolbarButton(Print) { text = "Print Matrix" };
-            toolbar.Add(printBtn);
-            root.Add(toolbar);
 
             // 4 columns: 0.2 | 0.4 | 0.2 | 0.2
             var row = new VisualElement
@@ -159,59 +156,66 @@ namespace KrasCore.Mosaic.Authoring
 
             //Column 3: Sprites
             {
-                var spritesGroup = new GroupBox { text = "Sprites" };
-                
                 const float borderSize = 4;
                 
-                var spritesListView = new ListView() {name = "SpritesListView"};
-                spritesListView.allowAdd = true;
-                spritesListView.allowRemove = true;
-                spritesListView.reorderable = true;
-                spritesListView.fixedItemHeight = 24 * 2 + borderSize * 2;
-                spritesListView.dataSource = _ruleGroup;
-                spritesListView.makeItem = () =>
+                _spritesListView = new ListView
                 {
-                    // Instantiate the UXML template for the entry
-                    var newListEntry = EditorResources.WeightedListElementAsset.Instantiate();
+                    name = "SpritesListView",
+                    allowAdd = true,
+                    allowRemove = true,
+                    reorderable = true,
+                    makeHeader = () =>
+                    {
+                        var spritesToolbar = new Toolbar();
+                        
+                        spritesToolbar.AddToClassList("list-view-header");
+                        
+                        var lbl = new Label { text = "Tile Sprites" };
+                        var spacer = new ToolbarSpacer();
+                        var addBtn = new ToolbarButton(OnAddClicked) { text = "Add" };
+                        var removeBtn = new ToolbarButton(OnRemoveClicked) { text = "Remove" };
+                        
+                        lbl.AddToClassList("list-view-label");
+                        spacer.AddToClassList("list-view-header-spacer");
+                        addBtn.AddToClassList("list-view-button");
+                        removeBtn.AddToClassList("list-view-button");
+                        
+                        spritesToolbar.Add(lbl);
+                        spritesToolbar.Add(spacer);
+                        spritesToolbar.Add(addBtn);
+                        spritesToolbar.Add(removeBtn);
+                        
+                        return spritesToolbar;
+                    },
+                    selectionType = SelectionType.Multiple,
+                    fixedItemHeight = 24 * 2 + borderSize * 2,
+                    dataSource = _ruleGroup,
+                    makeItem = () =>
+                    {
+                        var newListEntry = EditorResources.WeightedListElementAsset.Instantiate();
     
-                    // Instantiate a controller for the data
-                    var newListEntryLogic = new WeightedListEntryController();
+                        var newListEntryLogic = new WeightedListEntryController();
+                        newListEntryLogic.SetVisualElement(newListEntry);
+                        newListEntry.userData = newListEntryLogic;
                     
-                    // Assign the controller script to the visual element
-                    newListEntry.userData = newListEntryLogic;
-                    
-                    // Initialize the controller script
-                    newListEntryLogic.SetVisualElement(newListEntry);
-                    
-                    // Return the root of the instantiated visual tree
-                    return newListEntry;
+                        return newListEntry;
+                    }
                 };
-                
+
                 var path = PropertyPath.AppendIndex(PropertyPath.FromName(nameof(RuleGroup.rules)), _index);
                 
-                spritesListView.bindItem = (item, index) =>
+                _spritesListView.bindItem = (item, index) =>
                 {
-                    (item.userData as WeightedListEntryController).SetCharacterData(index, path);
+                    (item.userData as WeightedListEntryController).SetSpriteData(index, path);
                 };
                 
-                spritesListView.SetBinding("itemsSource", new DataBinding
+                _spritesListView.SetBinding("itemsSource", new DataBinding
                 {
                     dataSourcePath = PropertyPath.AppendName(path, "TileSprites"),
                     bindingMode = BindingMode.TwoWay,
                 });
-                
-                spritesGroup.Add(spritesListView);
             
-                // Enforce "Assets only" on ObjectFields under this section
-                // convertSpritesPF.RegisterCallback<AttachToPanelEvent>(_ =>
-                // {
-                //     foreach (var of in convertSpritesPF.Query<ObjectField>().ToList())
-                //     {
-                //         of.allowSceneObjects = false;
-                //     }
-                // });
-            
-                colSprites.Add(spritesGroup);
+                colSprites.Add(_spritesListView);
             }
             //
             // // Column 4: Entities
@@ -247,6 +251,35 @@ namespace KrasCore.Mosaic.Authoring
             EditorApplication.update += AutoSaveAndAutoClose;
         }
 
+        private void OnAddClicked()
+        {
+            Target.TileSprites.Add(new SpriteResult(1, null));
+            _spritesListView.Rebuild();
+            var last = Target.TileSprites.Count - 1;
+            if (last >= 0)
+            {
+                _spritesListView.SetSelection(new[] { last });
+                _spritesListView.ScrollToItem(last);
+            }
+        }
+
+        private void OnRemoveClicked()
+        {
+            var indices = _spritesListView.selectedIndices
+                .OrderByDescending(x => x)
+                .ToList();
+
+            if (indices.Count == 0) return;
+
+            foreach (var i in indices)
+            {
+                if (i >= 0 && i < Target.TileSprites.Count)
+                    Target.TileSprites.RemoveAt(i);
+            }
+
+            _spritesListView.Rebuild();
+        }
+        
         private void AutoSaveAndAutoClose()
         {
             SaveChanges();
@@ -309,17 +342,6 @@ namespace KrasCore.Mosaic.Authoring
             // {
             //     foreach (var r in _tileEntities) r.Validate();
             // }
-        }
-
-        private void Print()
-        {
-            if (Target.ruleMatrix.dualGridMatrix == null) return;
-            var s = "";
-            for (int i = 0; i < Target.ruleMatrix.dualGridMatrix.Length; i++)
-            {
-                s += Target.ruleMatrix.dualGridMatrix[i].value + "|";
-            }
-            Debug.Log(Target.ruleMatrix.GetHashCode() + " : " + Target.GetHashCode()  + " | " + s);
         }
 
         // Keep your existing callback so your matrix drawer can call into it
