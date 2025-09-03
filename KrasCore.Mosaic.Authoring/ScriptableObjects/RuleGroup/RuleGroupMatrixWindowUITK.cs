@@ -106,8 +106,8 @@ namespace KrasCore.Mosaic.Authoring
 
             // Column 1: IntGridValue selector
             {
-                var box = new GroupBox { text = "Select IntGrid Value" };
-
+                var box = new GroupBox { name = "IntGridSelectorBox" };
+                
                 var property = _window.FindProperty(nameof(_selectedIntGridValue));
                 var fieldInfo = GetType().GetField(nameof(_selectedIntGridValue),BindingFlags.NonPublic | BindingFlags.Instance);
                 

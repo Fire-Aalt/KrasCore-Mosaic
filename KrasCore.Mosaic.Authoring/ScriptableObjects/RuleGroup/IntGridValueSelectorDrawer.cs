@@ -20,7 +20,6 @@ namespace KrasCore.Mosaic.Editor
             
             root.Add(selectorContainer);
             
-            // Build/refresh grid whenever geometry or data changes
             void Refresh()
             {
                 var owner = SerializationUtils.GetParentObject(property);
@@ -30,25 +29,20 @@ namespace KrasCore.Mosaic.Editor
                 }
                 var intGrid = selectorObj.intGrid;
                 
-                var size = root.contentRect.width;
-                
-                selectorContainer.style.width = size;
-                selectorContainer.style.height = size;
-                
                 EnsureCellsCount(selectorContainer, intGrid);
 
                 for (int i = 0; i < intGrid.intGridValues.Count; i++)
                 {
                     var val =  intGrid.intGridValues[i];
-                    CreateButton(owner, fieldInf, i, val.texture, val.color, val.name, selectorObj, size);
+                    CreateButton(owner, fieldInf, i, val.texture, val.color, val.name, selectorObj);
                 }
                 
-                CreateButton(owner, fieldInf, intGrid.intGridValues.Count, EditorResources.AnyTexture, Color.white, "Any Value/No Value", selectorObj, size);
+                CreateButton(owner, fieldInf, intGrid.intGridValues.Count, EditorResources.AnyTexture, Color.white, "Any Value/No Value", selectorObj);
             }
             
-            void CreateButton(object owner, FieldInfo field, int i, Texture texture, Color color, string name, IntGridValueSelector selectorObj, float size)
+            void CreateButton(object owner, FieldInfo field, int i, Texture texture, Color color, string name, IntGridValueSelector selectorObj)
             {
-                var button = selectorContainer[i];
+                var button = selectorContainer[i] as Button;
                 
                 var icon = button[0];
                 var text = button[1] as Label;
@@ -67,9 +61,6 @@ namespace KrasCore.Mosaic.Editor
                 }
                 text.text = name;
                 
-                icon.style.width = size * 0.15f;
-                icon.style.height = size * 0.15f;
-                
                 var buttonData = new ClickData
                 {
                     Index = i,
@@ -87,13 +78,8 @@ namespace KrasCore.Mosaic.Editor
                 }
             }
 
-            // Rebuild on geometry changes (width changes)
             root.RegisterCallback<GeometryChangedEvent>(_ => Refresh());
-
-            // Also refresh when data changes (best-effort)
             root.TrackPropertyValue(property, _ => Refresh());
-
-            // Initial
             Refresh();
 
             return root;
@@ -111,7 +97,7 @@ namespace KrasCore.Mosaic.Editor
         {
             for (int i = 0; i < clickData.Root.childCount; i++)
             {
-                clickData.Root[i].style.backgroundColor = Color.clear;
+                clickData.Root[i].style.backgroundColor = new StyleColor(new Color(0, 0, 0, 0.15f));
             }
 
             var values = clickData.Selector.intGrid.intGridValues;
@@ -135,7 +121,7 @@ namespace KrasCore.Mosaic.Editor
             
             for (int i = 0; i < buttonsCount; i++)
             {
-                var button = new VisualElement { name = $"Button_{i}" };
+                var button = new Button { name = $"Button_{i}" };
                 var icon = new VisualElement { name = "Icon" };
                 var text = new Label { name = "Text" };
                 

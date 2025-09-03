@@ -1,34 +1,47 @@
+
+/* IntGridValueSelector */
 #IntGridValueSelector_Root {
-    position: relative;
     display: flex;
-    flex-grow: 1;
     width: 100%;
 }
 
+#IntGridSelectorBox {
+    border-width: 3px;
+    border-color: rgba(0, 0, 0, 0.15);
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
 #IntGridValueSelector_Container {
-    position: relative;
-    display: flex;
-    flex-grow: 1;
     flex-direction: column;
+    flex-grow: 1;
 }
 
 #IntGridValueSelector_Container > * {
-    position: relative;
     display: flex;
     align-items: center;
     flex-direction: row;
-    flex-grow: 1;
-    border-width: 5px;
+    height: 50px;
+    border-width: 3px;
     border-color: rgba(0, 0, 0, 0.15);
 }
 
 #Icon {
     position: relative;
-    height: 30px;
+    height: 35px;
+    width: 35px;
     display: flex;
-    margin: 5px;
+    margin: 4px;
     background-size: contain;
 }
+
+#Text {
+    position: relative;
+    -unity-text-align: middle-left;
+    height: 30px;
+    display: flex;
+}
+
+/* ListView */
 
 .list-view {
     border-left-width: 2px;
@@ -62,15 +75,7 @@
 }
 
 
-
-#Text {
-    position: relative;
-    -unity-text-align: middle-left;
-    height: 30px;
-    display: flex;
-}
-
-
+/* IntGridMatrix */
 
 #IntGridMatrix_Root {
     position: relative;
