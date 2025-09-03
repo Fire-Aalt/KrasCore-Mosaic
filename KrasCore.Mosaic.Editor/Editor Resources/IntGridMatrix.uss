@@ -30,13 +30,11 @@
     background-size: contain;
 }
 
-#SpritesListView {
-}
-
-
-.list-view-label {
-    margin-left: 3px;
-    -unity-text-align: middle-center;
+.list-view {
+    border-left-width: 2px;
+    border-right-width: 2px;
+    border-bottom-width: 2px;
+    border-color: rgba(0, 0, 0, 0.15);
 }
 
 .list-view-header {
@@ -44,23 +42,26 @@
     border-left-width: 1px;
 }
 
+.list-view-header-label {
+    margin-left: 3px;
+    -unity-text-align: middle-center;
+}
+
 .list-view-header-spacer {
     flex-grow: 1;
 }
 
-.list-view-button {
-    
+.list-view-element {
+    border-width: 2px;
+    border-color: rgba(0, 0, 0, 0.15);
 }
 
-#WeightedListElementImage {
+.list-view-element-image {
     display: flex;
     flex-grow: 1;
 }
 
-#WeightedListElement {
-    border-width: 4px;
-    border-color: rgba(0, 0, 0, 0.15);
-}
+
 
 #Text {
     position: relative;

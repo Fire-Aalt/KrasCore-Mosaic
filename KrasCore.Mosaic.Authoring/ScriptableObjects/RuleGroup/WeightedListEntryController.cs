@@ -12,40 +12,53 @@ namespace KrasCore.Mosaic.Authoring
         private IntegerField _weightField;
         private Image _image;
     
-        public void SetVisualElement(VisualElement visualElement)
+        public void SetVisualElement<T>(VisualElement visualElement) where T : Object
         {
             _objectField = visualElement.Q<ObjectField>("ObjectField");
             _weightField = visualElement.Q<IntegerField>("WeightField");
             
             var imageHolder = visualElement.Q<VisualElement>("ImageHolder");
-            _image = new Image { name = "WeightedListElementImage" };
-            imageHolder.Add(_image);
+
+            if (typeof(T) == typeof(Sprite))
+            {
+                _image = new Image();
+                _image.AddToClassList("list-view-element-image");
+                imageHolder.Add(_image);
+            }
+            else
+            {
+                imageHolder.RemoveFromHierarchy();
+            }
         }
     
-        public void SetSpriteData(int index, PropertyPath path, SerializedProperty spriteResult)
+        public void BindData<T>(int index, SerializedProperty list) where T : Object
         {
-            var tileSpritesPath = PropertyPath.AppendName(path, "TileSprites");
-            var spriteResultPath = PropertyPath.AppendIndex(tileSpritesPath, index);
+            var serializedTileSprites = list.GetArrayElementAtIndex(index);
 
-            var serializedTileSprites = spriteResult.GetArrayElementAtIndex(index);
+            var resultProperty = serializedTileSprites.FindPropertyRelative("result");
+            var weightProperty = serializedTileSprites.FindPropertyRelative("weight");
 
-            var spriteBinding = new DataBinding
+            _objectField.objectType = typeof(T);
+            
+            _objectField.BindProperty(resultProperty);
+            _weightField.BindProperty(weightProperty);
+
+            if (typeof(T) == typeof(Sprite))
             {
-                dataSourcePath = PropertyPath.AppendName(spriteResultPath, nameof(SpriteResult.result)),
-                bindingMode = BindingMode.TwoWay
-            };
+                _image.SetBinding("sprite", new DataBinding
+                {
+                    dataSourcePath = ToPropertyPath(resultProperty),
+                    bindingMode = BindingMode.ToTarget
+                });
+            }
+        }
 
-            _objectField.BindProperty(serializedTileSprites.FindPropertyRelative(nameof(SpriteResult.result)));
-            //_objectField.SetBinding("value", spriteBinding);
-            _image.SetBinding("sprite", spriteBinding);
+        private static PropertyPath ToPropertyPath(SerializedProperty property)
+        {
+            var path = property.propertyPath;
+            path = path.Replace(".Array.data[", "[");
             
-            _weightField.BindProperty(serializedTileSprites.FindPropertyRelative(nameof(SpriteResult.weight)));
-            
-            // _weightField.SetBinding("value", new DataBinding
-            // {
-            //     dataSourcePath = PropertyPath.AppendName(spriteResultPath, nameof(SpriteResult.weight)),
-            //     bindingMode = BindingMode.TwoWay
-            // });
+            return new PropertyPath(path);
         }
     }
 }

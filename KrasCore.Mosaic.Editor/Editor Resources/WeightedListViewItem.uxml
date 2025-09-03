@@ -1,6 +1,7 @@
 <ui:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" noNamespaceSchemaLocation="../UIElementsSchema/UIElements.xsd" editor-extension-mode="True">
-    <ui:VisualElement name="WeightedListElement" style="flex-grow: 1; height: auto; flex-shrink: 0; flex-direction: row; width: auto; align-items: stretch; justify-content: flex-start; align-self: stretch;">
-        <ui:VisualElement style="flex-grow: 1; width: 75%;">
+    <Style src="project://database/Assets/Submodules/KrasCore%20Mosaic/KrasCore.Mosaic.Editor/Editor%20Resources/IntGridMatrix.uss?fileID=7433441132597879392&amp;guid=4b93bdbfce66487d8d334745778a7557&amp;type=3#IntGridMatrix" />
+    <ui:VisualElement name="Root" class="list-view-element" style="flex-grow: 1; height: auto; flex-shrink: 0; flex-direction: row; width: auto; align-items: stretch; justify-content: flex-start; align-self: stretch;">
+        <ui:VisualElement style="flex-grow: 1; width: auto;">
             <ui:VisualElement style="flex-grow: 0; height: 50%; flex-direction: row; flex-shrink: 0;">
                 <ui:Label text="Sprite&#10;" style="align-self: center; align-items: center; justify-content: flex-start; align-content: flex-start; width: 50px;" />
                 <uie:ObjectField name="ObjectField" allow-scene-objects="false" type="UnityEngine.Sprite, UnityEngine.CoreModule" style="width: 137px; flex-grow: 1; flex-shrink: 1;" />

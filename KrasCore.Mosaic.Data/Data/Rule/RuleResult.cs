@@ -14,6 +14,11 @@ namespace KrasCore.Mosaic
         [HideLabel]
         public GameObject result;
         
+        public EntityResult()
+        {
+            weight = 1;
+        }
+        
         public EntityResult(int weight, GameObject result)
         {
             this.weight = weight;
@@ -37,6 +42,11 @@ namespace KrasCore.Mosaic
         [LabelWidth(width: 100)]
         public Sprite result;
 
+        public SpriteResult()
+        {
+            weight = 1;
+        }
+        
         public SpriteResult(int weight, Sprite result)
         {
             this.weight = weight;
