@@ -1,4 +1,3 @@
-using Unity.Properties;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -47,18 +46,10 @@ namespace KrasCore.Mosaic.Authoring
             {
                 _image.SetBinding("sprite", new DataBinding
                 {
-                    dataSourcePath = ToPropertyPath(resultProperty),
+                    dataSourcePath = SerializationUtils.ToPropertyPath(resultProperty),
                     bindingMode = BindingMode.ToTarget
                 });
             }
-        }
-
-        private static PropertyPath ToPropertyPath(SerializedProperty property)
-        {
-            var path = property.propertyPath;
-            path = path.Replace(".Array.data[", "[");
-            
-            return new PropertyPath(path);
         }
     }
 }

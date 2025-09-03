@@ -1,3 +1,4 @@
+using Unity.Properties;
 using UnityEditor;
 
 namespace KrasCore.Mosaic.Authoring
@@ -16,6 +17,17 @@ namespace KrasCore.Mosaic.Authoring
             
             var parent = property.serializedObject.FindProperty(path.Substring(0, i));
             return parent.boxedValue;
+        }
+        
+        public static PropertyPath ToPropertyPath(SerializedProperty property)
+        {
+            var path = property.propertyPath;
+            // For lists
+            path = path.Replace(".Array.data[", "[");
+            // For arrays (untested)
+            path = path.Replace(".data[", "[");
+            
+            return new PropertyPath(path);
         }
     }
 }

@@ -1,14 +1,6 @@
-
-// Assets/Editor/RuleGroupMatrixWindowUITK.cs
-
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using KrasCore.Mosaic.Editor;
-using Unity.Properties;
 using UnityEditor;
-using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -140,30 +132,34 @@ namespace KrasCore.Mosaic.Authoring
             {
                 var spritesListView = new ListViewBuilder<Sprite, SpriteResult>("SpritesListView", "Tile Sprites",
                     _ruleGroup, targetRuleProperty, nameof(RuleGroup.Rule.TileSprites), TargetRule.TileSprites,
-                    sprite => new SpriteResult(1, sprite));
+                    sprite => new SpriteResult(sprite));
                 
                 colSprites.Add(spritesListView.Root);
             }
             
             // Column 4: Prefabs
             {
-                var prefabsListView = new ListViewBuilder<GameObject, EntityResult>("PrefabsListView", "Tile Entities",
+                var prefabsListView = new ListViewBuilder<GameObject, PrefabResult>("PrefabsListView", "Tile Entities",
                     _ruleGroup, targetRuleProperty, nameof(RuleGroup.Rule.TileEntities), TargetRule.TileEntities,
-                    prefab => new EntityResult(1, prefab));
+                    prefab => new PrefabResult(prefab));
                 
                 colEntities.Add(prefabsListView.Root);
             }
-
-            EditorApplication.update -= AutoSaveAndAutoClose;
-            EditorApplication.update += AutoSaveAndAutoClose;
         }
         
-        private void AutoSaveAndAutoClose()
+        private void Update()
         {
-            SaveChanges();
+            foreach (var spriteResult in TargetRule.TileSprites)
+            {
+                spriteResult.Validate();
+            }
+            foreach (var entityResult in TargetRule.TileEntities)
+            {
+                entityResult.Validate();
+            }
+            
             if (NumberOfActiveInspectorWindows == 0)
             {
-                EditorApplication.update -= AutoSaveAndAutoClose;
                 Close();
             }
         }

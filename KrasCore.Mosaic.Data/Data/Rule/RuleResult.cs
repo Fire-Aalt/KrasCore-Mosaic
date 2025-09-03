@@ -1,27 +1,21 @@
 using System;
-using Sirenix.OdinInspector;
 using UnityEngine;
 
 namespace KrasCore.Mosaic
 {
     [Serializable]
-    public class EntityResult
+    public class PrefabResult
     {
-        [TableColumnWidth(50, false)]
         public int weight;
-        
-        [AssetsOnly]
-        [HideLabel]
         public GameObject result;
         
-        public EntityResult()
+        public PrefabResult()
         {
             weight = 1;
         }
         
-        public EntityResult(int weight, GameObject result)
+        public PrefabResult(GameObject result)
         {
-            this.weight = weight;
             this.result = result;
         }
 
@@ -34,12 +28,7 @@ namespace KrasCore.Mosaic
     [Serializable]
     public class SpriteResult
     {
-        [TableColumnWidth(50, false)]
         public int weight;
-            
-        [PreviewField]
-        [AssetsOnly]
-        [LabelWidth(width: 100)]
         public Sprite result;
 
         public SpriteResult()
@@ -47,9 +36,8 @@ namespace KrasCore.Mosaic
             weight = 1;
         }
         
-        public SpriteResult(int weight, Sprite result)
+        public SpriteResult(Sprite result)
         {
-            this.weight = weight;
             this.result = result;
         }
 

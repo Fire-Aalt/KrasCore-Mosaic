@@ -39,7 +39,7 @@ namespace KrasCore.Mosaic.Authoring
         [VerticalGroup("Split/Entities")]
         [Title("Entities")]
         //[TableList(HideToolbar = true)]
-        [SerializeField] private List<EntityResult> _tileEntities;
+        [SerializeField] private List<PrefabResult> _tileEntities;
         
         [HorizontalGroup("Split", width: 0.2f)]
         [VerticalGroup("Split/Entities")]
@@ -78,7 +78,7 @@ namespace KrasCore.Mosaic.Authoring
             {
                 foreach (var toConvert in _convertSprites)
                 {
-                    _tileSprites.Add(new SpriteResult(1, toConvert));
+                    _tileSprites.Add(new SpriteResult(toConvert));
                 }
                 _convertSprites.Clear();
             }
@@ -93,7 +93,7 @@ namespace KrasCore.Mosaic.Authoring
             {
                 foreach (var toConvert in _convertPrefabs)
                 {
-                    _tileEntities.Add(new EntityResult(1, toConvert));
+                    _tileEntities.Add(new PrefabResult(toConvert));
                 }
                 _convertPrefabs.Clear();
             }
