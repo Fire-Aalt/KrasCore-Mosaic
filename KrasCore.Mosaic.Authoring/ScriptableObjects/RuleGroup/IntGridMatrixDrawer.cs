@@ -16,7 +16,6 @@ namespace KrasCore.Mosaic.Editor
         public VisualElement Create(object methodsOwner, FieldInfo fieldInf, IntGridMatrixAttribute attr, SerializedProperty property)
         {
             ReflectionUtils.TryGetCallMethod(methodsOwner, attr.MatrixRectMethod, out var matrixRectMethod);
-            ReflectionUtils.TryGetCallMethod(methodsOwner, attr.OnBeforeDrawCellMethod, out var onBeforeDrawCellMethod);
 
             var root = new VisualElement { name = "IntGridMatrix_Root" };
             root.styleSheets.Add(EditorResources.StyleSheet);
@@ -136,35 +135,16 @@ namespace KrasCore.Mosaic.Editor
                         
                         cell.style.width = finalCellSize.x;
                         cell.style.height = finalCellSize.y;
-                        
-                        var cellIcon = cell[0];
-                        cellIcon.style.width = finalCellSize.x;
-                        cellIcon.style.height = finalCellSize.y;
-                        
-                        var notIcon = cell[1];
-                        notIcon.style.width = finalCellSize.x;
-                        notIcon.style.height = finalCellSize.y;
-                        
                         cell.style.left = x;
                         cell.style.top = y;
-
-                        if (onBeforeDrawCellMethod != null)
-                        {
-                            onBeforeDrawCellMethod.Invoke(methodsOwner, new object[] { cell, cellIndex, property.serializedObject });
-                        }
 
                         DrawCell(cell, currentValues[cellIndex], intGrid, size);
                     }
                 }
             }
 
-            // Rebuild on geometry changes (width changes)
             root.RegisterCallback<GeometryChangedEvent>(_ => Refresh());
-
-            // Also refresh when data changes (best-effort)
             root.TrackPropertyValue(property, _ => Refresh());
-            
-            // Initial
             Refresh();
 
             return root;
@@ -189,49 +169,27 @@ namespace KrasCore.Mosaic.Editor
             
             for (int i = 0; i < cellsCount; i++)
             {
-                var cell = new VisualElement
-                {
-                    name = $"Cell_{i}",
-                    style =
-                    {
-                        backgroundColor = EditorResources.BackgroundCellColor
-                    }
-                };
-                var cellIcon = new VisualElement { name = "CellIcon" };
-                var notIcon = new VisualElement { name = "NotIcon" };
-                
+                var cell = new VisualElement { name = $"Cell_{i}" };
                 cell.AddToClassList("int-grid-matrix-cell");
-                
-                cell.Add(cellIcon);
-                cell.Add(notIcon);
                 cellsMatrix.Add(cell);
+                
+                var cellIcon = new VisualElement { name = "CellIcon" };
+                cellIcon.AddToClassList("int-grid-matrix-cell-icon");
+                cell.Add(cellIcon);
+                
+                var notIcon = new VisualElement { name = "NotIcon" };
+                notIcon.AddToClassList("int-grid-matrix-cell-icon");
+                cell.Add(notIcon);
             }
         }
 
         private void DrawCell(VisualElement cell, IntGridValue value, IntGridDefinition intGrid, float size)
         {
-            // Reset visuals
-            cell.style.borderBottomWidth = 0;
-            cell.style.borderTopWidth = 0;
-            cell.style.borderLeftWidth = 0;
-            cell.style.borderRightWidth = 0;
-            cell.style.borderBottomColor = Color.clear;
-            cell.style.borderTopColor = Color.clear;
-            cell.style.borderLeftColor = Color.clear;
-            cell.style.borderRightColor = Color.clear;
-            
-            // Default background
-            cell.style.backgroundColor = EditorResources.BackgroundCellColor;
-
             var cellIcon = cell[0];
             var notIcon = cell[1];
             
-            // Clear icon
             cellIcon.style.display = DisplayStyle.None;
-            cellIcon.style.backgroundImage = StyleKeyword.None;
-
             notIcon.style.display = DisplayStyle.None;
-            notIcon.style.backgroundImage = StyleKeyword.None;
             
             if (value == 0)
             {
@@ -240,7 +198,7 @@ namespace KrasCore.Mosaic.Editor
             
             if (Mathf.Abs(value) == RuleGridConsts.AnyIntGridValue)
             {
-                DrawIconWithBorders(cell, cellIcon, EditorResources.AnyTexture, Color.white, size);
+                DrawIconWithBorders(cellIcon, EditorResources.AnyTexture, Color.white, size);
             }
             else
             {
@@ -249,38 +207,47 @@ namespace KrasCore.Mosaic.Editor
                 {
                     if (def.texture == null)
                     {
-                        cell.style.backgroundColor = def.color;
+                        DrawCellColor(cellIcon, def.color, size);
                     }
                     else
                     {
-                        DrawIconWithBorders(cell, cellIcon, def.texture, def.color, size);
+                        DrawIconWithBorders(cellIcon, def.texture, def.color, size);
                     }
                 }
             }
             
             if (value < 0)
             {
-                DrawIconWithBorders(cell, notIcon, EditorResources.NotTexture, Color.red, size);
+                DrawIconWithBorders(notIcon, EditorResources.NotTexture, Color.red, size);
             }
         }
 
-        private static void DrawIconWithBorders(VisualElement cell, VisualElement icon, Texture texture, Color borderColor, float size)
+        private static void DrawCellColor(VisualElement icon, Color color, float size)
+        {
+            DrawIconWithBorders(icon, null, color, size);
+            icon.style.backgroundColor = color;
+        }
+
+        private static void DrawIconWithBorders(VisualElement icon, Texture texture, Color borderColor, float size)
         {
             var borderSize = size * 0.005f;
-            
-            cell.style.borderBottomWidth = borderSize;
-            cell.style.borderTopWidth = borderSize;
-            cell.style.borderLeftWidth = borderSize;
-            cell.style.borderRightWidth = borderSize;
-            cell.style.borderBottomColor = borderColor;
-            cell.style.borderTopColor = borderColor;
-            cell.style.borderLeftColor = borderColor;
-            cell.style.borderRightColor = borderColor;
 
-            icon.style.top = -borderSize;
-            
+            icon.style.backgroundColor = Color.clear;
+
+            icon.style.borderBottomWidth = borderSize;
+            icon.style.borderTopWidth = borderSize;
+            icon.style.borderLeftWidth = borderSize;
+            icon.style.borderRightWidth = borderSize;
+            icon.style.borderBottomColor = borderColor;
+            icon.style.borderTopColor = borderColor;
+            icon.style.borderLeftColor = borderColor;
+            icon.style.borderRightColor = borderColor;
+
             icon.style.display = DisplayStyle.Flex;
-            icon.style.backgroundImage = new StyleBackground(texture as Texture2D);
+            
+            icon.style.backgroundImage = texture != null 
+                ? new StyleBackground(texture as Texture2D) 
+                : StyleKeyword.None;
         }
         
         private static IntGridValueDefinition IntGridValueToDefinition(IntGridValue v, IntGridDefinition intGrid)
@@ -288,20 +255,6 @@ namespace KrasCore.Mosaic.Editor
             var key = Mathf.Abs(v);
             intGrid.IntGridValuesDict.TryGetValue(key, out var def);
             return def;
-        }
-        
-        private static object GetParentObject(SerializedProperty property)
-        {
-            var path = property.propertyPath;
-            var i = path.LastIndexOf('.');
-            
-            if (i < 0)
-            {
-                return property.serializedObject.targetObject;
-            }
-            
-            var parent = property.serializedObject.FindProperty(path.Substring(0, i));
-            return parent.boxedValue;
         }
     }
 }

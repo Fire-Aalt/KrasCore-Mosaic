@@ -6,16 +6,23 @@ namespace KrasCore.Mosaic.Authoring
 {
     public class IntGridDragger : PointerManipulator
     {
+        public enum Pressed
+        {
+            None,
+            LeftMouseButton,
+            RightMouseButton,
+        }
+        
         private bool _active;
         private int _pointerId;
         private VisualElement _currentDragHover;
         private VisualElement _currentHover;
 
-        private int _pressedButton;
+        private Pressed _pressedButton;
         
         public Action<VisualElement> HoverEnter;
         public Action<VisualElement> HoverLeave;
-        public Action<VisualElement, bool> DragEnter;
+        public Action<VisualElement, Pressed> DragEnter;
         public Action<VisualElement> DragLeave;
         public Action DragStop;
 
@@ -56,8 +63,13 @@ namespace KrasCore.Mosaic.Authoring
             if (CanStartManipulation(e))
             {
                 _pointerId = e.pointerId;
-                _pressedButton = e.button;
-
+                _pressedButton = e.button switch
+                {
+                    0 => Pressed.LeftMouseButton,
+                    1 => Pressed.RightMouseButton,
+                    _ => Pressed.None,
+                };
+                
                 _active = true;
                 target.CapturePointer(_pointerId);
                 
@@ -73,7 +85,7 @@ namespace KrasCore.Mosaic.Authoring
                 return;
 
             _visitedSet.Clear();
-            _pressedButton = -1;
+            _pressedButton = Pressed.None;
             _active = false;
             target.ReleaseMouse();
             e.StopPropagation();
@@ -89,44 +101,50 @@ namespace KrasCore.Mosaic.Authoring
 
         private void TryEnter(IEventHandler eTarget)
         {
-            var selected = FindTarget(eTarget as VisualElement);
-            if (selected != null && _active)
+            var selected = FindCellTarget(eTarget as VisualElement);
+            if (selected == null) return;
+            
+            if (_active)
             {
                 if (!_visitedSet.Contains(selected))
                 {
-                    DragEnter?.Invoke(selected, _pressedButton == 1);
+                    DragEnter?.Invoke(selected, _pressedButton);
                     _currentDragHover = selected;
                     _visitedSet.Add(selected);
                 }
-                else if (!ReferenceEquals(selected, _currentHover))
-                {
-                    HoverEnter?.Invoke(selected);
-                    _currentHover = selected;
-                }
+            }
+            
+            if (!ReferenceEquals(selected, _currentHover))
+            {
+                HoverEnter?.Invoke(selected);
+                _currentHover = selected;
             }
         }
 
         private void OnPointerLeave(PointerLeaveEvent e)
         {
-            var deseleted = FindTarget(e.target as VisualElement);
-            if (deseleted != null && _active)
+            var deselected = FindCellTarget(e.target as VisualElement);
+            if (deselected == null) return;
+            
+            if (_active)
             {
-                if (ReferenceEquals(deseleted, _currentDragHover))
+                if (ReferenceEquals(deselected, _currentDragHover))
                 {
-                    DragLeave?.Invoke(deseleted);
+                    DragLeave?.Invoke(deselected);
                     _currentDragHover = null;
                 }
-                else if (ReferenceEquals(deseleted, _currentHover))
-                {
-                    HoverLeave?.Invoke(deseleted);
-                    _currentHover = null;
-                }
+            }
+            
+            if (ReferenceEquals(deselected, _currentHover))
+            {
+                HoverLeave?.Invoke(deselected);
+                _currentHover = null;
             }
             
             e.StopPropagation();
         }
         
-        private VisualElement FindTarget(VisualElement ve)
+        private static VisualElement FindCellTarget(VisualElement ve)
         {
             for (var cur = ve; cur != null; cur = cur.hierarchy.parent)
             {

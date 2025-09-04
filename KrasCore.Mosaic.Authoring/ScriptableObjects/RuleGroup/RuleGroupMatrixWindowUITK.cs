@@ -129,19 +129,41 @@ namespace KrasCore.Mosaic.Authoring
                 
                 var dragger = new IntGridDragger
                 {
-                    DragEnter = (cell, rightButton) =>
+                    DragEnter = (cell, pressed) =>
                     {
                         for (int i = 0; i < cell.parent.childCount; i++)
                         {
                             if (ReferenceEquals(cell.parent[i], cell))
                             {
-                                if (rightButton)
+                                if (pressed == IntGridDragger.Pressed.RightMouseButton)
                                     RightClick(i, _serializedObject);
                                 else
                                     LeftClick(i, _serializedObject);
                                 break;
                             }
                         }
+                    },
+                    HoverEnter = (cell) =>
+                    {
+                        cell.style.borderLeftWidth = 1;
+                        cell.style.borderTopWidth = 1;
+                        cell.style.borderRightWidth = 1;
+                        cell.style.borderBottomWidth = 1;
+                        cell.style.borderTopColor = Color.yellow;
+                        cell.style.borderBottomColor = Color.yellow;
+                        cell.style.borderLeftColor = Color.yellow;
+                        cell.style.borderRightColor = Color.yellow;
+                    },
+                    HoverLeave = (cell) =>
+                    {
+                        cell.style.borderLeftWidth = 0;
+                        cell.style.borderTopWidth = 0;
+                        cell.style.borderRightWidth = 0;
+                        cell.style.borderBottomWidth = 0;
+                        cell.style.borderTopColor = Color.clear;
+                        cell.style.borderBottomColor = Color.clear;
+                        cell.style.borderLeftColor = Color.clear;
+                        cell.style.borderRightColor = Color.clear;
                     },
                     DragStop = () => _rightClickMode = DragMode.None
                 };
@@ -196,15 +218,15 @@ namespace KrasCore.Mosaic.Authoring
         private void LeftClick(int cellIndex, SerializedObject serializedObject)
         {
             ref var slot = ref TargetRule.ruleMatrix.GetCurrentMatrix()[cellIndex];
-            
+
             if (slot != _selectedIntGridValue.value)
             {
-                if (slot < 0) 
+                if (slot < 0)
                     slot = 0;
-                else 
+                else
                     slot = _selectedIntGridValue.value;
             }
-            
+
             serializedObject.Update();
         }
 
