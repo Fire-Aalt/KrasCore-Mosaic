@@ -1,19 +1,19 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using KrasCore.Mosaic.Editor;
+using KrasCore.Mosaic.Authoring;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine.UIElements;
 using Object = UnityEngine.Object;
 
-namespace KrasCore.Mosaic.Authoring
+namespace KrasCore.Mosaic.Editor
 {
-    public class ListViewBuilder<TObject, TEntry> 
+    public class WeightedListViewBuilder<TObject, TEntry> 
         where TObject : Object
         where TEntry : new()
     {
-        public const float BorderSize = 2;
+        private const float BorderSize = 2;
 
         public VisualElement Root => _listView;
 
@@ -21,7 +21,7 @@ namespace KrasCore.Mosaic.Authoring
         private readonly Func<TObject, TEntry> _convertFunc;
         private readonly List<TEntry> _boundList;
         
-        public ListViewBuilder(string name, string listLabel, RuleGroup dataSource,
+        public WeightedListViewBuilder(string name, string listLabel, RuleGroup dataSource,
             SerializedProperty serializedRule, string boundPropertyName,
             List<TEntry> boundList, Func<TObject, TEntry> convertFunc)
         {

@@ -51,6 +51,8 @@ namespace KrasCore.Mosaic.Authoring
         [Serializable]
         public class Rule
         {
+            public static event Action<Rule> OnMatrixClicked;
+            
             private const int MatrixSizeConst = 9;
             
             public int MatrixSize => ruleMatrix.GetCurrentSize();
@@ -91,17 +93,6 @@ namespace KrasCore.Mosaic.Authoring
                 ruleMatrix.intGrid = BoundIntGridDefinition;
             }
 
-            [Button]
-            public void Print()
-            {
-                var s = "";
-                for (int i = 0; i < ruleMatrix.dualGridMatrix.Length; i++)
-                {
-                    s += ruleMatrix.dualGridMatrix[i].value + "|";
-                }
-                Debug.Log(ruleMatrix.GetHashCode() + " : " + GetHashCode()  + " | " + s);
-            }
-            
             public void Validate()
             {
                 TileSprites ??= new List<SpriteResult>();
@@ -111,13 +102,13 @@ namespace KrasCore.Mosaic.Authoring
 
             private void MatrixControlRect(VisualElement matrix)
             {
-                matrix.RegisterCallback<ClickEvent>(OnMatrixClicked);
+                matrix.RegisterCallback<ClickEvent>(HandleMatrixClicked);
             }
             
-            private void OnMatrixClicked(ClickEvent clickEvent)
+            private void HandleMatrixClicked(ClickEvent clickEvent)
             {
                 if (clickEvent.button != 0) return;
-                RuleGroupMatrixWindowUITK.OpenWindow(this);
+                OnMatrixClicked?.Invoke(this);
             }
             
             // Handles both even and odd matrices

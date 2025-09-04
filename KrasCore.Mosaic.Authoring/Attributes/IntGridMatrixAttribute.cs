@@ -8,12 +8,6 @@ namespace KrasCore.Mosaic.Authoring
     {
         public float Padding = 0.005f;
         public bool IsReadonly;
-        public string OnBeforeDrawCellMethod;
         public string MatrixRectMethod;
-
-        public IntGridMatrixAttribute(string onBeforeDrawCellMethod = "")
-        {
-            OnBeforeDrawCellMethod = onBeforeDrawCellMethod;
-        }
     }
 }

@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using UnityEngine.UIElements;
 
-namespace KrasCore.Mosaic.Authoring
+namespace KrasCore.Mosaic.Editor
 {
-    public class IntGridDragger : PointerManipulator
+    public class IntGridMatrixManipulator : PointerManipulator
     {
         public enum Pressed
         {
@@ -26,7 +26,7 @@ namespace KrasCore.Mosaic.Authoring
 
         private readonly HashSet<VisualElement> _visitedSet = new();
         
-        public IntGridDragger()
+        public IntGridMatrixManipulator()
         {
             _pointerId = -1;
             activators.Add(new ManipulatorActivationFilter { button = MouseButton.LeftMouse });

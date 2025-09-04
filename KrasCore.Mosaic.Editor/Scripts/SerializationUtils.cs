@@ -1,9 +1,7 @@
 using Unity.Properties;
 using UnityEditor;
-using UnityEngine;
-using UnityEngine.UIElements;
 
-namespace KrasCore.Mosaic.Authoring
+namespace KrasCore.Mosaic.Editor
 {
     public static class SerializationUtils
     {

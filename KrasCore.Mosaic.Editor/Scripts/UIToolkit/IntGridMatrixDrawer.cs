@@ -1,6 +1,5 @@
 using System;
 using System.Reflection;
-using BovineLabs.Core.Utility;
 using KrasCore.Mosaic.Authoring;
 using KrasCore.Mosaic.Data;
 using UnityEditor;
@@ -50,7 +49,6 @@ namespace KrasCore.Mosaic.Editor
             
             root.Add(matrixContainer);
             
-            // Build/refresh grid whenever geometry or data changes
             void Refresh()
             {
                 var targetObject = SerializationUtils.GetParentObject(property);
@@ -147,6 +145,8 @@ namespace KrasCore.Mosaic.Editor
             root.TrackPropertyValue(property, _ => Refresh());
             Refresh();
 
+            
+            
             return root;
         }
         

@@ -11,16 +11,14 @@ namespace KrasCore.Mosaic.Editor
         {
             base.OnEnable();
 
-            RuleGroupMatrixWindowUITK.NumberOfActiveInspectorWindows++;
-            RuleGroupMatrixWindow.NumberOfActiveInspectorWindows++;
+            IntGridMatrixWindow.NumberOfActiveInspectorWindows++;
         }
 
         protected override void OnDisable()
         {
             base.OnDisable();
 
-            RuleGroupMatrixWindowUITK.NumberOfActiveInspectorWindows--;
-            RuleGroupMatrixWindow.NumberOfActiveInspectorWindows--;
+            IntGridMatrixWindow.NumberOfActiveInspectorWindows--;
         }
     }
 }
