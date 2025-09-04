@@ -143,28 +143,8 @@ namespace KrasCore.Mosaic.Authoring
                             }
                         }
                     },
-                    HoverEnter = (cell) =>
-                    {
-                        cell.style.borderLeftWidth = 1;
-                        cell.style.borderTopWidth = 1;
-                        cell.style.borderRightWidth = 1;
-                        cell.style.borderBottomWidth = 1;
-                        cell.style.borderTopColor = Color.yellow;
-                        cell.style.borderBottomColor = Color.yellow;
-                        cell.style.borderLeftColor = Color.yellow;
-                        cell.style.borderRightColor = Color.yellow;
-                    },
-                    HoverLeave = (cell) =>
-                    {
-                        cell.style.borderLeftWidth = 0;
-                        cell.style.borderTopWidth = 0;
-                        cell.style.borderRightWidth = 0;
-                        cell.style.borderBottomWidth = 0;
-                        cell.style.borderTopColor = Color.clear;
-                        cell.style.borderBottomColor = Color.clear;
-                        cell.style.borderLeftColor = Color.clear;
-                        cell.style.borderRightColor = Color.clear;
-                    },
+                    HoverEnter = (cell) => { cell.AddToClassList("int-grid-matrix-cell-hover"); },
+                    HoverLeave = (cell) => { cell.RemoveFromClassList("int-grid-matrix-cell-hover"); },
                     DragStop = () => _rightClickMode = DragMode.None
                 };
                 matrix.AddManipulator(dragger);

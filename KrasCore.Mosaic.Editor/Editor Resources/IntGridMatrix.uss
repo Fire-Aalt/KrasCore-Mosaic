@@ -85,6 +85,13 @@
     height: 100%;
 }
 
+
+.int-grid-matrix-cell-hover {
+    border-color: yellow;
+    border-width: 1px;
+}
+
+
 .int-grid-matrix-cell-icon {
     position: absolute;
     align-self: center;

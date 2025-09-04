@@ -15,8 +15,6 @@ namespace KrasCore.Mosaic.Authoring
         
         private bool _active;
         private int _pointerId;
-        private VisualElement _currentDragHover;
-        private VisualElement _currentHover;
 
         private Pressed _pressedButton;
         
@@ -109,16 +107,10 @@ namespace KrasCore.Mosaic.Authoring
                 if (!_visitedSet.Contains(selected))
                 {
                     DragEnter?.Invoke(selected, _pressedButton);
-                    _currentDragHover = selected;
                     _visitedSet.Add(selected);
                 }
             }
-            
-            if (!ReferenceEquals(selected, _currentHover))
-            {
-                HoverEnter?.Invoke(selected);
-                _currentHover = selected;
-            }
+            HoverEnter?.Invoke(selected);
         }
 
         private void OnPointerLeave(PointerLeaveEvent e)
@@ -128,18 +120,9 @@ namespace KrasCore.Mosaic.Authoring
             
             if (_active)
             {
-                if (ReferenceEquals(deselected, _currentDragHover))
-                {
-                    DragLeave?.Invoke(deselected);
-                    _currentDragHover = null;
-                }
+                DragLeave?.Invoke(deselected);
             }
-            
-            if (ReferenceEquals(deselected, _currentHover))
-            {
-                HoverLeave?.Invoke(deselected);
-                _currentHover = null;
-            }
+            HoverLeave?.Invoke(deselected);
             
             e.StopPropagation();
         }
