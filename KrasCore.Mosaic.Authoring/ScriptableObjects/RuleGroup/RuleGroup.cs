@@ -5,6 +5,7 @@ using Sirenix.OdinInspector;
 using Unity.Mathematics;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Serialization;
 using UnityEngine.UIElements;
 
 namespace KrasCore.Mosaic.Authoring
@@ -79,8 +80,14 @@ namespace KrasCore.Mosaic.Authoring
             [EnumToggleButtons, HideLabel]
             public ResultTransform resultTransform;
 
+            [HideInInspector]
+            [FormerlySerializedAs("<TileSprites>k__BackingField")]
             public List<SpriteResult> TileSprites = new();
+            
+            [HideInInspector]
+            [FormerlySerializedAs("<TileEntities>k__BackingField")]
             public List<PrefabResult> TileEntities = new();
+            
             [field: SerializeField, HideInInspector] public IntGridDefinition BoundIntGridDefinition { get; private set; }
             [field: SerializeField, HideInInspector] public RuleGroup RuleGroup { get; private set; }
             [field: SerializeField, HideInInspector] public int RuleIndex { get; private set; }
@@ -95,8 +102,6 @@ namespace KrasCore.Mosaic.Authoring
 
             public void Validate()
             {
-                TileSprites ??= new List<SpriteResult>();
-                TileEntities ??= new List<PrefabResult>();
                 ruleChance = Mathf.Clamp(ruleChance, 0f, 100f);
             }
 

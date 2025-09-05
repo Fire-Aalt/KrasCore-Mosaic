@@ -1,12 +1,12 @@
 using System.Reflection;
-using KrasCore.Mosaic.Editor;
+using KrasCore.Mosaic.Authoring;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace KrasCore.Mosaic.Authoring
+namespace KrasCore.Mosaic.Editor
 {
-    public class RuleGroupMatrixWindowUITK : EditorWindow
+    public class IntGridMatrixWindow : EditorWindow
     {
         public static int NumberOfActiveInspectorWindows;
 
@@ -18,19 +18,14 @@ namespace KrasCore.Mosaic.Authoring
         
         private RuleGroup _ruleGroup;
         private int _ruleIndex;
+        private DragMode _rightClickMode = DragMode.None;
         
         private RuleGroup.Rule TargetRule => _ruleGroup.rules[_ruleIndex];
-
-        public static void OpenWindow(RuleGroup.Rule target)
+        
+        [InitializeOnLoadMethod]
+        private static void RegisterCallbacks()
         {
-            var wnd = GetWindow<RuleGroupMatrixWindowUITK>(
-                true,
-                "Rule Matrix Window",
-                true
-            );
-            
-            wnd.Init(target);
-            wnd.Show();
+            RuleGroup.Rule.OnMatrixClicked += OpenWindow;
         }
 
         private void OnEnable()
@@ -48,6 +43,17 @@ namespace KrasCore.Mosaic.Authoring
             Close();
         }
 
+        private static void OpenWindow(RuleGroup.Rule target)
+        {
+            var wnd = GetWindow<IntGridMatrixWindow>(
+                true,
+                "Rule Matrix Window",
+                true
+            );
+            wnd.Init(target);
+            wnd.Show();
+        }
+        
         private void Init(RuleGroup.Rule target)
         {
             _selectedIntGridValue = new IntGridValueSelector
@@ -61,14 +67,14 @@ namespace KrasCore.Mosaic.Authoring
             _window = new SerializedObject(this);
             _serializedObject = new SerializedObject(_ruleGroup);
             
-            Create();
+            CreateUI();
         }
         
-        private void Create()
+        private void CreateUI()
         {
             var root = rootVisualElement;
             root.Clear();
-            root.style.flexDirection = FlexDirection.Column;
+            
             root.styleSheets.Add(EditorResources.StyleSheet);
 
             // 4 columns: 0.2 | 0.4 | 0.2 | 0.2
@@ -111,8 +117,8 @@ namespace KrasCore.Mosaic.Authoring
                 var property = _window.FindProperty(nameof(_selectedIntGridValue));
                 var fieldInfo = GetType().GetField(nameof(_selectedIntGridValue),BindingFlags.NonPublic | BindingFlags.Instance);
                 
-                var pf = IntGridValueSelectorDrawer.Create(fieldInfo, property);
-                box.Add(pf);
+                var intGridSelector = IntGridValueSelectorDrawer.Create(fieldInfo, property);
+                box.Add(intGridSelector);
                 colSelect.Add(box);
             }
             
@@ -127,22 +133,9 @@ namespace KrasCore.Mosaic.Authoring
                     new IntGridMatrixAttribute(), matrixProperty);
                 colMatrix.Add(matrix);
                 
-                var dragger = new IntGridDragger
+                var dragger = new IntGridMatrixManipulator
                 {
-                    DragEnter = (cell, pressed) =>
-                    {
-                        for (int i = 0; i < cell.parent.childCount; i++)
-                        {
-                            if (ReferenceEquals(cell.parent[i], cell))
-                            {
-                                if (pressed == IntGridDragger.Pressed.RightMouseButton)
-                                    RightClick(i, _serializedObject);
-                                else
-                                    LeftClick(i, _serializedObject);
-                                break;
-                            }
-                        }
-                    },
+                    DragEnter = OnDragEnter,
                     HoverEnter = (cell) => { cell.AddToClassList("int-grid-matrix-cell-hover"); },
                     HoverLeave = (cell) => { cell.RemoveFromClassList("int-grid-matrix-cell-hover"); },
                     DragStop = () => _rightClickMode = DragMode.None
@@ -152,7 +145,7 @@ namespace KrasCore.Mosaic.Authoring
             
             // Column 3: Sprites
             {
-                var spritesListView = new ListViewBuilder<Sprite, SpriteResult>("SpritesListView", "Tile Sprites",
+                var spritesListView = new WeightedListViewBuilder<Sprite, SpriteResult>("SpritesListView", "Tile Sprites",
                     _ruleGroup, targetRuleProperty, nameof(RuleGroup.Rule.TileSprites), TargetRule.TileSprites,
                     sprite => new SpriteResult(sprite));
                 
@@ -161,22 +154,13 @@ namespace KrasCore.Mosaic.Authoring
             
             // Column 4: Prefabs
             {
-                var prefabsListView = new ListViewBuilder<GameObject, PrefabResult>("PrefabsListView", "Tile Entities",
+                var prefabsListView = new WeightedListViewBuilder<GameObject, PrefabResult>("PrefabsListView", "Tile Entities",
                     _ruleGroup, targetRuleProperty, nameof(RuleGroup.Rule.TileEntities), TargetRule.TileEntities,
                     prefab => new PrefabResult(prefab));
                 
                 colEntities.Add(prefabsListView.Root);
             }
         }
-        
-        private enum DragMode
-        {
-            None,
-            Clear,
-            Set
-        }
-
-        private DragMode _rightClickMode = DragMode.None;
         
         private void Update()
         {
@@ -195,7 +179,23 @@ namespace KrasCore.Mosaic.Authoring
             }
         }
 
-        private void LeftClick(int cellIndex, SerializedObject serializedObject)
+        private void OnDragEnter(VisualElement cell, IntGridMatrixManipulator.Pressed pressed)
+        {
+            var hc = cell.parent.childCount;
+            for (int i = 0; i < hc; i++)
+            {
+                if (cell.parent[i] == cell)
+                {
+                    if (pressed == IntGridMatrixManipulator.Pressed.RightMouseButton)
+                        RightClick(i);
+                    else
+                        LeftClick(i);
+                    return;
+                }
+            }
+        }
+        
+        private void LeftClick(int cellIndex)
         {
             ref var slot = ref TargetRule.ruleMatrix.GetCurrentMatrix()[cellIndex];
 
@@ -207,10 +207,10 @@ namespace KrasCore.Mosaic.Authoring
                     slot = _selectedIntGridValue.value;
             }
 
-            serializedObject.Update();
+            _serializedObject.Update();
         }
 
-        private void RightClick(int cellIndex, SerializedObject serializedObject)
+        private void RightClick(int cellIndex)
         {
             ref var slot = ref TargetRule.ruleMatrix.GetCurrentMatrix()[cellIndex];
 
@@ -227,7 +227,14 @@ namespace KrasCore.Mosaic.Authoring
                 _ => slot
             };
 
-            serializedObject.Update();
+            _serializedObject.Update();
+        }
+        
+        private enum DragMode
+        {
+            None,
+            Clear,
+            Set
         }
     }
 }

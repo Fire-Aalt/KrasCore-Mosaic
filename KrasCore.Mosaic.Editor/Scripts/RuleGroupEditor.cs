@@ -1,23 +1,30 @@
 using KrasCore.Mosaic.Authoring;
-using Sirenix.OdinInspector.Editor;
 using UnityEditor;
+using UnityEngine.UIElements;
 
 namespace KrasCore.Mosaic.Editor
 {
     [CustomEditor(typeof(RuleGroup))]
-    public class RuleGroupEditor : OdinEditor
+    public class RuleGroupEditor : UnityEditor.Editor
     {
-        protected override void OnEnable()
+        public override VisualElement CreateInspectorGUI()
         {
-            base.OnEnable();
+            const string defaultTheme = "Packages/com.unity.dt.app-ui/PackageResources/Styles/Themes/App UI - Editor Dark - Small.tss";
+            var element = EditorResources.RuleGroupElementAsset.Instantiate();
+            element.styleSheets.Add(AssetDatabase.LoadAssetAtPath<ThemeStyleSheet>(defaultTheme));
+            element.AddToClassList("unity-editor"); // Enable Editor related styles
+            
+            return element;
+        }
 
+
+        private void OnEnable()
+        {
             IntGridMatrixWindow.NumberOfActiveInspectorWindows++;
         }
 
-        protected override void OnDisable()
+        private void OnDisable()
         {
-            base.OnDisable();
-
             IntGridMatrixWindow.NumberOfActiveInspectorWindows--;
         }
     }

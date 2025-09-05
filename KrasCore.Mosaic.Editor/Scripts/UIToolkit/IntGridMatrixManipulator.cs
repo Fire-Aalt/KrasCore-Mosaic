@@ -15,13 +15,11 @@ namespace KrasCore.Mosaic.Editor
         
         private bool _active;
         private int _pointerId;
-
         private Pressed _pressedButton;
         
         public Action<VisualElement> HoverEnter;
         public Action<VisualElement> HoverLeave;
         public Action<VisualElement, Pressed> DragEnter;
-        public Action<VisualElement> DragLeave;
         public Action DragStop;
 
         private readonly HashSet<VisualElement> _visitedSet = new();
@@ -118,10 +116,6 @@ namespace KrasCore.Mosaic.Editor
             var deselected = FindCellTarget(e.target as VisualElement);
             if (deselected == null) return;
             
-            if (_active)
-            {
-                DragLeave?.Invoke(deselected);
-            }
             HoverLeave?.Invoke(deselected);
             
             e.StopPropagation();
