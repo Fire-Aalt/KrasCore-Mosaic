@@ -128,10 +128,13 @@ namespace KrasCore.Mosaic.Editor
             {
                 var matrixProperty = targetRuleProperty.FindPropertyRelative(nameof(RuleGroup.Rule.ruleMatrix));
                 var fieldInfo = TargetRule.GetType().GetField(nameof(RuleGroup.Rule.ruleMatrix));
+
+                var matrixView = new IntGridMatrixView();
                 
-                var matrix = new IntGridMatrixDrawer().Create(this, fieldInfo,
-                    new IntGridMatrixAttribute(), matrixProperty);
-                colMatrix.Add(matrix);
+                var matrixRoot = matrixView.Create(fieldInfo, new IntGridMatrixAttribute());
+                matrixView.Bind(matrixProperty, this);
+                
+                colMatrix.Add(matrixRoot);
                 
                 var dragger = new IntGridMatrixManipulator
                 {
@@ -140,25 +143,27 @@ namespace KrasCore.Mosaic.Editor
                     HoverLeave = (cell) => { cell.RemoveFromClassList("int-grid-matrix-cell-hover"); },
                     DragStop = () => _rightClickMode = DragMode.None
                 };
-                matrix.AddManipulator(dragger);
+                matrixRoot.AddManipulator(dragger);
             }
             
             // Column 3: Sprites
             {
-                var spritesListView = new WeightedListViewBuilder<Sprite, SpriteResult>("SpritesListView", "Tile Sprites",
-                    _ruleGroup, targetRuleProperty, nameof(RuleGroup.Rule.TileSprites), TargetRule.TileSprites,
-                    sprite => new SpriteResult(sprite));
+                var tileSpritesSerializedList = targetRuleProperty.FindPropertyRelative(nameof(RuleGroup.Rule.TileSprites));
                 
-                colSprites.Add(spritesListView.Root);
+                var spritesListView = new WeightedListViewBuilder<Sprite, SpriteResult>("SpritesListView", "Tile Sprites",
+                    _ruleGroup, tileSpritesSerializedList, TargetRule.TileSprites, sprite => new SpriteResult(sprite));
+                
+                colSprites.Add(spritesListView.Build());
             }
             
             // Column 4: Prefabs
             {
-                var prefabsListView = new WeightedListViewBuilder<GameObject, PrefabResult>("PrefabsListView", "Tile Entities",
-                    _ruleGroup, targetRuleProperty, nameof(RuleGroup.Rule.TileEntities), TargetRule.TileEntities,
-                    prefab => new PrefabResult(prefab));
+                var tileEntitiesSerializedList = targetRuleProperty.FindPropertyRelative(nameof(RuleGroup.Rule.TileEntities));
                 
-                colEntities.Add(prefabsListView.Root);
+                var prefabsListView = new WeightedListViewBuilder<GameObject, PrefabResult>("PrefabsListView", "Tile Entities",
+                    _ruleGroup, tileEntitiesSerializedList, TargetRule.TileEntities, prefab => new PrefabResult(prefab));
+                
+                colEntities.Add(prefabsListView.Build());
             }
         }
         

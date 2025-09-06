@@ -105,7 +105,7 @@ namespace KrasCore.Mosaic.Authoring
                 ruleChance = Mathf.Clamp(ruleChance, 0f, 100f);
             }
 
-            private void MatrixControlRect(VisualElement matrix)
+            public void MatrixControlRect(VisualElement matrix)
             {
                 matrix.RegisterCallback<ClickEvent>(HandleMatrixClicked);
             }
