@@ -21,12 +21,6 @@ namespace KrasCore.Mosaic.Editor
         private DragMode _rightClickMode = DragMode.None;
         
         private RuleGroup.Rule TargetRule => _ruleGroup.rules[_ruleIndex];
-        
-        [InitializeOnLoadMethod]
-        private static void RegisterCallbacks()
-        {
-            RuleGroup.Rule.OnMatrixClicked += OpenWindow;
-        }
 
         private void OnEnable()
         {
@@ -43,7 +37,7 @@ namespace KrasCore.Mosaic.Editor
             Close();
         }
 
-        private static void OpenWindow(RuleGroup.Rule target)
+        public static void OpenWindow(RuleGroup.Rule target)
         {
             var wnd = GetWindow<IntGridMatrixWindow>(
                 true,
@@ -127,8 +121,8 @@ namespace KrasCore.Mosaic.Editor
             // Column 2: Matrix
             {
                 var matrixProperty = targetRuleProperty.FindPropertyRelative(nameof(RuleGroup.Rule.ruleMatrix));
-                var matrixView = new IntGridMatrixView(new IntGridMatrixAttribute());
-                matrixView.Bind(matrixProperty, this);
+                var matrixView = new IntGridMatrixView();
+                matrixView.Bind(matrixProperty);
                 
                 colMatrix.Add(matrixView);
                 

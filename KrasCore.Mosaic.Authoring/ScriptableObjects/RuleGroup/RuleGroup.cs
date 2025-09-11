@@ -1,27 +1,22 @@
 using System;
 using System.Collections.Generic;
 using KrasCore.Mosaic.Data;
-using Sirenix.OdinInspector;
 using Unity.Mathematics;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Serialization;
-using UnityEngine.UIElements;
 
 namespace KrasCore.Mosaic.Authoring
 {
-    [HideMonoScript]
     [CreateAssetMenu(menuName = "Mosaic/RuleGroup")]
     public class RuleGroup : ScriptableObject
     {
-        [ReadOnly]
-        [Title("Bound IntGrid")]
+        [Header("Bound IntGrid")]
         public IntGridDefinition intGrid;
         
-        [Title("Tile Rules")]
+        [Header("Tile Rules")]
         public List<Rule> rules = new();
 
-        [Button(ButtonSizes.Large)]
         public void AddRule()
         {
             var rule = new Rule();
@@ -52,8 +47,6 @@ namespace KrasCore.Mosaic.Authoring
         [Serializable]
         public class Rule : ISerializationCallbackReceiver
         {
-            public static event Action<Rule> OnMatrixClicked;
-            
             private const int MatrixSizeConst = 9;
             
             public int MatrixSize => ruleMatrix.GetCurrentSize();
@@ -61,12 +54,11 @@ namespace KrasCore.Mosaic.Authoring
 
             public Enabled enabled = Enabled.Enabled;
 
-            [IntGridMatrix(MatrixRectMethod = nameof(MatrixControlRect), IsReadonly = true)]
             public IntGridMatrix ruleMatrix = new(MatrixSizeConst);
             
             public float ruleChance = 100f;
-            
             public Transformation ruleTransformation;
+            
             [FormerlySerializedAs("resultTransform")]
             public Transformation resultTransformation;
 
@@ -125,17 +117,6 @@ namespace KrasCore.Mosaic.Authoring
             {
                 ruleChance = Mathf.Clamp(ruleChance, 0f, 100f);
             }
-
-            public void MatrixControlRect(VisualElement matrix)
-            {
-                matrix.RegisterCallback<ClickEvent>(HandleMatrixClicked);
-            }
-            
-            private void HandleMatrixClicked(ClickEvent clickEvent)
-            {
-                if (clickEvent.button != 0) return;
-                OnMatrixClicked?.Invoke(this);
-            }
             
             // Handles both even and odd matrices
             public int2 GetOffsetFromCenterMirrored(int index, bool2 mirror)
@@ -184,8 +165,6 @@ namespace KrasCore.Mosaic.Authoring
                 
                 return res;
             }
-
-
         }
     }
 }

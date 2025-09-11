@@ -31,7 +31,10 @@ namespace KrasCore.Mosaic.Editor
             _enabledToggle = visualElement.Q<Toggle>("EnabledToggle");
             
             var matrixCol = visualElement.Q<VisualElement>("MatrixCol");
-            _intGridMatrixView = new IntGridMatrixView(new IntGridMatrixAttribute {IsReadonly = true, MatrixRectMethod = nameof(RuleGroup.Rule.MatrixControlRect)});
+            _intGridMatrixView = new IntGridMatrixView
+            {
+                IsReadonly = true
+            };
             matrixCol.Add(_intGridMatrixView);
             
             _chanceSlider = visualElement.Q<TouchSliderFloat>("ChanceSlider");
@@ -71,7 +74,8 @@ namespace KrasCore.Mosaic.Editor
             
             var matrixProperty = _ruleProperty.FindPropertyRelative(nameof(RuleGroup.Rule.ruleMatrix));
                     
-            _intGridMatrixView.Bind(matrixProperty, rule);
+            _intGridMatrixView.Bind(matrixProperty);
+            _intGridMatrixView.RegisterCallback<ClickEvent>(OnMatrixClicked);
             
             var ruleTransformationProperty = _ruleProperty.FindPropertyRelative(nameof(RuleGroup.Rule.ruleTransformation));
             
@@ -85,7 +89,7 @@ namespace KrasCore.Mosaic.Editor
             _verticalResultTransformation.Bind(resultTransformationProperty);
             _rotationResultTransformation.Bind(resultTransformationProperty);
         }
-
+        
         private void OnEnableFieldChange(ChangeEvent<bool> evt)
         {
             if (evt.newValue)
@@ -97,6 +101,12 @@ namespace KrasCore.Mosaic.Editor
                 _rule.enabled ^= RuleGroup.Enabled.Enabled;
             }
             _ruleProperty.serializedObject.Update();
+        }
+        
+        private void OnMatrixClicked(ClickEvent clickEvent)
+        {
+            if (clickEvent.button != 0) return;
+            IntGridMatrixWindow.OpenWindow(_rule);
         }
         
         private void OnChanceFieldChange(ChangeEvent<float> evt)

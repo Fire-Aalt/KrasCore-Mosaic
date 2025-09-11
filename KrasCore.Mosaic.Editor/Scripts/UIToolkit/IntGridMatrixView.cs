@@ -11,7 +11,9 @@ namespace KrasCore.Mosaic.Editor
 {
     public class IntGridMatrixView : VisualElement
     {
-        private readonly IntGridMatrixAttribute _attribute;
+        public float Padding = 0.005f;
+        public bool IsReadonly;
+        
         private readonly VisualElement _matrixContainer;
         private readonly VisualElement _readOnlyOverlay;
 
@@ -20,10 +22,8 @@ namespace KrasCore.Mosaic.Editor
         
         private SerializedProperty _property;
         
-        public IntGridMatrixView(IntGridMatrixAttribute attribute)
+        public IntGridMatrixView()
         {
-            _attribute = attribute;
-
             name = "IntGridMatrix_Root";
             styleSheets.Add(EditorResources.StyleSheet);
 
@@ -43,7 +43,7 @@ namespace KrasCore.Mosaic.Editor
             _matrixContainer.Add(_cellsContainer);
             _matrixContainer.Add(_centerIcon);
 
-            if (_attribute.IsReadonly)
+            if (IsReadonly)
             {
                 _readOnlyOverlay = new VisualElement { name = "ReadOnlyOverlay" };
                 _matrixContainer.Add(_readOnlyOverlay);
@@ -82,7 +82,7 @@ namespace KrasCore.Mosaic.Editor
                 _readOnlyOverlay.style.height = size;
             }
             
-            var padding = Mathf.Max(1, size * _attribute.Padding);
+            var padding = Mathf.Max(1, size * Padding);
             var paddingCount = intGrid.useDualGrid ? n : n - 1;
             var sizeNoPadding = size - padding * paddingCount; 
             var cellSize = sizeNoPadding / n;
@@ -141,14 +141,8 @@ namespace KrasCore.Mosaic.Editor
             }
         }
         
-        public void Bind(SerializedProperty property, object methodsOwner)
+        public void Bind(SerializedProperty property)
         {
-            ReflectionUtils.TryGetCallMethod(methodsOwner, _attribute.MatrixRectMethod, out var matrixRectMethod);
-            if (matrixRectMethod != null)
-            {
-                matrixRectMethod.Invoke(methodsOwner, new object[] { _matrixContainer });
-            }
-            
             _property = property;
             RegisterCallback<GeometryChangedEvent>(_ => Refresh());
             this.TrackPropertyValue(property, _ => Refresh());
