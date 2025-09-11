@@ -14,8 +14,8 @@ namespace KrasCore.Mosaic.Authoring
             ref var root = ref builder.ConstructRoot<RuleBlob>();
 
             root.Chance = rule.ruleChance;
-            root.RuleTransform = rule.ruleTransform;
-            root.ResultTransform = rule.resultTransform;
+            root.RuleTransform = rule.ruleTransformation;
+            root.ResultTransform = rule.resultTransformation;
             
             AddPatterns(ref builder, ref root, rule, refreshPositions);
             AddResults(ref builder, ref root, rule, entityCount);
@@ -30,10 +30,10 @@ namespace KrasCore.Mosaic.Authoring
             AddMirrorPattern(true, rule, cells, refreshPositions, default);
             root.CellsToCheckCount = cells.Length;
             
-            AddMirrorPattern(rule.ruleTransform.IsMirroredX(), rule, cells, refreshPositions, new bool2(true, false));
-            AddMirrorPattern(rule.ruleTransform.IsMirroredY(), rule, cells, refreshPositions, new bool2(false, true));
-            AddMirrorPattern(rule.ruleTransform == RuleTransform.MirrorXY, rule, cells, refreshPositions, new bool2(true, true));
-            if (rule.ruleTransform == RuleTransform.Rotated) AddRotatedPattern(rule, cells, refreshPositions);
+            AddMirrorPattern(rule.ruleTransformation.IsMirroredX(), rule, cells, refreshPositions, new bool2(true, false));
+            AddMirrorPattern(rule.ruleTransformation.IsMirroredY(), rule, cells, refreshPositions, new bool2(false, true));
+            AddMirrorPattern(rule.ruleTransformation.IsMirroredX() && rule.ruleTransformation.IsMirroredY(), rule, cells, refreshPositions, new bool2(true, true));
+            if (rule.ruleTransformation.HasFlagBurst(Transformation.Rotated)) AddRotatedPattern(rule, cells, refreshPositions);
 
             builder.Construct(ref root.Cells, cells);
         }

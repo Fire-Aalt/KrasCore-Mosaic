@@ -2,13 +2,11 @@ namespace KrasCore.Mosaic.Data
 {
     public static class RuleTransformExtensions
     {
-        public static bool IsMirroredX(this RuleTransform ruleTransform) =>
-            ruleTransform == RuleTransform.MirrorX || ruleTransform == RuleTransform.MirrorXY;
+        public static bool IsMirroredX(this Transformation transformation) => transformation.HasFlagBurst(Transformation.MirrorX);
         
-        public static bool IsMirroredY(this RuleTransform ruleTransform) =>
-            ruleTransform == RuleTransform.MirrorY || ruleTransform == RuleTransform.MirrorXY;
+        public static bool IsMirroredY(this Transformation transformation) => transformation.HasFlagBurst(Transformation.MirrorY);
         
-        public static bool HasFlagBurst(this ResultTransform flags, ResultTransform flag)
+        public static bool HasFlagBurst(this Transformation flags, Transformation flag)
         {
             return (flags & flag) != 0;
         }

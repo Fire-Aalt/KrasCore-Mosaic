@@ -12,6 +12,7 @@ namespace KrasCore.Mosaic.Editor
             const string defaultTheme = "Packages/com.unity.dt.app-ui/PackageResources/Styles/Themes/App UI - Editor Dark - Small.tss";
             var root = new VisualElement();
             root.styleSheets.Add(AssetDatabase.LoadAssetAtPath<ThemeStyleSheet>(defaultTheme));
+            root.styleSheets.Add(AssetDatabase.LoadAssetAtPath<ThemeStyleSheet>(defaultTheme));
             root.AddToClassList("unity-editor"); // Enable Editor related styles
 
 

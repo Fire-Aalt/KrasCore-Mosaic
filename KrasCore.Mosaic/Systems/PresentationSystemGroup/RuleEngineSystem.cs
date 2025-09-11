@@ -345,7 +345,7 @@ namespace KrasCore.Mosaic
                 if (ExecuteRule(ref rule, posToRefresh, 0))
                     return true;
                 
-                if (rule.RuleTransform == RuleTransform.None)
+                if (rule.RuleTransform == 0)
                     return false;
 
                 if (rule.RuleTransform.IsMirroredX())
@@ -362,14 +362,14 @@ namespace KrasCore.Mosaic
                         return true;
                 }
 
-                if (rule.RuleTransform == RuleTransform.MirrorXY)
+                if (rule.RuleTransform.IsMirroredX() && rule.RuleTransform.IsMirroredY())
                 {
                     appliedMirror = new bool2(true, true);
                     if (ExecuteRule(ref rule, posToRefresh, 3)) 
                         return true;
                 }
 
-                if (rule.RuleTransform == RuleTransform.Rotated)
+                if (rule.RuleTransform.HasFlagBurst(Transformation.Rotated))
                 {
                     for (appliedRotation = 1; appliedRotation < 4; appliedRotation++)
                     {
@@ -402,15 +402,15 @@ namespace KrasCore.Mosaic
                 {
                     var resultFlip = new bool2();
                     var resultRotation = 0;
-                    if (rule.ResultTransform.HasFlagBurst(ResultTransform.MirrorX))
+                    if (rule.ResultTransform.HasFlagBurst(Transformation.MirrorX))
                     {
                         resultFlip.x = random.NextBool();
                     }
-                    if (rule.ResultTransform.HasFlagBurst(ResultTransform.MirrorY))
+                    if (rule.ResultTransform.HasFlagBurst(Transformation.MirrorY))
                     {
                         resultFlip.y = random.NextBool();
                     }
-                    if (rule.ResultTransform.HasFlagBurst(ResultTransform.Rotated))
+                    if (rule.ResultTransform.HasFlagBurst(Transformation.Rotated))
                     {
                         resultRotation = random.NextInt(0, 4);
                     }

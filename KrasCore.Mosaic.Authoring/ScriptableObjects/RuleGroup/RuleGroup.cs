@@ -50,7 +50,7 @@ namespace KrasCore.Mosaic.Authoring
         }
         
         [Serializable]
-        public class Rule
+        public class Rule : ISerializationCallbackReceiver
         {
             public static event Action<Rule> OnMatrixClicked;
             
@@ -59,27 +59,48 @@ namespace KrasCore.Mosaic.Authoring
             public int MatrixSize => ruleMatrix.GetCurrentSize();
             public int MatrixSizeHalf => MatrixSize / 2;
 
-            [HorizontalGroup("Split", 0.1f)] [EnumToggleButtons, HideLabel]
             public Enabled enabled = Enabled.Enabled;
 
-            [HorizontalGroup("Split", 0.2f)]
             [IntGridMatrix(MatrixRectMethod = nameof(MatrixControlRect), IsReadonly = true)]
             public IntGridMatrix ruleMatrix = new(MatrixSizeConst);
             
-            [HorizontalGroup("Split", 0.33f), BoxGroup("Split/Rule", centerLabel: true)] 
-            [LabelText("", SdfIconType.Dice6Fill)]
             public float ruleChance = 100f;
-
-            [Header("Transformation")]
-            [HorizontalGroup("Split", 0.33f), BoxGroup("Split/Rule")] 
-            [EnumToggleButtons, HideLabel]
-            public RuleTransform ruleTransform;
             
-            [Header("Transformation")]
-            [HorizontalGroup("Split", 0.33f), BoxGroup("Split/Result", centerLabel: true)] 
-            [EnumToggleButtons, HideLabel]
-            public ResultTransform resultTransform;
+            public Transformation ruleTransformation;
+            [FormerlySerializedAs("resultTransform")]
+            public Transformation resultTransformation;
 
+#pragma warning disable CS0612 // Type or member is obsolete
+            [SerializeField, FormerlySerializedAs("ruleTransform")]
+            private RuleTransform _ruleTransformToMigrate;
+            
+            public void OnBeforeSerialize()
+            {
+                
+            }
+
+            public void OnAfterDeserialize()
+            {
+                if (_ruleTransformToMigrate == RuleTransform.Migrated) return;
+                
+                if (_ruleTransformToMigrate == RuleTransform.MirrorX |
+                    _ruleTransformToMigrate == RuleTransform.MirrorXY)
+                {
+                    ruleTransformation ^= Transformation.MirrorX;
+                }
+                if (_ruleTransformToMigrate == RuleTransform.MirrorY |
+                    _ruleTransformToMigrate == RuleTransform.MirrorXY)
+                {
+                    ruleTransformation ^= Transformation.MirrorY;
+                }
+                if (_ruleTransformToMigrate == RuleTransform.Rotated)
+                {
+                    ruleTransformation ^= Transformation.Rotated;
+                }
+                _ruleTransformToMigrate = RuleTransform.Migrated;
+            }
+#pragma warning restore CS0612 // Type or member is obsolete
+            
             [HideInInspector]
             [FormerlySerializedAs("<TileSprites>k__BackingField")]
             public List<SpriteResult> TileSprites = new();
@@ -163,6 +184,8 @@ namespace KrasCore.Mosaic.Authoring
                 
                 return res;
             }
+
+
         }
     }
 }

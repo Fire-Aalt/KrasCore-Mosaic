@@ -11,7 +11,12 @@ namespace KrasCore.Mosaic.Editor
         public static readonly Texture NotTexture;
         public static readonly Texture AnyTexture;
         public static readonly Texture MatrixCenterTexture;
-
+        
+        public static readonly Texture DiceSprite;
+        public static readonly Texture HorizontalSprite;
+        public static readonly Texture VerticalSprite;
+        public static readonly Texture RotatedSprite;
+        
         public static readonly StyleSheet StyleSheet;
         public static readonly VisualTreeAsset WeightedListElementAsset;
         public static readonly VisualTreeAsset RuleGroupElementAsset;
@@ -20,13 +25,23 @@ namespace KrasCore.Mosaic.Editor
         
         static EditorResources()
         {
-            NotTexture = AssetDatabaseUtils.LoadEditorResource<Texture>("not.png", ValidationRoot);
-            AnyTexture = AssetDatabaseUtils.LoadEditorResource<Texture>("any.png", ValidationRoot);
-            MatrixCenterTexture = AssetDatabaseUtils.LoadEditorResource<Texture>("matrixCenter.png", ValidationRoot);
+            NotTexture = Load<Texture>("not.png");
+            AnyTexture = Load<Texture>("any.png");
+            MatrixCenterTexture = Load<Texture>("matrixCenter.png");
+
+            DiceSprite = Load<Texture>("Dice.png");
+            HorizontalSprite = Load<Texture>("Horizontal.png");
+            VerticalSprite = Load<Texture>("Vertical.png");
+            RotatedSprite = Load<Texture>("Rotated.png");
             
-            StyleSheet = AssetDatabaseUtils.LoadEditorResource<StyleSheet>("IntGridMatrix.uss", ValidationRoot);
-            WeightedListElementAsset = AssetDatabaseUtils.LoadEditorResource<VisualTreeAsset>("WeightedListViewItem.uxml", ValidationRoot);
-            RuleGroupElementAsset = AssetDatabaseUtils.LoadEditorResource<VisualTreeAsset>("RuleGroupElement.uxml", ValidationRoot);
+            StyleSheet = Load<StyleSheet>("IntGridMatrix.uss");
+            WeightedListElementAsset = Load<VisualTreeAsset>("WeightedListViewItem.uxml");
+            RuleGroupElementAsset = Load<VisualTreeAsset>("RuleGroupElement.uxml");
+        }
+
+        private static T Load<T>(string path) where T : Object
+        {
+            return AssetDatabaseUtils.LoadEditorResource<T>(path, ValidationRoot);
         }
     }
 }
