@@ -1,9 +1,9 @@
 .group {
     flex-grow: 1;
-    border-left-color: rgb(59, 59, 59);
-    border-right-color: rgb(59, 59, 59);
-    border-top-color: rgb(59, 59, 59);
-    border-bottom-color: rgb(59, 59, 59);
+    border-left-color: rgb(47, 47, 47);
+    border-right-color: rgb(47, 47, 47);
+    border-top-color: rgb(47, 47, 47);
+    border-bottom-color: rgb(47, 47, 47);
     border-top-width: 2px;
     border-right-width: 2px;
     border-bottom-width: 2px;

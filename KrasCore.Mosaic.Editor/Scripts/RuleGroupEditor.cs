@@ -1,5 +1,6 @@
 using KrasCore.Mosaic.Authoring;
 using UnityEditor;
+using UnityEditor.UIElements;
 using UnityEngine.UIElements;
 
 namespace KrasCore.Mosaic.Editor
@@ -11,8 +12,8 @@ namespace KrasCore.Mosaic.Editor
         {
             const string defaultTheme = "Packages/com.unity.dt.app-ui/PackageResources/Styles/Themes/App UI - Editor Dark - Small.tss";
             var root = new VisualElement();
-            root.styleSheets.Add(AssetDatabase.LoadAssetAtPath<ThemeStyleSheet>(defaultTheme));
-            root.styleSheets.Add(AssetDatabase.LoadAssetAtPath<ThemeStyleSheet>(defaultTheme));
+
+            root.styleSheets.Add(EditorResources.StyleSheet);
             root.AddToClassList("unity-editor"); // Enable Editor related styles
 
 
@@ -21,13 +22,20 @@ namespace KrasCore.Mosaic.Editor
 
             var list = serializedObject.FindProperty(nameof(RuleGroup.rules));
             
+            var pr = new ObjectField("Bound IntGrid");
+            pr.SetEnabled(false);
+            pr.BindProperty(serializedObject.FindProperty(nameof(RuleGroup.intGrid)));
+            root.Add(pr);
+            
             var builder = new ListViewBuilder<RuleGroup.Rule>()
             {
+                ListLabel = "Rules",
                 DataSource = targetObject,
                 List = targetObject.rules,
                 MakeItem = () =>
                 {
                     var newListEntry = EditorResources.RuleGroupElementAsset.Instantiate();
+                    newListEntry.styleSheets.Add(AssetDatabase.LoadAssetAtPath<ThemeStyleSheet>(defaultTheme));
                     
                     var newListEntryLogic = new RuleController();
                     newListEntryLogic.SetVisualElement(newListEntry);
@@ -45,8 +53,6 @@ namespace KrasCore.Mosaic.Editor
 
             return root;
         }
-
-
 
         private void OnEnable()
         {
