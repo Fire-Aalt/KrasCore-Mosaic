@@ -19,7 +19,6 @@ namespace KrasCore.Mosaic.Editor
             var serializedObject = new SerializedObject(targetObject);
 
             var list = serializedObject.FindProperty(nameof(RuleGroup.rules));
-            var fieldInfo = typeof(RuleGroup.Rule).GetField(nameof(RuleGroup.Rule.ruleMatrix));
             
             var builder = new ListViewBuilder<RuleGroup.Rule>()
             {
@@ -28,27 +27,16 @@ namespace KrasCore.Mosaic.Editor
                 MakeItem = () =>
                 {
                     var newListEntry = EditorResources.RuleGroupElementAsset.Instantiate();
-                    var m = newListEntry.Q<VisualElement>("MatrixCol");
                     
-                    
-
-                    var view = new IntGridMatrixView();
-                    var matrix = view.Create(fieldInfo, new IntGridMatrixAttribute() {IsReadonly = true, MatrixRectMethod = nameof(RuleGroup.Rule.MatrixControlRect)});
-                    
-                    m.Add(matrix);
-                    
-                    // var newListEntryLogic = new WeightedListEntryController();
-                    // newListEntryLogic.SetVisualElement<TObject>(newListEntry);
-                    // newListEntry.userData = newListEntryLogic;
+                    var newListEntryLogic = new RuleController();
+                    newListEntryLogic.SetVisualElement(newListEntry);
+                    newListEntry.userData = newListEntryLogic;
 
                     return newListEntry;
                 },
                 BindItem = (element, index) =>
                 {
-                    var matrixProperty = list.GetArrayElementAtIndex(index).FindPropertyRelative(nameof(RuleGroup.Rule.ruleMatrix));
-                    
-                    var view = element.Q<IntGridMatrixView>("IntGridMatrix_Root");
-                    view.Bind(matrixProperty, targetObject.rules[index]);
+                    ((RuleController)element.userData).BindData(index, list, targetObject.rules[index]);
                 },
                 SerializedListProperty = list
             };
@@ -56,6 +44,7 @@ namespace KrasCore.Mosaic.Editor
 
             return root;
         }
+
 
 
         private void OnEnable()
