@@ -10,15 +10,5 @@ namespace KrasCore.Mosaic.Data
         {
             return (flags & flag) != 0;
         }
-        
-        public static void Add(this ref Transformation flags, Transformation flag)
-        {
-            flags |= flag;
-        }
-        
-        public static void Remove(this ref Transformation flags, Transformation flag)
-        {
-            flags &= ~flag;
-        }
     }
 }

@@ -12,7 +12,6 @@ namespace KrasCore.Mosaic.Editor
         public static readonly Texture AnyTexture;
         public static readonly Texture MatrixCenterTexture;
         
-        public static readonly Texture DiceSprite;
         public static readonly Texture HorizontalSprite;
         public static readonly Texture VerticalSprite;
         public static readonly Texture RotatedSprite;
@@ -29,7 +28,6 @@ namespace KrasCore.Mosaic.Editor
             AnyTexture = Load<Texture>("any.png");
             MatrixCenterTexture = Load<Texture>("matrixCenter.png");
 
-            DiceSprite = Load<Texture>("Dice.png");
             HorizontalSprite = Load<Texture>("Horizontal.png");
             VerticalSprite = Load<Texture>("Vertical.png");
             RotatedSprite = Load<Texture>("Rotated.png");

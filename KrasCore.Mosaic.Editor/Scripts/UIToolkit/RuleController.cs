@@ -31,10 +31,7 @@ namespace KrasCore.Mosaic.Editor
             _enabledToggle = visualElement.Q<Toggle>("EnabledToggle");
             
             var matrixCol = visualElement.Q<VisualElement>("MatrixCol");
-            _intGridMatrixView = new IntGridMatrixView
-            {
-                IsReadonly = true
-            };
+            _intGridMatrixView = new IntGridMatrixView(true);
             matrixCol.Add(_intGridMatrixView);
             
             _chanceSlider = visualElement.Q<TouchSliderFloat>("ChanceSlider");

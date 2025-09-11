@@ -121,7 +121,7 @@ namespace KrasCore.Mosaic.Editor
             // Column 2: Matrix
             {
                 var matrixProperty = targetRuleProperty.FindPropertyRelative(nameof(RuleGroup.Rule.ruleMatrix));
-                var matrixView = new IntGridMatrixView();
+                var matrixView = new IntGridMatrixView(false);
                 matrixView.Bind(matrixProperty);
                 
                 colMatrix.Add(matrixView);

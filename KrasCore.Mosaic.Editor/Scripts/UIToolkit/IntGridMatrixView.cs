@@ -11,8 +11,7 @@ namespace KrasCore.Mosaic.Editor
 {
     public class IntGridMatrixView : VisualElement
     {
-        public float Padding = 0.005f;
-        public bool IsReadonly;
+        private readonly float _padding;
         
         private readonly VisualElement _matrixContainer;
         private readonly VisualElement _readOnlyOverlay;
@@ -22,8 +21,10 @@ namespace KrasCore.Mosaic.Editor
         
         private SerializedProperty _property;
         
-        public IntGridMatrixView()
+        public IntGridMatrixView(bool isReadonly, float padding = 0.005f)
         {
+            _padding = padding;
+            
             name = "IntGridMatrix_Root";
             styleSheets.Add(EditorResources.StyleSheet);
 
@@ -43,7 +44,7 @@ namespace KrasCore.Mosaic.Editor
             _matrixContainer.Add(_cellsContainer);
             _matrixContainer.Add(_centerIcon);
 
-            if (IsReadonly)
+            if (isReadonly)
             {
                 _readOnlyOverlay = new VisualElement { name = "ReadOnlyOverlay" };
                 _matrixContainer.Add(_readOnlyOverlay);
@@ -74,7 +75,6 @@ namespace KrasCore.Mosaic.Editor
             _matrixContainer.style.height = size;
 
             size = _matrixContainer.contentRect.width;
-            style.height = size;
             
             if (_readOnlyOverlay != null)
             {
@@ -82,7 +82,7 @@ namespace KrasCore.Mosaic.Editor
                 _readOnlyOverlay.style.height = size;
             }
             
-            var padding = Mathf.Max(1, size * Padding);
+            var padding = Mathf.Max(1, size * _padding);
             var paddingCount = intGrid.useDualGrid ? n : n - 1;
             var sizeNoPadding = size - padding * paddingCount; 
             var cellSize = sizeNoPadding / n;
