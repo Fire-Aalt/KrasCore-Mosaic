@@ -37,8 +37,8 @@
 .icon-button {
     width: 50px;
     height: 50px;
-    border-width: 2px;
-    border-radius: 2px;
+    border-width: 1px;
+    border-radius: 1px;
     background-color: rgb(46, 51, 63);
 }
 
@@ -51,7 +51,7 @@
 }
 
 .icon-button-enabled {
-    border-color: rgb(255, 255, 0);
+    border-color: rgb(159, 159, 0);
 }
 
 #ChanceSlider > #appui-touchslider__progress {

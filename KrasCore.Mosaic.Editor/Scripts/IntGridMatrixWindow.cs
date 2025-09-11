@@ -127,14 +127,10 @@ namespace KrasCore.Mosaic.Editor
             // Column 2: Matrix
             {
                 var matrixProperty = targetRuleProperty.FindPropertyRelative(nameof(RuleGroup.Rule.ruleMatrix));
-                var fieldInfo = TargetRule.GetType().GetField(nameof(RuleGroup.Rule.ruleMatrix));
-
-                var matrixView = new IntGridMatrixView();
-                
-                var matrixRoot = matrixView.Create(fieldInfo, new IntGridMatrixAttribute());
+                var matrixView = new IntGridMatrixView(new IntGridMatrixAttribute());
                 matrixView.Bind(matrixProperty, this);
                 
-                colMatrix.Add(matrixRoot);
+                colMatrix.Add(matrixView);
                 
                 var dragger = new IntGridMatrixManipulator
                 {
@@ -143,7 +139,7 @@ namespace KrasCore.Mosaic.Editor
                     HoverLeave = (cell) => { cell.RemoveFromClassList("int-grid-matrix-cell-hover"); },
                     DragStop = () => _rightClickMode = DragMode.None
                 };
-                matrixRoot.AddManipulator(dragger);
+                matrixView.AddManipulator(dragger);
             }
             
             // Column 3: Sprites

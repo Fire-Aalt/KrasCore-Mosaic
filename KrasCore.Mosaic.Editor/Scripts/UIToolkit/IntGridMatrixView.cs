@@ -11,26 +11,23 @@ namespace KrasCore.Mosaic.Editor
 {
     public class IntGridMatrixView : VisualElement
     {
-        private FieldInfo _fieldInfo;
-        private IntGridMatrixAttribute _attribute;
-        private SerializedProperty _property;
-        private VisualElement _matrixContainer;
-        private VisualElement _readOnlyOverlay;
+        private readonly IntGridMatrixAttribute _attribute;
+        private readonly VisualElement _matrixContainer;
+        private readonly VisualElement _readOnlyOverlay;
 
-        private VisualElement _centerIcon;
-        private VisualElement _cellsContainer;
+        private readonly VisualElement _centerIcon;
+        private readonly VisualElement _cellsContainer;
         
-        public VisualElement Create(FieldInfo fieldInfo, IntGridMatrixAttribute attribute)
+        private SerializedProperty _property;
+        
+        public IntGridMatrixView(IntGridMatrixAttribute attribute)
         {
             _attribute = attribute;
-            _fieldInfo = fieldInfo;
-
 
             name = "IntGridMatrix_Root";
             styleSheets.Add(EditorResources.StyleSheet);
 
             _matrixContainer = new VisualElement { name = "IntGridMatrix_Container" };
-
             
             _centerIcon = new VisualElement
             {
@@ -53,17 +50,11 @@ namespace KrasCore.Mosaic.Editor
             }
             
             Add(_matrixContainer);
-
-            return this;
         }
 
-        public void Refresh()
+        private void Refresh()
         {
-            var targetObject = SerializationUtils.GetParentObject(_property);
-            if (_fieldInfo.GetValue(targetObject) is not IntGridMatrix matrixObj)
-            {
-                throw new Exception("Matrix is null");
-            }
+            var matrixObj = (IntGridMatrix)_property.boxedValue;
             
             var length = matrixObj.singleGridMatrix.Length;
             var n = (int)Mathf.Sqrt(length);
@@ -83,7 +74,7 @@ namespace KrasCore.Mosaic.Editor
             _matrixContainer.style.height = size;
 
             size = _matrixContainer.contentRect.width;
-            this.style.height = size;
+            style.height = size;
             
             if (_readOnlyOverlay != null)
             {

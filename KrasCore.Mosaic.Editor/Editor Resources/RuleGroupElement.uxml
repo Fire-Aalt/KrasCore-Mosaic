@@ -13,13 +13,13 @@
                         <ui:VisualElement style="flex-grow: 0; height: 16px; flex-shrink: 0; background-image: url(&quot;project://database/Assets/Submodules/KrasCore%20Mosaic/KrasCore.Mosaic.Editor/Editor%20Resources/Dice.png?fileID=2800000&amp;guid=d496d050ae30e06409d902a45c9e617d&amp;type=3#Dice&quot;); width: 16px; padding-top: 0; margin-top: 2px; margin-right: 5px; margin-left: 5px;" />
                         <Unity.AppUI.UI.TouchSliderFloat high-value="100" format-string="g3" name="ChanceSlider" value="81.53" style="width: auto; flex-grow: 1;" />
                     </ui:VisualElement>
-                    <ui:Label text="Transformation" style="font-size: 10px; padding-bottom: 0; padding-top: 0; display: none;" />
                     <ui:VisualElement name="RuleTransformations" style="flex-grow: 1; flex-direction: row; justify-content: space-around; align-items: center;" />
                 </ui:VisualElement>
             </ui:VisualElement>
             <ui:VisualElement name="ResultTransformCol" class="column" style="flex-grow: 0; flex-shrink: 0; width: 30%; height: 100%;">
                 <ui:VisualElement class="group">
                     <ui:Label text="Result" class="column-header" style="margin-left: 0;" />
+                    <ui:VisualElement name="ResultTransformations" style="flex-grow: 1; flex-direction: row; justify-content: space-around; align-items: center;" />
                 </ui:VisualElement>
             </ui:VisualElement>
         </ui:VisualElement>

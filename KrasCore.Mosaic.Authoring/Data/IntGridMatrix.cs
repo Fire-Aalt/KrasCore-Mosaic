@@ -1,5 +1,6 @@
 using System;
 using KrasCore.Mosaic.Data;
+using UnityEngine;
 
 namespace KrasCore.Mosaic.Authoring
 {
@@ -9,20 +10,16 @@ namespace KrasCore.Mosaic.Authoring
         public IntGridValue[] singleGridMatrix;
         public IntGridValue[] dualGridMatrix;
         public IntGridDefinition intGrid;
-
-        private int _singleGridSingleGridSize;
-        private int _dualGridSize;
         
         public IntGridValue[] GetCurrentMatrix() => intGrid.useDualGrid ? dualGridMatrix : singleGridMatrix;
-        public int GetCurrentSize() => intGrid.useDualGrid ? _dualGridSize : _singleGridSingleGridSize;
+        public int GetCurrentSize() => intGrid.useDualGrid ? (int)Mathf.Sqrt(dualGridMatrix.Length) : (int)Mathf.Sqrt(singleGridMatrix.Length);
         
         public IntGridMatrix(int singleGridSize)
         {
-            _singleGridSingleGridSize = singleGridSize;
-            _dualGridSize = singleGridSize + 1;
+            var dualGridSize = singleGridSize + 1;
             
-            singleGridMatrix = new IntGridValue[_singleGridSingleGridSize * _singleGridSingleGridSize];
-            dualGridMatrix = new IntGridValue[_dualGridSize * _dualGridSize];
+            singleGridMatrix = new IntGridValue[singleGridSize * singleGridSize];
+            dualGridMatrix = new IntGridValue[dualGridSize * dualGridSize];
         }
     }
 }
