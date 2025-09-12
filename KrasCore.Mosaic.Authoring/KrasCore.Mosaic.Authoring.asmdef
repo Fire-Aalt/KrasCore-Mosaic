@@ -5,6 +5,8 @@
         "KrasCore",
         "KrasCore.Editor",
         "KrasCore.Mosaic.Data",
+        "BovineLabs.Core",
+        "Unity.AppUI",
         "Unity.Burst",
         "Unity.Collections",
         "Unity.Entities",

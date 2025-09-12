@@ -18,8 +18,8 @@ namespace KrasCore.Mosaic.Data
         public int SpritesWeightSum;
 
         public float Chance;
-        public RuleTransform RuleTransform;
-        public ResultTransform ResultTransform;
+        public Transformation RuleTransform;
+        public Transformation ResultTransform;
 
         public bool TryGetEntity(ref Random random, in DynamicBuffer<WeightedEntityElement> entityBuffer, out Entity entity)
         {

@@ -1,0 +1,59 @@
+.group {
+    flex-grow: 1;
+    border-left-color: rgb(44, 44, 44);
+    border-right-color: rgb(44, 44, 44);
+    border-top-color: rgb(44, 44, 44);
+    border-bottom-color: rgb(44, 44, 44);
+    border-top-width: 2px;
+    border-right-width: 2px;
+    border-bottom-width: 2px;
+    border-left-width: 2px;
+}
+
+.column {
+    padding-top: 0;
+    padding-right: 0;
+    padding-bottom: 0;
+    padding-left: 5px;
+    margin-top: 0;
+    margin-right: 0;
+    margin-bottom: 0;
+    margin-left: 0;
+}
+
+.column-header {
+    font-size: 12px;
+    margin-right: 0;
+    margin-top: 3px;
+    -unity-text-align: upper-center;
+    padding-bottom: 2px;
+    padding-top: 0;
+    padding-left: 0;
+    border-bottom-color: rgb(43, 43, 43);
+    border-bottom-width: 2px;
+    margin-bottom: 3px;
+}
+
+.icon-button {
+    width: 50px;
+    height: 50px;
+    border-width: 2px;
+    border-radius: 2px;
+    background-color: rgb(46, 51, 63);
+}
+
+.icon-button:hover {
+    padding: 1px;
+}
+
+.icon-button-disabled {
+    border-color: rgba(0, 0, 0, 0.15);
+}
+
+.icon-button-enabled {
+    border-color: rgb(186, 177, 0);
+}
+
+#ChanceSlider > #appui-touchslider__progress {
+    background-color: rgb(46, 51, 63);
+}

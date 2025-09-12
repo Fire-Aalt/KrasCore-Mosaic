@@ -1,0 +1,129 @@
+
+/* IntGridValueSelector */
+#IntGridValueSelector_Root {
+    display: flex;
+    width: 100%;
+}
+
+#IntGridSelectorBox {
+    border-width: 3px;
+    border-color: rgba(0, 0, 0, 0.15);
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+#IntGridValueSelector_Container {
+    flex-direction: column;
+    flex-grow: 1;
+}
+
+#IntGridValueSelector_Container > * {
+    display: flex;
+    align-items: center;
+    flex-direction: row;
+    height: 50px;
+    border-width: 3px;
+    border-color: rgba(0, 0, 0, 0.15);
+}
+
+#Icon {
+    position: relative;
+    height: 35px;
+    width: 35px;
+    display: flex;
+    margin: 4px;
+    background-size: contain;
+}
+
+#Text {
+    position: relative;
+    -unity-text-align: middle-left;
+    height: 30px;
+    display: flex;
+}
+
+/* ListView */
+
+.list-view {
+    border-left-width: 2px;
+    border-right-width: 2px;
+    border-bottom-width: 2px;
+    border-color: rgba(0, 0, 0, 0.15);
+}
+
+.list-view-header {
+    border-top-width: 1px;
+    border-left-width: 1px;
+}
+
+.list-view-header-label {
+    margin-left: 3px;
+    -unity-text-align: middle-center;
+}
+
+.list-view-header-spacer {
+    flex-grow: 1;
+}
+
+.list-view-element {
+    border-width: 2px;
+    border-color: rgba(0, 0, 0, 0.15);
+}
+
+.list-view-element-image {
+    display: flex;
+    flex-grow: 1;
+}
+
+
+/* IntGridMatrix */
+
+.int-grid-matrix-cell {
+    position: absolute;
+    background-color: rgba(0, 0, 0, 0.5);
+    border-color: rgba(0, 0, 0, 0.15);
+    width: 100%;
+    height: 100%;
+}
+
+
+.int-grid-matrix-cell-hover {
+    border-color: yellow;
+    border-width: 1px;
+}
+
+
+.int-grid-matrix-cell-icon {
+    position: absolute;
+    align-self: center;
+    background-size: contain;
+    width: 100%;
+    height: 100%;
+}
+
+#IntGridMatrix_Root {
+    position: relative;
+    width: 100%;
+}
+
+#IntGridMatrix_Container {
+    position: relative;
+    display: flex;
+    border-width: 5px;
+    border-color: rgba(0, 0, 0, 0.15);
+}
+
+#IntGridMatrix_CenterIcon {
+    position: absolute;
+    display: flex;
+    background-size: contain;
+}
+
+#CellsContainer {
+    position: absolute;
+}
+
+#ReadOnlyOverlay {
+    position: absolute;
+    display: flex;
+    background-color: rgba(0, 0, 0, 0.3);
+}
