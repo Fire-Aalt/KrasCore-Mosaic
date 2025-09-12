@@ -43,10 +43,12 @@ To start, we need 2 things: `IntGrid` and `RuleGroup` ScriptableObjects
 Create IntGrid using "Create/Mosaic/IntGrid". This is how we can configure it:
 
 ![IntGrid](Documentation~/Images/IntGrid.png)
+
 *You can add a texture to be displayed instead of a color. Use create RuleGroup button to quickly create RuleGroup ScriptableObject*
 
 Open RuleGroup ScriptableObject and add some rules to it like this:
 ![RuleGroup](Documentation~/Images/RuleGroup.gif)
+
 *Every parameter has a tooltip*
 
 To edit the rule pattern, click on the matrix of the rule matrix preview of the rule. This window will pop up:
