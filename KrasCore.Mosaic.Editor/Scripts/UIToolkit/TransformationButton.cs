@@ -12,9 +12,10 @@ namespace KrasCore.Mosaic.Editor
         private readonly Transformation _transformation;
         private SerializedProperty _property;
         
-        public TransformationButton(Transformation transformation)
+        public TransformationButton(Transformation transformation, string tooltip)
         {
             _transformation = transformation;
+            this.tooltip = tooltip;
             AddToClassList("icon-button");
         }
         

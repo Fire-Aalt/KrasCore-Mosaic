@@ -1,9 +1,9 @@
 .group {
     flex-grow: 1;
-    border-left-color: rgb(47, 47, 47);
-    border-right-color: rgb(47, 47, 47);
-    border-top-color: rgb(47, 47, 47);
-    border-bottom-color: rgb(47, 47, 47);
+    border-left-color: rgb(44, 44, 44);
+    border-right-color: rgb(44, 44, 44);
+    border-top-color: rgb(44, 44, 44);
+    border-bottom-color: rgb(44, 44, 44);
     border-top-width: 2px;
     border-right-width: 2px;
     border-bottom-width: 2px;
@@ -11,10 +11,10 @@
 }
 
 .column {
-    padding-top: 1px;
-    padding-right: 1px;
-    padding-bottom: 1px;
-    padding-left: 1px;
+    padding-top: 0;
+    padding-right: 0;
+    padding-bottom: 0;
+    padding-left: 5px;
     margin-top: 0;
     margin-right: 0;
     margin-bottom: 0;
@@ -29,7 +29,7 @@
     padding-bottom: 2px;
     padding-top: 0;
     padding-left: 0;
-    border-bottom-color: rgb(59, 59, 59);
+    border-bottom-color: rgb(43, 43, 43);
     border-bottom-width: 2px;
     margin-bottom: 3px;
 }

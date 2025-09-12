@@ -28,29 +28,48 @@ namespace KrasCore.Mosaic.Editor
         
         public void SetVisualElement(VisualElement visualElement)
         {
-            _enabledToggle = visualElement.Q<Toggle>("EnabledToggle");
-            
-            var matrixCol = visualElement.Q<VisualElement>("MatrixCol");
-            _intGridMatrixView = new IntGridMatrixView(true);
-            matrixCol.Add(_intGridMatrixView);
-            
-            _chanceSlider = visualElement.Q<TouchSliderFloat>("ChanceSlider");
-            var ruleTransformations = visualElement.Q<VisualElement>("RuleTransformations");
-            
-            _horizontalRuleTransformation = CreateIconButton(Transformation.MirrorX, ruleTransformations, EditorResources.HorizontalSprite);
-            _verticalRuleTransformation = CreateIconButton(Transformation.MirrorY, ruleTransformations, EditorResources.VerticalSprite);
-            _rotationRuleTransformation = CreateIconButton(Transformation.Rotated, ruleTransformations, EditorResources.RotatedSprite);
-            
-            var resultTransformations = visualElement.Q<VisualElement>("ResultTransformations");
-            
-            _horizontalResultTransformation = CreateIconButton(Transformation.MirrorX, resultTransformations, EditorResources.HorizontalSprite);
-            _verticalResultTransformation = CreateIconButton(Transformation.MirrorY, resultTransformations, EditorResources.VerticalSprite);
-            _rotationResultTransformation = CreateIconButton(Transformation.Rotated, resultTransformations, EditorResources.RotatedSprite);
+            {
+                _enabledToggle = visualElement.Q<Toggle>("EnabledToggle");
+            }
+
+            {
+                var matrixCol = visualElement.Q<VisualElement>("MatrixCol");
+                _intGridMatrixView = new IntGridMatrixView(true)
+                {
+                    tooltip = "IntGrid Rule Matrix. Click to edit"
+                };
+                matrixCol.Add(_intGridMatrixView);
+            }
+
+            {
+                _chanceSlider = visualElement.Q<TouchSliderFloat>("ChanceSlider");
+                var root = visualElement.Q<VisualElement>("RuleTransformations");
+
+                const string horTooltip = "X mirror. Enable this to also check for match when mirrored horizontally";
+                const string verTooltip = "Y mirror. Enable this to also check for match when mirrored vertically";
+                const string rotTooltip = "Rotate the pattern by 90 degrees 4 times to check for matches";
+                
+                _horizontalRuleTransformation = CreateIconButton(Transformation.MirrorX, horTooltip, root, EditorResources.HorizontalSprite);
+                _verticalRuleTransformation = CreateIconButton(Transformation.MirrorY, verTooltip, root, EditorResources.VerticalSprite);
+                _rotationRuleTransformation = CreateIconButton(Transformation.Rotated, rotTooltip, root, EditorResources.RotatedSprite);
+            }
+
+            {
+                var root = visualElement.Q<VisualElement>("ResultTransformations");
+                
+                const string horTooltip = "X mirror. Enable this to randomize a horizontal flip of the resulting sprite";
+                const string verTooltip = "Y mirror. Enable this to randomize a vertical flip of the resulting sprite";
+                const string rotTooltip = "Rotates the resulting sprite by 90 degrees random number of times";
+                
+                _horizontalResultTransformation = CreateIconButton(Transformation.MirrorX, horTooltip, root, EditorResources.HorizontalSprite);
+                _verticalResultTransformation = CreateIconButton(Transformation.MirrorY, verTooltip, root, EditorResources.VerticalSprite);
+                _rotationResultTransformation = CreateIconButton(Transformation.Rotated, rotTooltip, root, EditorResources.RotatedSprite);
+            }
         }
 
-        private static TransformationButton CreateIconButton(Transformation transformation, VisualElement root, Texture image)
+        private static TransformationButton CreateIconButton(Transformation transformation, string tooltip, VisualElement root, Texture image)
         {
-            var iconButton = new TransformationButton(transformation)
+            var iconButton = new TransformationButton(transformation, tooltip)
             {
                 image = image
             };

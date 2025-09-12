@@ -14,42 +14,44 @@ namespace KrasCore.Mosaic.Editor
             var root = new VisualElement();
 
             root.styleSheets.Add(EditorResources.StyleSheet);
-            root.AddToClassList("unity-editor"); // Enable Editor related styles
+            root.AddToClassList("unity-editor");
 
+            var targetObject = (RuleGroup)target;
 
-            var targetObject = target as RuleGroup;
-            var serializedObject = new SerializedObject(targetObject);
-
-            var list = serializedObject.FindProperty(nameof(RuleGroup.rules));
-            
-            var pr = new ObjectField("Bound IntGrid");
-            pr.SetEnabled(false);
-            pr.BindProperty(serializedObject.FindProperty(nameof(RuleGroup.intGrid)));
-            root.Add(pr);
-            
-            var builder = new ListViewBuilder<RuleGroup.Rule>()
             {
-                ListLabel = "Rules",
-                DataSource = targetObject,
-                List = targetObject.rules,
-                MakeItem = () =>
-                {
-                    var newListEntry = EditorResources.RuleGroupElementAsset.Instantiate();
-                    newListEntry.styleSheets.Add(AssetDatabase.LoadAssetAtPath<ThemeStyleSheet>(defaultTheme));
-                    
-                    var newListEntryLogic = new RuleController();
-                    newListEntryLogic.SetVisualElement(newListEntry);
-                    newListEntry.userData = newListEntryLogic;
+                var boundIntGridField = new ObjectField("Bound IntGrid");
+                boundIntGridField.SetEnabled(false);
+                boundIntGridField.BindProperty(serializedObject.FindProperty(nameof(RuleGroup.intGrid)));
+                root.Add(boundIntGridField);
+            }
 
-                    return newListEntry;
-                },
-                BindItem = (element, index) =>
+            {
+                var list = serializedObject.FindProperty(nameof(RuleGroup.rules));
+                var listViewBuilder = new ListViewBuilder<RuleGroup.Rule>()
                 {
-                    ((RuleController)element.userData).BindData(index, list, targetObject.rules[index]);
-                },
-                SerializedListProperty = list
-            };
-            root.Add(builder.Build());
+                    ListLabel = "Rules",
+                    DataSource = targetObject,
+                    List = targetObject.rules,
+                    MakeItem = () =>
+                    {
+                        var entry = EditorResources.RuleGroupElementAsset.Instantiate();
+                        entry.styleSheets.Add(AssetDatabase.LoadAssetAtPath<ThemeStyleSheet>(defaultTheme));
+                        
+                        var controller = new RuleController();
+                        controller.SetVisualElement(entry);
+                        entry.userData = controller;
+
+                        return entry;
+                    },
+                    BindItem = (element, index) =>
+                    {
+                        targetObject.rules[index].Bind(targetObject, index);
+                        ((RuleController)element.userData).BindData(index, list, targetObject.rules[index]);
+                    },
+                    SerializedListProperty = list
+                };
+                root.Add(listViewBuilder.Build());
+            }
 
             return root;
         }
