@@ -74,7 +74,7 @@ namespace KrasCore.Mosaic.Authoring
         private static void AddMirrorPattern(bool addToRuleCells, RuleGroup.Rule rule, NativeList<RuleCell> cells,
             NativeHashSet<int2> refreshPositions, bool2 mirror)
         {
-            var matrix = rule.ruleMatrix.GetCurrentMatrix();
+            var matrix = rule.ruleMatrix.GetCurrentMatrix(rule.BoundIntGridDefinition);
             for (var index = 0; index < matrix.Length; index++)
             {
                 ApplyTransformation(matrix, addToRuleCells, cells, refreshPositions, index, mirror, rule.GetOffsetFromCenterMirrored);
@@ -84,7 +84,7 @@ namespace KrasCore.Mosaic.Authoring
         private static void AddRotatedPattern(RuleGroup.Rule rule, NativeList<RuleCell> cells,
             NativeHashSet<int2> refreshPositions)
         {
-            var matrix = rule.ruleMatrix.GetCurrentMatrix();
+            var matrix = rule.ruleMatrix.GetCurrentMatrix(rule.BoundIntGridDefinition);
             for (int rotation = 1; rotation < 4; rotation++)
             {
                 for (var index = 0; index < matrix.Length; index++)

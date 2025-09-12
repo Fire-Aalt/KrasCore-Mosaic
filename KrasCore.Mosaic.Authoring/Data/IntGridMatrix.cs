@@ -9,10 +9,9 @@ namespace KrasCore.Mosaic.Authoring
     {
         public IntGridValue[] singleGridMatrix;
         public IntGridValue[] dualGridMatrix;
-        public IntGridDefinition intGrid;
         
-        public IntGridValue[] GetCurrentMatrix() => intGrid.useDualGrid ? dualGridMatrix : singleGridMatrix;
-        public int GetCurrentSize() => intGrid.useDualGrid ? (int)Mathf.Sqrt(dualGridMatrix.Length) : (int)Mathf.Sqrt(singleGridMatrix.Length);
+        public IntGridValue[] GetCurrentMatrix(IntGridDefinition intGrid) => intGrid.useDualGrid ? dualGridMatrix : singleGridMatrix;
+        public int GetCurrentSize(IntGridDefinition intGrid) => intGrid.useDualGrid ? (int)Mathf.Sqrt(dualGridMatrix.Length) : (int)Mathf.Sqrt(singleGridMatrix.Length);
         
         public IntGridMatrix(int singleGridSize)
         {

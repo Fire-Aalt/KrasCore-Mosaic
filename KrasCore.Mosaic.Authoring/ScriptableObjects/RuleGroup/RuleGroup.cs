@@ -11,18 +11,14 @@ namespace KrasCore.Mosaic.Authoring
     [CreateAssetMenu(menuName = "Mosaic/RuleGroup")]
     public class RuleGroup : ScriptableObject
     {
-        [Header("Bound IntGrid")]
         public IntGridDefinition intGrid;
-        
-        [Header("Tile Rules")]
         public List<Rule> rules = new();
 
         public void OnValidate()
         {
-            for (var ruleIndex = 0; ruleIndex < rules.Count; ruleIndex++)
+            foreach (var rule in rules)
             {
-                var rule = rules[ruleIndex];
-                rule.Bind(this, ruleIndex);
+                rule.Bind(this);
                 rule.Validate();
             }
         }
@@ -30,7 +26,6 @@ namespace KrasCore.Mosaic.Authoring
         [Flags]
         public enum Enabled
         {
-            [InspectorName("Enabled")] [Tooltip("Enable/disable this rule")]
             Enabled = 1
         }
         
@@ -39,7 +34,7 @@ namespace KrasCore.Mosaic.Authoring
         {
             private const int MatrixSizeConst = 9;
             
-            public int MatrixSize => ruleMatrix.GetCurrentSize();
+            public int MatrixSize => ruleMatrix.GetCurrentSize(BoundIntGridDefinition);
             public int MatrixSizeHalf => MatrixSize / 2;
 
             public Enabled enabled = Enabled.Enabled;
@@ -83,24 +78,19 @@ namespace KrasCore.Mosaic.Authoring
             }
 #pragma warning restore CS0612 // Type or member is obsolete
             
-            [HideInInspector]
             [FormerlySerializedAs("<TileSprites>k__BackingField")]
             public List<SpriteResult> TileSprites = new();
             
-            [HideInInspector]
             [FormerlySerializedAs("<TileEntities>k__BackingField")]
             public List<PrefabResult> TileEntities = new();
+
+            [field: SerializeField] public RuleGroup RuleGroup { get; private set; }
             
-            [field: SerializeField, HideInInspector] public IntGridDefinition BoundIntGridDefinition { get; private set; }
-            [field: SerializeField, HideInInspector] public RuleGroup RuleGroup { get; private set; }
-            [field: SerializeField, HideInInspector] public int RuleIndex { get; private set; }
+            public IntGridDefinition BoundIntGridDefinition => RuleGroup.intGrid;
             
-            public void Bind(RuleGroup ruleGroup, int index)
+            public void Bind(RuleGroup ruleGroup)
             {
-                BoundIntGridDefinition = ruleGroup.intGrid;
                 RuleGroup = ruleGroup;
-                RuleIndex = index;
-                ruleMatrix.intGrid = BoundIntGridDefinition;
             }
 
             public void Validate()

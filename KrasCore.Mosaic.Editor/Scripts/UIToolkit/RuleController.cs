@@ -24,9 +24,10 @@ namespace KrasCore.Mosaic.Editor
         private TransformationButton _rotationResultTransformation;
         
         private RuleGroup.Rule _rule;
+        private int _ruleIndex;
         private SerializedProperty _ruleProperty;
         
-        public void SetVisualElement(VisualElement visualElement)
+        public void SetVisualElement(RuleGroup target, VisualElement visualElement)
         {
             {
                 _enabledToggle = visualElement.Q<Toggle>("EnabledToggle");
@@ -34,7 +35,7 @@ namespace KrasCore.Mosaic.Editor
 
             {
                 var matrixCol = visualElement.Q<VisualElement>("MatrixCol");
-                _intGridMatrixView = new IntGridMatrixView(true)
+                _intGridMatrixView = new IntGridMatrixView(true, target.intGrid)
                 {
                     tooltip = "IntGrid Rule Matrix. Click to edit"
                 };
@@ -79,6 +80,7 @@ namespace KrasCore.Mosaic.Editor
     
         public void BindData(int index, SerializedProperty list, RuleGroup.Rule rule)
         {
+            _ruleIndex = index;
             _rule = rule;
             _ruleProperty = list.GetArrayElementAtIndex(index);
 
@@ -122,7 +124,7 @@ namespace KrasCore.Mosaic.Editor
         private void OnMatrixClicked(ClickEvent clickEvent)
         {
             if (clickEvent.button != 0) return;
-            IntGridMatrixWindow.OpenWindow(_rule);
+            IntGridMatrixWindow.OpenWindow(_rule, _ruleIndex);
         }
         
         private void OnChanceFieldChange(ChangeEvent<float> evt)

@@ -1,7 +1,7 @@
+using System.Collections.Generic;
 using KrasCore.Mosaic.Authoring;
 using UnityEditor;
 using UnityEditor.UIElements;
-using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace KrasCore.Mosaic.Editor
@@ -9,6 +9,7 @@ namespace KrasCore.Mosaic.Editor
     [CustomEditor(typeof(RuleGroup))]
     public class RuleGroupEditor : UnityEditor.Editor
     {
+        public static HashSet<RuleGroup> InspectedTargets = new();
         private RuleGroup _target;
         
         public override VisualElement CreateInspectorGUI()
@@ -41,7 +42,7 @@ namespace KrasCore.Mosaic.Editor
                         entry.styleSheets.Add(AssetDatabase.LoadAssetAtPath<ThemeStyleSheet>(defaultTheme));
                         
                         var controller = new RuleController();
-                        controller.SetVisualElement(entry);
+                        controller.SetVisualElement(_target, entry);
                         entry.userData = controller;
 
                         return entry;
@@ -50,13 +51,12 @@ namespace KrasCore.Mosaic.Editor
                     {
                         if (index >= _target.rules.Count) return;
                         
-                        _target.rules[index].Bind(_target, index);
                         ((RuleController)element.userData).BindData(index, list, _target.rules[index]);
                     },
                     CreateDataItem = () =>
                     {
                         var rule = new RuleGroup.Rule();
-                        rule.Bind(_target, _target.rules.Count - 1);
+                        rule.Bind(_target);
                         return rule;
                     },
                     SerializedListProperty = list
@@ -70,12 +70,12 @@ namespace KrasCore.Mosaic.Editor
         
         private void OnEnable()
         {
-            IntGridMatrixWindow.NumberOfActiveInspectorWindows++;
+            InspectedTargets.Add((RuleGroup)target);
         }
 
         private void OnDisable()
         {
-            IntGridMatrixWindow.NumberOfActiveInspectorWindows--;
+            InspectedTargets.Remove(_target);
         }
     }
 }

@@ -12,6 +12,7 @@ namespace KrasCore.Mosaic.Editor
     public class IntGridMatrixView : VisualElement
     {
         private readonly float _padding;
+        private readonly IntGridDefinition _intGridDefinition;
         
         private readonly VisualElement _matrixContainer;
         private readonly VisualElement _readOnlyOverlay;
@@ -21,8 +22,9 @@ namespace KrasCore.Mosaic.Editor
         
         private SerializedProperty _property;
         
-        public IntGridMatrixView(bool isReadonly, float padding = 0.005f)
+        public IntGridMatrixView(bool isReadonly, IntGridDefinition intGridDefinition, float padding = 0.005f)
         {
+            _intGridDefinition = intGridDefinition;
             _padding = padding;
             
             name = "IntGridMatrix_Root";
@@ -65,9 +67,8 @@ namespace KrasCore.Mosaic.Editor
                 throw new Exception("Matrix cannot be drawn. The collection size must be square.");
             }
 
-            var currentValues = matrixObj.GetCurrentMatrix();
-            var currentSize = matrixObj.GetCurrentSize();
-            var intGrid = matrixObj.intGrid;
+            var currentValues = matrixObj.GetCurrentMatrix(_intGridDefinition);
+            var currentSize = matrixObj.GetCurrentSize(_intGridDefinition);
             
             var size = contentRect.width;
             
@@ -83,7 +84,7 @@ namespace KrasCore.Mosaic.Editor
             }
             
             var padding = Mathf.Max(1, size * _padding);
-            var paddingCount = intGrid.useDualGrid ? n : n - 1;
+            var paddingCount = _intGridDefinition.useDualGrid ? n : n - 1;
             var sizeNoPadding = size - padding * paddingCount; 
             var cellSize = sizeNoPadding / n;
 
@@ -108,7 +109,7 @@ namespace KrasCore.Mosaic.Editor
 
                     var finalCellSize = new Vector2(cellSize, cellSize);
                     
-                    if (intGrid.useDualGrid)
+                    if (_intGridDefinition.useDualGrid)
                     {
                         x -= cellSize * 0.5f;
                         y -= cellSize * 0.5f;
@@ -136,7 +137,7 @@ namespace KrasCore.Mosaic.Editor
                     cell.style.left = x;
                     cell.style.top = y;
 
-                    DrawCell(cell, currentValues[cellIndex], intGrid, size);
+                    DrawCell(cell, currentValues[cellIndex], size);
                 }
             }
         }
@@ -174,7 +175,7 @@ namespace KrasCore.Mosaic.Editor
             }
         }
 
-        private void DrawCell(VisualElement cell, IntGridValue value, IntGridDefinition intGrid, float size)
+        private void DrawCell(VisualElement cell, IntGridValue value, float size)
         {
             var cellIcon = cell[0];
             var notIcon = cell[1];
@@ -193,7 +194,7 @@ namespace KrasCore.Mosaic.Editor
             }
             else
             {
-                var def = IntGridValueToDefinition(value, intGrid);
+                var def = IntGridValueToDefinition(value);
                 if (def != null)
                 {
                     if (def.texture == null)
@@ -241,10 +242,10 @@ namespace KrasCore.Mosaic.Editor
                 : StyleKeyword.None;
         }
         
-        private static IntGridValueDefinition IntGridValueToDefinition(IntGridValue v, IntGridDefinition intGrid)
+        private IntGridValueDefinition IntGridValueToDefinition(IntGridValue v)
         {
             var key = Mathf.Abs(v);
-            intGrid.IntGridValuesDict.TryGetValue(key, out var def);
+            _intGridDefinition.IntGridValuesDict.TryGetValue(key, out var def);
             return def;
         }
     }

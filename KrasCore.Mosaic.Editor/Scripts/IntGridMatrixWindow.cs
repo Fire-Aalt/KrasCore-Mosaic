@@ -8,10 +8,7 @@ namespace KrasCore.Mosaic.Editor
 {
     public class IntGridMatrixWindow : EditorWindow
     {
-        public static int NumberOfActiveInspectorWindows;
-
-        [SerializeField, HideInInspector] 
-        private IntGridValueSelector _selectedIntGridValue;
+        [SerializeField] private IntGridValueSelector _selectedIntGridValue;
         
         private SerializedObject _window;
         private SerializedObject _serializedObject;
@@ -24,31 +21,26 @@ namespace KrasCore.Mosaic.Editor
 
         private void OnEnable()
         {
-            AssemblyReloadEvents.beforeAssemblyReload += CloseOnDomainReload;
+            AssemblyReloadEvents.beforeAssemblyReload += Close;
         }
         
         private void OnDisable()
         {
-            AssemblyReloadEvents.beforeAssemblyReload -= CloseOnDomainReload;
+            AssemblyReloadEvents.beforeAssemblyReload -= Close;
         }
-
-        private void CloseOnDomainReload()
-        {
-            Close();
-        }
-
-        public static void OpenWindow(RuleGroup.Rule target)
+        
+        public static void OpenWindow(RuleGroup.Rule target, int ruleIndex)
         {
             var wnd = GetWindow<IntGridMatrixWindow>(
                 true,
                 "Rule Matrix Window",
                 true
             );
-            wnd.Init(target);
+            wnd.Init(target, ruleIndex);
             wnd.Show();
         }
         
-        private void Init(RuleGroup.Rule target)
+        private void Init(RuleGroup.Rule target, int ruleIndex)
         {
             _selectedIntGridValue = new IntGridValueSelector
             {
@@ -56,7 +48,7 @@ namespace KrasCore.Mosaic.Editor
             };
 
             _ruleGroup = target.RuleGroup;
-            _ruleIndex = target.RuleIndex;
+            _ruleIndex = ruleIndex;
             
             _window = new SerializedObject(this);
             _serializedObject = new SerializedObject(_ruleGroup);
@@ -121,7 +113,7 @@ namespace KrasCore.Mosaic.Editor
             // Column 2: Matrix
             {
                 var matrixProperty = targetRuleProperty.FindPropertyRelative(nameof(RuleGroup.Rule.ruleMatrix));
-                var matrixView = new IntGridMatrixView(false);
+                var matrixView = new IntGridMatrixView(false, _ruleGroup.intGrid);
                 matrixView.Bind(matrixProperty);
                 
                 colMatrix.Add(matrixView);
@@ -167,8 +159,8 @@ namespace KrasCore.Mosaic.Editor
             {
                 entityResult.Validate();
             }
-            
-            if (NumberOfActiveInspectorWindows == 0)
+
+            if (!RuleGroupEditor.InspectedTargets.Contains(_ruleGroup))
             {
                 Close();
             }
@@ -192,7 +184,7 @@ namespace KrasCore.Mosaic.Editor
         
         private void LeftClick(int cellIndex)
         {
-            ref var slot = ref TargetRule.ruleMatrix.GetCurrentMatrix()[cellIndex];
+            ref var slot = ref TargetRule.ruleMatrix.GetCurrentMatrix(_ruleGroup.intGrid)[cellIndex];
 
             if (slot != _selectedIntGridValue.value)
             {
@@ -207,7 +199,7 @@ namespace KrasCore.Mosaic.Editor
 
         private void RightClick(int cellIndex)
         {
-            ref var slot = ref TargetRule.ruleMatrix.GetCurrentMatrix()[cellIndex];
+            ref var slot = ref TargetRule.ruleMatrix.GetCurrentMatrix(_ruleGroup.intGrid)[cellIndex];
 
             if (_rightClickMode == DragMode.None)
             {
