@@ -17,17 +17,7 @@ namespace KrasCore.Mosaic.Authoring
         [Header("Tile Rules")]
         public List<Rule> rules = new();
 
-        public void AddRule()
-        {
-            var rule = new Rule();
-            rule.Bind(this, -1);
-            rules.Add(rule);
-            EditorUtility.SetDirty(this);
-
-            OnValidate();
-        }
-
-        private void OnValidate()
+        public void OnValidate()
         {
             for (var ruleIndex = 0; ruleIndex < rules.Count; ruleIndex++)
             {
@@ -70,7 +60,7 @@ namespace KrasCore.Mosaic.Authoring
             {
                 
             }
-
+            
             public void OnAfterDeserialize()
             {
                 if (_ruleTransformToMigrate == RuleTransform.Migrated) return;

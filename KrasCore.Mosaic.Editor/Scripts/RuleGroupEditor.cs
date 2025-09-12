@@ -1,6 +1,7 @@
 using KrasCore.Mosaic.Authoring;
 using UnityEditor;
 using UnityEditor.UIElements;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace KrasCore.Mosaic.Editor
@@ -8,15 +9,17 @@ namespace KrasCore.Mosaic.Editor
     [CustomEditor(typeof(RuleGroup))]
     public class RuleGroupEditor : UnityEditor.Editor
     {
+        private RuleGroup _target;
+        
         public override VisualElement CreateInspectorGUI()
         {
+            _target = (RuleGroup)target;
+            
             const string defaultTheme = "Packages/com.unity.dt.app-ui/PackageResources/Styles/Themes/App UI - Editor Dark - Small.tss";
             var root = new VisualElement();
 
             root.styleSheets.Add(EditorResources.StyleSheet);
             root.AddToClassList("unity-editor");
-
-            var targetObject = (RuleGroup)target;
 
             {
                 var boundIntGridField = new ObjectField("Bound IntGrid");
@@ -30,8 +33,8 @@ namespace KrasCore.Mosaic.Editor
                 var listViewBuilder = new ListViewBuilder<RuleGroup.Rule>()
                 {
                     ListLabel = "Rules",
-                    DataSource = targetObject,
-                    List = targetObject.rules,
+                    DataSource = _target,
+                    List = _target.rules,
                     MakeItem = () =>
                     {
                         var entry = EditorResources.RuleGroupElementAsset.Instantiate();
@@ -45,17 +48,26 @@ namespace KrasCore.Mosaic.Editor
                     },
                     BindItem = (element, index) =>
                     {
-                        targetObject.rules[index].Bind(targetObject, index);
-                        ((RuleController)element.userData).BindData(index, list, targetObject.rules[index]);
+                        if (index >= _target.rules.Count) return;
+                        
+                        _target.rules[index].Bind(_target, index);
+                        ((RuleController)element.userData).BindData(index, list, _target.rules[index]);
+                    },
+                    CreateDataItem = () =>
+                    {
+                        var rule = new RuleGroup.Rule();
+                        rule.Bind(_target, _target.rules.Count - 1);
+                        return rule;
                     },
                     SerializedListProperty = list
                 };
-                root.Add(listViewBuilder.Build());
+                var listView = listViewBuilder.Build();
+                root.Add(listView);
             }
-
+            
             return root;
         }
-
+        
         private void OnEnable()
         {
             IntGridMatrixWindow.NumberOfActiveInspectorWindows++;

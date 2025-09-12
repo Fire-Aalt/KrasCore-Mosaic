@@ -17,6 +17,7 @@ namespace KrasCore.Mosaic.Editor
         public SerializedProperty SerializedListProperty;
         public Func<VisualElement> MakeItem;
         public Action<VisualElement, int> BindItem;
+        public Func<T> CreateDataItem;
         
         protected ListView ListView;
         
@@ -69,7 +70,11 @@ namespace KrasCore.Mosaic.Editor
         
         private void OnAddClicked()
         {
-            List.Add(new T());
+            var item = CreateDataItem != null 
+                ? CreateDataItem.Invoke() 
+                : new T();
+            
+            List.Add(item);
             ListView.Rebuild();
             
             HighlightLastElement();
