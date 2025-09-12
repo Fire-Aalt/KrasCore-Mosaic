@@ -1,4 +1,20 @@
 # Changelog
+## [2.0.0] - 2025-09-12
+
+### Removed
+* Dependency on OdinInspector
+
+### Added
+* Custom Editor Inspectors for `IntGridDefinition`, `RuleGroup` and `IntGridMatrixWindow` using UI Toolkit
+* Automatic data migration from `RuleTransform` into `Transformation`
+
+### Changed
+* Greatly improved performance of editor inspectors for `IntGridDefinition`, `RuleGroup` and `IntGridMatrixWindow`
+* Visually improved aforementioned editor inspectors
+
+### Fixed
+* Several bugs related to incorrect saving of serialized data in `IntGridMatrixWindow`
+
 ## [1.4.0] - 2025-08-21
 
 ### Breaking Changes

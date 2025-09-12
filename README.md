@@ -3,38 +3,38 @@ Mosaic is a Next Gen Runtime Unity Tilemap solution, heavily inspired by LDtk, b
 
 ![Mosaic](Documentation~/Images/Mosaic.png)
 
-| Feature            | Unity.Tilemap                                                                 | Mosaic                                                                                                                                                                                                                                                                                                                     |
-|--------------------|-------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Rule engine        | RuleTile: very shallow support, requires custom code to achieve basic results | IntGrid: inspired by LDtk, one of the most powerful and feature rich rule engines                                                                                                                                                                                                                                          |
-| Dual-Grid System   | No support                                                                    | A simple toggle on the `IntGridDefinition` to enable Dual-Grid system. Rule Matrix editor will be adjusted accordingly                                                                                                                                                                                                     |
-| Terrain            | No option to merge multiple Tilemap layers into a single mesh using a shader  | `TilemapTerrainAuthoring` allows you to have unlimited number of `IntGrid` with a limited number of them being blended using a dedicated shader                                                                                                                                                                            |
-| GUI                | Poor GUI experience with RuleTile custom editor                               | Custom GUI made with [Odin Inspector](https://assetstore.unity.com/packages/tools/utilities/odin-inspector-and-serializer-89041?srsltid=AfmBOop97OyTTYiuIIGN0oQkSMLd0P3xSmw8NEuDFQQLFEFcz3blWS6p), with a separate EditorWindow to make GUI even more clear and concise. Custom rule pattern matrix controls and rendering |
-| Performance        | Main thread only, really inefficient when using complex rule patterns         | 99% 'bursted' and 'jobified'. Main thread only applies mesh changes. All of the systems are optimized to the edge                                                                                                                                                                                                          | 
-| Allocations        | Huge GC spikes when using RuleTile                                            | 0 GC allocations                                                                                                                                                                                                                                                                                                           |
-| Random             | No option to set a seed                                                       | `SetGlobalSeed()` and 100% deterministic                                                                                                                                                                                                                                                                                   |
-| World editing      | Tilemap saves changes in the editor                                           | `TilemapAuthoring` does not save editor data for now. However, adding such feature is trivial as all the data is stored as `IntGridValue`s, which is just a wrapper for `short`                                                                                                                                            |
-| Grid types         | Rectangular, hexagonal and isometric                                          | Only rectangular                                                                                                                                                                                                                                                                                                           |
-| Object rule result | Instantiates GameObjects, which is really expensive. A lot of GC allocations  | Instantiates Entities, which is really cheap. No GC allocations                                                                                                                                                                                                                                                            |                  
-| Rendering Pipeline | Internal `SpriteRenderer` based rendering path                                | `Entities.Graphics` based rendering with every `IntGridAuthoring` being a separate entity with a mesh. Utilizing `RuntimeMaterial` to create materials at runtime with different main textures as needed                                                                                                                   |                                                                                                                                                                                                                               
-| 2D Rendering       | Supports both 3D and 2D rendering with SortingLayers                          | Because `SpriteRenderer` rendering path is internal, Mosaic only works with 3D based rendering                                                                                                                                                                                                                             |
+| Feature            | Unity.Tilemap                                                                 | Mosaic                                                                                                                                                                                                   |
+|--------------------|-------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Rule engine        | RuleTile: very shallow support, requires custom code to achieve basic results | IntGrid: inspired by LDtk, one of the most powerful and feature rich rule engines                                                                                                                        |
+| Dual-Grid System   | No support                                                                    | A simple toggle on the `IntGridDefinition` to enable Dual-Grid system. Rule Matrix editor will be adjusted accordingly                                                                                   |
+| Terrain            | No option to merge multiple Tilemap layers into a single mesh using a shader  | `TilemapTerrainAuthoring` allows you to have unlimited number of `IntGrid` with a limited number of them being blended using a dedicated shader                                                          |
+| GUI                | Poor GUI experience with RuleTile custom editor                               | Custom GUI made with UI Toolkit, with a separate EditorWindow to make GUI even more clear and concise. Custom rule pattern matrix controls and rendering                                                 |
+| Performance        | Main thread only, really inefficient when using complex rule patterns         | 99% 'bursted' and 'jobified'. Main thread only applies mesh changes. All of the systems are optimized to the edge                                                                                        | 
+| Allocations        | Huge GC spikes when using RuleTile                                            | 0 GC allocations                                                                                                                                                                                         |
+| Random             | No option to set a seed                                                       | `SetGlobalSeed()` and 100% deterministic                                                                                                                                                                 |
+| World editing      | Tilemap saves changes in the editor                                           | `TilemapAuthoring` does not save editor data for now. However, adding such feature is trivial as all the data is stored as `IntGridValue`s, which is just a wrapper for `short`                          |
+| Grid types         | Rectangular, hexagonal and isometric                                          | Only rectangular                                                                                                                                                                                         |
+| Object rule result | Instantiates GameObjects, which is really expensive. A lot of GC allocations  | Instantiates Entities, which is really cheap. No GC allocations                                                                                                                                          |                  
+| Rendering Pipeline | Internal `SpriteRenderer` based rendering path                                | `Entities.Graphics` based rendering with every `IntGridAuthoring` being a separate entity with a mesh. Utilizing `RuntimeMaterial` to create materials at runtime with different main textures as needed |                                                                                                                                                                                                                               
+| 2D Rendering       | Supports both 3D and 2D rendering with SortingLayers                          | Because `SpriteRenderer` rendering path is internal, Mosaic only works with 3D based rendering                                                                                                           |
 
 ## Changelog
-[1.4.0] - 2025-08-21 is out! 
+[2.0.0] - 2025-09-12 is out! 
 
-### Added
-**Tilemap Terrain**. A special terrain that merges multiple `IntGrid` layers into a single mesh using a custom TerrainShader and blending logic.
+### Removed
+* Dependency on OdinInspector
 
 Full changelog can be found [here](CHANGELOG.md)
 
 ## Installation
 Add these packages using git urls in a package manager:
-1. KrasCore: https://github.com/Fire-Aalt/KrasCore.git
-2. KrasCore.Mosaic: https://github.com/Fire-Aalt/KrasCore-Mosaic.git
+1. BovineLabs.Core: https://gitlab.com/tertle/com.bovinelabs.core.git (only utilities are used)
+2. KrasCore: https://github.com/Fire-Aalt/KrasCore.git
+3. KrasCore.Mosaic: https://github.com/Fire-Aalt/KrasCore-Mosaic.git
 
 Add these packages for optional support for runtime `IntGrid` debugging: 
-1. BovineLabs.Core: https://gitlab.com/tertle/com.bovinelabs.core.git
-2. BovineLabs.Anchor: https://gitlab.com/tertle/com.bovinelabs.anchor.git
-3. BovineLabs.Quill: https://github.com/tertle/com.bovinelabs.quill
+1. BovineLabs.Anchor: https://gitlab.com/tertle/com.bovinelabs.anchor.git
+2. BovineLabs.Quill: https://github.com/tertle/com.bovinelabs.quill
 
 ## Workflow
 ### Editor (Single Grid workflow)
@@ -46,11 +46,11 @@ Create IntGrid using "Create/Mosaic/IntGrid". This is how we can configure it:
 *You can add a texture to be displayed instead of a color. Use create RuleGroup button to quickly create RuleGroup ScriptableObject*
 
 Open RuleGroup ScriptableObject and add some rules to it like this:
-![RuleGroup](Documentation~/Images/RuleGroup.png)
+![RuleGroup](Documentation~/Images/RuleGroup.gif)
 *Every parameter has a tooltip*
 
 To edit the rule pattern, click on the matrix of the rule matrix preview of the rule. This window will pop up:
-![Rule](Documentation~/Images/Rule.png)
+![Rule](Documentation~/Images/RuleSingleGrid.png)
 Here you can modify rule matrix pattern and add or remove results. All the results are weighted, where more weight means more chance to be selected. You can have both sprite and entity to be rendered/spawned.
 
 Next add `GridAuthoring` component to a GameObject in a SubScene and add a `TilemapAuthoring` as a child to Grid. Configure them as needed.
@@ -59,7 +59,7 @@ Next add `GridAuthoring` component to a GameObject in a SubScene and add a `Tile
 
 For Dual-Grid to work, a "Use Dual Grid" checkbox has to be ticked at the top of `IntGridDefinition`. This will change the serialized IntGriMatrix to Dual-Grid one and the authoring inspectors will also be changed for all the RuleGroups assign to that `IntGridDefinition`.
 
-![DualGrid](Documentation~/Images/DualGrid.png)
+![DualGrid](Documentation~/Images/DualGrid.gif)
 
 ### Tilemap Terrain
 Works the same as having multiple `TilemapAuthoring` separately, but instead of multiple meshes produces only 1 using a custom shader for blending. 
