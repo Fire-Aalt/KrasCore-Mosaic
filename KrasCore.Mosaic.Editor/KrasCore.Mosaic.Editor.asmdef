@@ -6,6 +6,7 @@
         "KrasCore.Mosaic.Authoring",
         "KrasCore.Mosaic.Data",
         "BovineLabs.Core",
+        "BovineLabs.Core.Editor",
         "Unity.AppUI",
         "Unity.Burst",
         "Unity.Collections",
