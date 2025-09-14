@@ -1,4 +1,4 @@
-// Made with Amplify Shader Editor v1.9.9.3
+// Made with Amplify Shader Editor v1.9.9.4
 // Available at the Unity Asset Store - http://u3d.as/y3X 
 Shader "TerrainShader"
 {
@@ -66,6 +66,10 @@ Shader "TerrainShader"
 		#pragma target 4.5
 		#pragma prefer_hlslcc gles
 		// ensure rendering platforms toggle list is visible
+
+		#if ( SHADER_TARGET > 35 ) && defined( SHADER_API_GLES3 )
+			#error For WebGL2/GLES3, please set your shader target to 3.5 via SubShader options. URP shaders in ASE use target 4.5 by default.
+		#endif
 
 		#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
 		#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Filtering.hlsl"
@@ -190,7 +194,7 @@ Shader "TerrainShader"
 
 			HLSLPROGRAM
 
-			#define ASE_GEOMETRY 1
+			#define ASE_GEOMETRY
 			#define _NORMAL_DROPOFF_TS 1
 			#pragma shader_feature_local_fragment _RECEIVE_SHADOWS_OFF
 			#pragma shader_feature_local_fragment _SPECULARHIGHLIGHTS_OFF
@@ -198,7 +202,7 @@ Shader "TerrainShader"
 			#pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define ASE_FOG 1
-			#define ASE_VERSION 19903
+			#define ASE_VERSION 19904
 			#define ASE_SRP_VERSION 170200
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
@@ -256,7 +260,7 @@ Shader "TerrainShader"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/LODCrossFade.hlsl"
             #endif
 
-			#if defined(UNITY_INSTANCING_ENABLED) && ( defined(_TERRAIN_INSTANCED_PERPIXEL_NORMAL) || defined(_INSTANCEDTERRAINNORMALS_PIXEL) )
+			#if defined( UNITY_INSTANCING_ENABLED ) && defined( ASE_INSTANCED_TERRAIN ) && ( defined(_TERRAIN_INSTANCED_PERPIXEL_NORMAL) || defined(_INSTANCEDTERRAINNORMALS_PIXEL) )
 				#define ENABLE_TERRAIN_PERPIXEL_NORMAL
 			#endif
 
@@ -573,17 +577,17 @@ Shader "TerrainShader"
 				{
 				BlendLayers(VertexID4_g25, TileSize4_g25, BaseUV4_g25, DefaultBlendColor4_g25, Texture4_g25, Sampler4_g25, RGBA4_g25);
 				}
-				float4 temp_output_2_0_g23 = RGBA4_g25;
+				float4 temp_output_2_0_g26 = RGBA4_g25;
 				
 
-				float3 BaseColor = (temp_output_2_0_g23).xyz;
+				float3 BaseColor = (temp_output_2_0_g26).xyz;
 				float3 Normal = float3(0, 0, 1);
 				float3 Specular = 0.5;
 				float Metallic = 0;
 				float Smoothness = 0.5;
 				float Occlusion = 1;
 				float3 Emission = 0;
-				float Alpha = (temp_output_2_0_g23).w;
+				float Alpha = (temp_output_2_0_g26).w;
 				float AlphaClipThreshold = 0.5;
 				float AlphaClipThresholdShadow = 0.5;
 				float3 BakedGI = 0;
@@ -822,7 +826,11 @@ Shader "TerrainShader"
 					outRenderingLayers = EncodeMeshRenderingLayer();
 				#endif
 
-				return half4( color.rgb, OutputAlpha( color.a, isTransparent ) );
+				#if defined( ASE_OPAQUE_KEEP_ALPHA )
+					return half4( color.rgb, color.a );
+				#else
+					return half4( color.rgb, OutputAlpha( color.a, isTransparent ) );
+				#endif
 			}
 			ENDHLSL
 		}
@@ -841,11 +849,11 @@ Shader "TerrainShader"
 
 			HLSLPROGRAM
 
-			#define ASE_GEOMETRY 1
+			#define ASE_GEOMETRY
 			#define _NORMAL_DROPOFF_TS 1
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define ASE_FOG 1
-			#define ASE_VERSION 19903
+			#define ASE_VERSION 19904
 			#define ASE_SRP_VERSION 170200
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
@@ -1119,10 +1127,10 @@ Shader "TerrainShader"
 				{
 				BlendLayers(VertexID4_g25, TileSize4_g25, BaseUV4_g25, DefaultBlendColor4_g25, Texture4_g25, Sampler4_g25, RGBA4_g25);
 				}
-				float4 temp_output_2_0_g23 = RGBA4_g25;
+				float4 temp_output_2_0_g26 = RGBA4_g25;
 				
 
-				float Alpha = (temp_output_2_0_g23).w;
+				float Alpha = (temp_output_2_0_g26).w;
 				float AlphaClipThreshold = 0.5;
 				float AlphaClipThresholdShadow = 0.5;
 
@@ -1164,11 +1172,11 @@ Shader "TerrainShader"
 
 			HLSLPROGRAM
 
-			#define ASE_GEOMETRY 1
+			#define ASE_GEOMETRY
 			#define _NORMAL_DROPOFF_TS 1
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define ASE_FOG 1
-			#define ASE_VERSION 19903
+			#define ASE_VERSION 19904
 			#define ASE_SRP_VERSION 170200
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
@@ -1426,10 +1434,10 @@ Shader "TerrainShader"
 				{
 				BlendLayers(VertexID4_g25, TileSize4_g25, BaseUV4_g25, DefaultBlendColor4_g25, Texture4_g25, Sampler4_g25, RGBA4_g25);
 				}
-				float4 temp_output_2_0_g23 = RGBA4_g25;
+				float4 temp_output_2_0_g26 = RGBA4_g25;
 				
 
-				float Alpha = (temp_output_2_0_g23).w;
+				float Alpha = (temp_output_2_0_g26).w;
 				float AlphaClipThreshold = 0.5;
 
 				#if defined( ASE_DEPTH_WRITE_ON )
@@ -1463,11 +1471,11 @@ Shader "TerrainShader"
 			Cull Off
 
 			HLSLPROGRAM
-			#define ASE_GEOMETRY 1
+			#define ASE_GEOMETRY
 			#define _NORMAL_DROPOFF_TS 1
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define ASE_FOG 1
-			#define ASE_VERSION 19903
+			#define ASE_VERSION 19904
 			#define ASE_SRP_VERSION 170200
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
@@ -1716,12 +1724,12 @@ Shader "TerrainShader"
 				{
 				BlendLayers(VertexID4_g25, TileSize4_g25, BaseUV4_g25, DefaultBlendColor4_g25, Texture4_g25, Sampler4_g25, RGBA4_g25);
 				}
-				float4 temp_output_2_0_g23 = RGBA4_g25;
+				float4 temp_output_2_0_g26 = RGBA4_g25;
 				
 
-				float3 BaseColor = (temp_output_2_0_g23).xyz;
+				float3 BaseColor = (temp_output_2_0_g26).xyz;
 				float3 Emission = 0;
-				float Alpha = (temp_output_2_0_g23).w;
+				float Alpha = (temp_output_2_0_g26).w;
 				float AlphaClipThreshold = 0.5;
 
 				#if defined( _ALPHATEST_ON )
@@ -1756,11 +1764,11 @@ Shader "TerrainShader"
 
 			HLSLPROGRAM
 
-			#define ASE_GEOMETRY 1
+			#define ASE_GEOMETRY
 			#define _NORMAL_DROPOFF_TS 1
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define ASE_FOG 1
-			#define ASE_VERSION 19903
+			#define ASE_VERSION 19904
 			#define ASE_SRP_VERSION 170200
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
@@ -1998,11 +2006,11 @@ Shader "TerrainShader"
 				{
 				BlendLayers(VertexID4_g25, TileSize4_g25, BaseUV4_g25, DefaultBlendColor4_g25, Texture4_g25, Sampler4_g25, RGBA4_g25);
 				}
-				float4 temp_output_2_0_g23 = RGBA4_g25;
+				float4 temp_output_2_0_g26 = RGBA4_g25;
 				
 
-				float3 BaseColor = (temp_output_2_0_g23).xyz;
-				float Alpha = (temp_output_2_0_g23).w;
+				float3 BaseColor = (temp_output_2_0_g26).xyz;
+				float Alpha = (temp_output_2_0_g26).w;
 				float AlphaClipThreshold = 0.5;
 
 				half4 color = half4(BaseColor, Alpha );
@@ -2030,11 +2038,11 @@ Shader "TerrainShader"
 
 			HLSLPROGRAM
 
-			#define ASE_GEOMETRY 1
+			#define ASE_GEOMETRY
 			#define _NORMAL_DROPOFF_TS 1
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define ASE_FOG 1
-			#define ASE_VERSION 19903
+			#define ASE_VERSION 19904
 			#define ASE_SRP_VERSION 170200
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
@@ -2068,7 +2076,7 @@ Shader "TerrainShader"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/LODCrossFade.hlsl"
             #endif
 
-			#if defined(UNITY_INSTANCING_ENABLED) && ( defined(_TERRAIN_INSTANCED_PERPIXEL_NORMAL) || defined(_INSTANCEDTERRAINNORMALS_PIXEL) )
+			#if defined( UNITY_INSTANCING_ENABLED ) && defined( ASE_INSTANCED_TERRAIN ) && ( defined(_TERRAIN_INSTANCED_PERPIXEL_NORMAL) || defined(_INSTANCEDTERRAINNORMALS_PIXEL) )
 				#define ENABLE_TERRAIN_PERPIXEL_NORMAL
 			#endif
 
@@ -2324,11 +2332,11 @@ Shader "TerrainShader"
 				{
 				BlendLayers(VertexID4_g25, TileSize4_g25, BaseUV4_g25, DefaultBlendColor4_g25, Texture4_g25, Sampler4_g25, RGBA4_g25);
 				}
-				float4 temp_output_2_0_g23 = RGBA4_g25;
+				float4 temp_output_2_0_g26 = RGBA4_g25;
 				
 
 				float3 Normal = float3(0, 0, 1);
-				float Alpha = (temp_output_2_0_g23).w;
+				float Alpha = (temp_output_2_0_g26).w;
 				float AlphaClipThreshold = 0.5;
 
 				#if defined( ASE_DEPTH_WRITE_ON )
@@ -2390,14 +2398,14 @@ Shader "TerrainShader"
 
 			HLSLPROGRAM
 
-			#define ASE_GEOMETRY 1
+			#define ASE_GEOMETRY
 			#define _NORMAL_DROPOFF_TS 1
 			#pragma shader_feature_local_fragment _RECEIVE_SHADOWS_OFF
 			#pragma shader_feature_local_fragment _SPECULARHIGHLIGHTS_OFF
 			#pragma shader_feature_local_fragment _ENVIRONMENTREFLECTIONS_OFF
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define ASE_FOG 1
-			#define ASE_VERSION 19903
+			#define ASE_VERSION 19904
 			#define ASE_SRP_VERSION 170200
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
@@ -2451,7 +2459,7 @@ Shader "TerrainShader"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/LODCrossFade.hlsl"
             #endif
 
-			#if defined(UNITY_INSTANCING_ENABLED) && ( defined(_TERRAIN_INSTANCED_PERPIXEL_NORMAL) || defined(_INSTANCEDTERRAINNORMALS_PIXEL) )
+			#if defined( UNITY_INSTANCING_ENABLED ) && defined( ASE_INSTANCED_TERRAIN ) && ( defined(_TERRAIN_INSTANCED_PERPIXEL_NORMAL) || defined(_INSTANCEDTERRAINNORMALS_PIXEL) )
 				#define ENABLE_TERRAIN_PERPIXEL_NORMAL
 			#endif
 
@@ -2761,17 +2769,17 @@ Shader "TerrainShader"
 				{
 				BlendLayers(VertexID4_g25, TileSize4_g25, BaseUV4_g25, DefaultBlendColor4_g25, Texture4_g25, Sampler4_g25, RGBA4_g25);
 				}
-				float4 temp_output_2_0_g23 = RGBA4_g25;
+				float4 temp_output_2_0_g26 = RGBA4_g25;
 				
 
-				float3 BaseColor = (temp_output_2_0_g23).xyz;
+				float3 BaseColor = (temp_output_2_0_g26).xyz;
 				float3 Normal = float3(0, 0, 1);
 				float3 Specular = 0.5;
 				float Metallic = 0;
 				float Smoothness = 0.5;
 				float Occlusion = 1;
 				float3 Emission = 0;
-				float Alpha = (temp_output_2_0_g23).w;
+				float Alpha = (temp_output_2_0_g26).w;
 				float AlphaClipThreshold = 0.5;
 				float AlphaClipThresholdShadow = 0.5;
 				float3 BakedGI = 0;
@@ -2909,11 +2917,11 @@ Shader "TerrainShader"
 
 			HLSLPROGRAM
 
-			#define ASE_GEOMETRY 1
+			#define ASE_GEOMETRY
 			#define _NORMAL_DROPOFF_TS 1
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define ASE_FOG 1
-			#define ASE_VERSION 19903
+			#define ASE_VERSION 19904
 			#define ASE_SRP_VERSION 170200
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
@@ -3169,10 +3177,10 @@ Shader "TerrainShader"
 				{
 				BlendLayers(VertexID4_g25, TileSize4_g25, BaseUV4_g25, DefaultBlendColor4_g25, Texture4_g25, Sampler4_g25, RGBA4_g25);
 				}
-				float4 temp_output_2_0_g23 = RGBA4_g25;
+				float4 temp_output_2_0_g26 = RGBA4_g25;
 				
 
-				surfaceDescription.Alpha = (temp_output_2_0_g23).w;
+				surfaceDescription.Alpha = (temp_output_2_0_g26).w;
 				surfaceDescription.AlphaClipThreshold = 0.5;
 
 				#if defined( ASE_DEPTH_WRITE_ON )
@@ -3208,11 +3216,11 @@ Shader "TerrainShader"
 
 			HLSLPROGRAM
 
-			#define ASE_GEOMETRY 1
+			#define ASE_GEOMETRY
 			#define _NORMAL_DROPOFF_TS 1
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define ASE_FOG 1
-			#define ASE_VERSION 19903
+			#define ASE_VERSION 19904
 			#define ASE_SRP_VERSION 170200
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
@@ -3468,10 +3476,10 @@ Shader "TerrainShader"
 				{
 				BlendLayers(VertexID4_g25, TileSize4_g25, BaseUV4_g25, DefaultBlendColor4_g25, Texture4_g25, Sampler4_g25, RGBA4_g25);
 				}
-				float4 temp_output_2_0_g23 = RGBA4_g25;
+				float4 temp_output_2_0_g26 = RGBA4_g25;
 				
 
-				surfaceDescription.Alpha = (temp_output_2_0_g23).w;
+				surfaceDescription.Alpha = (temp_output_2_0_g26).w;
 				surfaceDescription.AlphaClipThreshold = 0.5;
 
 				#if defined( ASE_DEPTH_WRITE_ON )
@@ -3490,7 +3498,7 @@ Shader "TerrainShader"
 					outputDepth = DeviceDepth;
 				#endif
 
-				return _SelectionID;
+				return unity_SelectionID;
 			}
 			ENDHLSL
 		}
@@ -3506,11 +3514,11 @@ Shader "TerrainShader"
 
 			HLSLPROGRAM
 
-			#define ASE_GEOMETRY 1
+			#define ASE_GEOMETRY
 			#define _NORMAL_DROPOFF_TS 1
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define ASE_FOG 1
-			#define ASE_VERSION 19903
+			#define ASE_VERSION 19904
 			#define ASE_SRP_VERSION 170200
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
@@ -3703,10 +3711,10 @@ Shader "TerrainShader"
 				{
 				BlendLayers(VertexID4_g25, TileSize4_g25, BaseUV4_g25, DefaultBlendColor4_g25, Texture4_g25, Sampler4_g25, RGBA4_g25);
 				}
-				float4 temp_output_2_0_g23 = RGBA4_g25;
+				float4 temp_output_2_0_g26 = RGBA4_g25;
 				
 
-				float Alpha = (temp_output_2_0_g23).w;
+				float Alpha = (temp_output_2_0_g26).w;
 				float AlphaClipThreshold = 0.5;
 
 				#if defined( ASE_DEPTH_WRITE_ON )
@@ -3751,12 +3759,12 @@ Shader "TerrainShader"
 }
 
 /*ASEBEGIN
-Version=19903
+Version=19904
 Node;AmplifyShaderEditor.TexturePropertyNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;50;-304,64;Inherit;True;Property;_MainTex;MainTex;0;0;Create;True;0;0;0;False;0;False;None;None;False;white;Auto;Texture2D;False;-1;0;2;SAMPLER2D;0;SAMPLERSTATE;1
 Node;AmplifyShaderEditor.ColorNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;84;-304,-144;Inherit;False;Property;_DefaultBlendColor;DefaultBlendColor;3;0;Create;True;0;0;0;False;0;False;0,0,0,1;0,0,0,0;True;True;0;6;COLOR;0;FLOAT;1;FLOAT;2;FLOAT;3;FLOAT;4;FLOAT3;5
 Node;AmplifyShaderEditor.FunctionNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;87;-64,-16;Inherit;False;MosaicBlendLayers;1;;25;34be181aab269424fa7648145160b7fa;0;3;10;FLOAT4;0,0,0,0;False;8;SAMPLER2D;0;False;9;SAMPLERSTATE;0;False;1;FLOAT4;7
 Node;AmplifyShaderEditor.RangedFloatNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;28;352,256;Inherit;False;Constant;_Float0;Float 0;3;0;Create;True;0;0;0;False;0;False;0.1;0;0;0;0;1;FLOAT;0
-Node;AmplifyShaderEditor.FunctionNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;55;240,-16;Inherit;False;Alpha Split;-1;;23;07dab7960105b86429ac8eebd729ed6d;0;1;2;FLOAT4;0,0,0,0;False;2;FLOAT3;0;FLOAT;6
+Node;AmplifyShaderEditor.FunctionNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;55;240,-16;Inherit;False;Alpha Split;-1;;26;07dab7960105b86429ac8eebd729ed6d;0;1;2;FLOAT4;0,0,0,0;False;2;FLOAT3;0;FLOAT;6
 Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;0;32,0;Float;False;False;-1;3;UnityEditor.ShaderGraphLitGUI;0;12;New Amplify Shader;94348b07e5e8bab40bd6c8a1e3df54cd;True;ExtraPrePass;0;0;ExtraPrePass;6;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;True;0;False;;False;False;False;False;False;False;False;False;False;True;False;0;False;;255;False;;255;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;1;False;;True;3;False;;True;True;0;False;;0;False;;True;4;RenderPipeline=UniversalPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;UniversalMaterialType=Lit;True;5;True;12;all;0;False;True;1;1;False;;0;False;;0;1;False;;0;False;;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;True;True;True;True;True;0;False;;False;False;False;False;False;False;False;True;False;0;False;;255;False;;255;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;1;False;;True;3;False;;True;True;0;False;;0;False;;True;0;False;False;0;;0;0;Standard;0;False;0
 Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;2;0,0;Float;False;False;-1;3;UnityEditor.ShaderGraphLitGUI;0;12;New Amplify Shader;94348b07e5e8bab40bd6c8a1e3df54cd;True;ShadowCaster;0;2;ShadowCaster;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;True;0;False;;False;False;False;False;False;False;False;False;False;True;False;0;False;;255;False;;255;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;1;False;;True;3;False;;True;True;0;False;;0;False;;True;4;RenderPipeline=UniversalPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;UniversalMaterialType=Lit;True;5;True;12;all;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;False;False;True;False;False;False;False;0;False;;False;False;False;False;False;False;False;False;False;True;1;False;;True;3;False;;False;True;1;LightMode=ShadowCaster;False;False;0;;0;0;Standard;0;False;0
 Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;3;0,0;Float;False;False;-1;3;UnityEditor.ShaderGraphLitGUI;0;12;New Amplify Shader;94348b07e5e8bab40bd6c8a1e3df54cd;True;DepthOnly;0;3;DepthOnly;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;True;0;False;;False;False;False;False;False;False;False;False;False;True;False;0;False;;255;False;;255;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;1;False;;True;3;False;;True;True;0;False;;0;False;;True;4;RenderPipeline=UniversalPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;UniversalMaterialType=Lit;True;5;True;12;all;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;False;False;True;True;False;False;False;0;False;;False;False;False;False;False;False;False;False;False;True;1;False;;False;False;True;1;LightMode=DepthOnly;False;False;0;;0;0;Standard;0;False;0
@@ -3768,7 +3776,7 @@ Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Versi
 Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;9;0,0;Float;False;False;-1;3;UnityEditor.ShaderGraphLitGUI;0;12;New Amplify Shader;94348b07e5e8bab40bd6c8a1e3df54cd;True;ScenePickingPass;0;9;ScenePickingPass;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;True;0;False;;False;False;False;False;False;False;False;False;False;True;False;0;False;;255;False;;255;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;1;False;;True;3;False;;True;True;0;False;;0;False;;True;4;RenderPipeline=UniversalPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;UniversalMaterialType=Lit;True;5;True;12;all;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;1;LightMode=Picking;False;False;0;;0;0;Standard;0;False;0
 Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;10;0,0;Float;False;False;-1;3;UnityEditor.ShaderGraphLitGUI;0;12;New Amplify Shader;94348b07e5e8bab40bd6c8a1e3df54cd;True;MotionVectors;0;10;MotionVectors;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;True;0;False;;False;False;False;False;False;False;False;False;False;True;False;0;False;;255;False;;255;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;1;False;;True;3;False;;True;True;0;False;;0;False;;True;4;RenderPipeline=UniversalPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;UniversalMaterialType=Lit;True;5;True;12;all;0;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;True;True;False;False;0;False;;False;False;False;False;False;False;False;False;False;False;False;False;True;1;LightMode=MotionVectors;False;False;0;;0;0;Standard;0;False;0
 Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;11;0,0;Float;False;False;-1;3;UnityEditor.ShaderGraphLitGUI;0;12;New Amplify Shader;94348b07e5e8bab40bd6c8a1e3df54cd;True;XRMotionVectors;0;11;XRMotionVectors;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;True;0;False;;False;False;False;False;False;False;False;False;False;True;False;0;False;;255;False;;255;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;1;False;;True;3;False;;True;True;0;False;;0;False;;True;4;RenderPipeline=UniversalPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;UniversalMaterialType=Lit;True;5;True;12;all;0;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;True;True;True;True;0;False;;False;False;False;False;False;False;False;True;True;1;False;;255;False;;1;False;;7;False;;3;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;False;False;False;True;1;LightMode=XRMotionVectors;False;False;0;;0;0;Standard;0;False;0
-Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;1;496,0;Float;False;True;-1;3;UnityEditor.ShaderGraphLitGUI;0;12;TerrainShader;94348b07e5e8bab40bd6c8a1e3df54cd;True;Forward;0;1;Forward;21;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;True;0;False;;False;False;False;False;False;False;False;False;False;True;False;0;False;;255;False;;255;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;1;False;;True;3;False;;True;True;0;False;;0;False;;True;4;RenderPipeline=UniversalPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;UniversalMaterialType=Lit;True;5;True;12;all;0;False;True;1;1;False;;0;False;;1;1;False;;0;False;;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;True;True;True;True;0;False;;False;False;False;False;False;False;False;True;False;0;False;;255;False;;255;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;1;False;;True;3;False;;True;True;0;False;;0;False;;True;1;LightMode=UniversalForward;False;False;2;Include;;False;;Native;False;0;0;;Include;;True;f407207b82532924f9f8f903a9f29c32;Custom;False;0;0;;;0;0;Standard;50;Category;0;0;  Instanced Terrain Normals;1;0;Lighting Model;0;0;Workflow;1;0;Surface;0;0;  Refraction Model;0;0;  Blend;0;0;Two Sided;1;0;Alpha Clipping;0;638918163137198311;  Use Shadow Threshold;0;638913139129558050;Fragment Normal Space,InvertActionOnDeselection;0;0;Forward Only;0;0;Transmission;0;0;  Transmission Shadow;0.5,False,;0;Translucency;0;0;  Translucency Strength;1,False,;0;  Normal Distortion;0.5,False,;0;  Scattering;2,False,;0;  Direct;0.9,False,;0;  Ambient;0.1,False,;0;  Shadow;0.5,False,;0;Cast Shadows;1;0;Receive Shadows;2;0;Specular Highlights;2;0;Environment Reflections;2;0;Receive SSAO;1;0;Motion Vectors;1;0;  Add Precomputed Velocity;0;0;  XR Motion Vectors;0;0;GPU Instancing;0;638913139400457197;LOD CrossFade;0;638913139434204775;Built-in Fog;1;638913139484284097;_FinalColorxAlpha;0;0;Meta Pass;1;0;Override Baked GI;0;0;Extra Pre Pass;0;0;Tessellation;0;0;  Phong;0;0;  Strength;0.5,False,;0;  Type;0;0;  Tess;16,False,;0;  Min;10,False,;0;  Max;25,False,;0;  Edge Length;16,False,;0;  Max Displacement;25,False,;0;Write Depth;0;0;  Early Z;0;0;Vertex Position,InvertActionOnDeselection;1;0;Debug Display;1;0;Clear Coat;0;0;0;12;False;True;True;True;True;True;True;True;True;True;True;False;False;;True;0
+Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;1;496,0;Float;False;True;-1;3;UnityEditor.ShaderGraphLitGUI;0;12;TerrainShader;94348b07e5e8bab40bd6c8a1e3df54cd;True;Forward;0;1;Forward;21;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;True;0;False;;False;False;False;False;False;False;False;False;False;True;False;0;False;;255;False;;255;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;1;False;;True;3;False;;True;True;0;False;;0;False;;True;4;RenderPipeline=UniversalPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;UniversalMaterialType=Lit;True;5;True;12;all;0;False;True;1;1;False;;0;False;;1;1;False;;0;False;;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;True;True;True;True;0;False;;False;False;False;False;False;False;False;True;False;0;False;;255;False;;255;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;1;False;;True;3;False;;True;True;0;False;;0;False;;True;1;LightMode=UniversalForward;False;False;2;Include;;False;;Native;False;0;0;;Include;;True;f407207b82532924f9f8f903a9f29c32;Custom;False;0;0;;;0;0;Standard;51;Category;0;0;  Instanced Terrain Normals;1;0;Lighting Model;0;0;Workflow;1;0;Surface;0;0;  Keep Alpha;0;0;  Refraction Model;0;0;  Blend;0;0;Two Sided;1;0;Alpha Clipping;0;638918163137198311;  Use Shadow Threshold;0;638913139129558050;Fragment Normal Space;0;0;Forward Only;0;0;Transmission;0;0;  Transmission Shadow;0.5,False,;0;Translucency;0;0;  Translucency Strength;1,False,;0;  Normal Distortion;0.5,False,;0;  Scattering;2,False,;0;  Direct;0.9,False,;0;  Ambient;0.1,False,;0;  Shadow;0.5,False,;0;Cast Shadows;1;0;Receive Shadows;2;0;Specular Highlights;2;0;Environment Reflections;2;0;Receive SSAO;1;0;Motion Vectors;1;0;  Add Precomputed Velocity;0;0;  XR Motion Vectors;0;0;GPU Instancing;0;638913139400457197;LOD CrossFade;0;638913139434204775;Built-in Fog;1;638913139484284097;_FinalColorxAlpha;0;0;Meta Pass;1;0;Override Baked GI;0;0;Extra Pre Pass;0;0;Tessellation;0;0;  Phong;0;0;  Strength;0.5,False,;0;  Type;0;0;  Tess;16,False,;0;  Min;10,False,;0;  Max;25,False,;0;  Edge Length;16,False,;0;  Max Displacement;25,False,;0;Write Depth;0;0;  Early Z;0;0;Vertex Position;1;0;Debug Display;1;0;Clear Coat;0;0;0;12;False;True;True;True;True;True;True;True;True;True;True;False;False;;True;0
 WireConnection;87;10;84;0
 WireConnection;87;8;50;0
 WireConnection;87;9;50;1
@@ -3776,4 +3784,4 @@ WireConnection;55;2;87;7
 WireConnection;1;0;55;0
 WireConnection;1;6;55;6
 ASEEND*/
-//CHKSM=50D68B3869DD6DF5DCE0D012EC4D5FD2F2255AA4
+//CHKSM=955E0E547FED63733C0FCB8E04A8C277086CD4A3
