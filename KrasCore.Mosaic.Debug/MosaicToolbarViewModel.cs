@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using BovineLabs.Anchor;
-using BovineLabs.Anchor.Contracts;
 using Unity.AppUI.UI;
 using Unity.Collections;
 using Unity.Entities;

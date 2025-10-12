@@ -107,12 +107,12 @@ namespace KrasCore.Mosaic.Authoring
                     {
                         tileSize = uvTileSize;
                     }
-
-                    if (math.any(tilePivot != uvPivot))
+                    
+                    if (math.any(math.abs(tilePivot - uvPivot) > new float2(math.EPSILON)))
                     {
                         throw new Exception("Different pivots in one tilemap terrain. This is not supported");
                     }
-                    if (math.any(tileSize != uvTileSize))
+                    if (math.any(math.abs(tileSize - uvTileSize) > new float2(math.EPSILON)))
                     {
                         throw new Exception("Different tile sizes in one tilemap terrain. This is not supported");
                     }
