@@ -99,6 +99,8 @@ namespace KrasCore.Mosaic.Authoring
                     var uvPivot = spriteMesh.NormalizedPivot;
                     var uvTileSize = spriteMesh.MaxUv - spriteMesh.MinUv;
                     
+                    //Debug.Log($"Found {uvTileSize.ToString()} in sprite {sprite}, expected: {tileSize.ToString()}");
+                    
                     if (math.all(tilePivot == float2.zero))
                     {
                         tilePivot = uvPivot;
@@ -108,13 +110,13 @@ namespace KrasCore.Mosaic.Authoring
                         tileSize = uvTileSize;
                     }
                     
-                    if (math.any(math.abs(tilePivot - uvPivot) > new float2(math.EPSILON)))
+                    if (math.any(math.abs(tilePivot - uvPivot) > new float2(0.0001f)))
                     {
                         throw new Exception("Different pivots in one tilemap terrain. This is not supported");
                     }
-                    if (math.any(math.abs(tileSize - uvTileSize) > new float2(math.EPSILON)))
+                    if (math.any(math.abs(tileSize - uvTileSize) > new float2(0.0001f)))
                     {
-                        throw new Exception("Different tile sizes in one tilemap terrain. This is not supported");
+                        throw new Exception($"Different tile sizes in one tilemap terrain. Found {uvTileSize.ToString()} in sprite {sprite}, expected: {tileSize.ToString()}. This is not supported");
                     }
                 }
 
