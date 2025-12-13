@@ -1,5 +1,6 @@
 using BovineLabs.Anchor.Toolbar;
 using KrasCore.Mosaic.Data;
+using KrasCore.Quill;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
