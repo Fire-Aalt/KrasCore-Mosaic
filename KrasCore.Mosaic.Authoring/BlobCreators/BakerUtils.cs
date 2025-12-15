@@ -95,13 +95,11 @@ namespace KrasCore.Mosaic.Authoring
 
                 if (constPivotAndSize)
                 {
-                    var s = sprite.ToString();
-                    
                     var spriteMesh = new SpriteMesh(sprite);
                     var uvPivot = spriteMesh.NormalizedPivot;
                     var uvTileSize = spriteMesh.MaxUv - spriteMesh.MinUv;
                     
-                    //Debug.Log($"Found {uvTileSize.ToString()} in sprite {sprite}, expected: {tileSize.ToString()}");
+                    //Debug.Log($"Found {uvTileSize.ToString()} in sprite {sprite}, atlas: {sprite.texture}, expected: {tileSize.ToString()}");
                     
                     if (math.all(tilePivot == float2.zero))
                     {
