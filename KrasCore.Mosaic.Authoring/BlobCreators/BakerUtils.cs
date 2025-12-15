@@ -95,6 +95,8 @@ namespace KrasCore.Mosaic.Authoring
 
                 if (constPivotAndSize)
                 {
+                    var s = sprite.ToString();
+                    
                     var spriteMesh = new SpriteMesh(sprite);
                     var uvPivot = spriteMesh.NormalizedPivot;
                     var uvTileSize = spriteMesh.MaxUv - spriteMesh.MinUv;
