@@ -44,10 +44,7 @@ namespace KrasCore.Mosaic
                     {
                         material = new Material(material); // Force unique for terrains
                         
-                        presentationSingleton.TerrainMap.Add(tilemapRenderingData.MeshHash, new TilemapTerrainRenderingData
-                        {
-                            Material = material
-                        });
+                        presentationSingleton.TerrainMap.Add(tilemapRenderingData.MeshHash, new TilemapTerrainRenderingData(material));
                         terrainSingleton.RenderingEntities.Add(entity);
                     }
                     else

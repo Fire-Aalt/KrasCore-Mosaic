@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using BovineLabs.Core;
 using KrasCore.Mosaic.Data;
 using Unity.Burst;
 using Unity.Collections;

@@ -11,11 +11,19 @@ namespace KrasCore.Mosaic.Data
         private static readonly int TileBufferId = Shader.PropertyToID("_TerrainTileBuffer");
         private static readonly int IndexBufferId = Shader.PropertyToID("_TerrainIndexBuffer");
         
-        public Material Material;
+        public readonly Material Material;
         
         private GraphicsBuffer _tileBuffer;
         private GraphicsBuffer _indexBuffer;
 
+
+        public TilemapTerrainRenderingData(Material material)
+        {
+            Material = material;
+            ResizeTileBuffer(256);
+            ResizeIndexBuffer(256);
+        }
+        
         public void SetTileSize(float2 tileSize)
         {
             Material.SetVector(TileSizeId, new Vector4(tileSize.x, tileSize.y));
@@ -28,11 +36,9 @@ namespace KrasCore.Mosaic.Data
                 return;
             }
             
-            if (_tileBuffer == null || _tileBuffer.count < buffer.Length)
+            if (_tileBuffer.count < buffer.Length)
             {
-                _tileBuffer?.Dispose();
-                _tileBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, buffer.Length, UnsafeUtility.SizeOf<GpuTerrainTile>());
-                Material.SetBuffer(TileBufferId, _tileBuffer);
+                ResizeTileBuffer(buffer.Length);
             }
             
             _tileBuffer.SetData(buffer.AsNativeArray());
@@ -45,14 +51,26 @@ namespace KrasCore.Mosaic.Data
                 return;
             }
             
-            if (_indexBuffer == null || _indexBuffer.count < buffer.Length)
+            if (_indexBuffer.count < buffer.Length)
             {
-                _indexBuffer?.Dispose();
-                _indexBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, buffer.Length, UnsafeUtility.SizeOf<GpuTerrainIndex>());
-                Material.SetBuffer(IndexBufferId, _indexBuffer);
+                ResizeIndexBuffer(buffer.Length);
             }
             
             _indexBuffer.SetData(buffer.AsNativeArray());
+        }
+        
+        private void ResizeTileBuffer(int length)
+        {
+            _tileBuffer?.Dispose();
+            _tileBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, length, UnsafeUtility.SizeOf<GpuTerrainTile>());
+            Material.SetBuffer(TileBufferId, _tileBuffer);
+        }
+
+        private void ResizeIndexBuffer(int length)
+        {
+            _indexBuffer?.Dispose();
+            _indexBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, length, UnsafeUtility.SizeOf<GpuTerrainIndex>());
+            Material.SetBuffer(IndexBufferId, _indexBuffer);
         }
         
         public void Dispose()
