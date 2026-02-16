@@ -54,9 +54,7 @@ namespace KrasCore.Mosaic.Data
             public void SetIntGridValue(in Hash128 intGridHash, int2 position, IntGridValue intGridValue)
             {
                 var layer = _layers[intGridHash].SetCommands;
-                layer.Begin(_threadIndex);
-                layer.Write(new SetCommand 
-                    { Position = position, IntGridValue = intGridValue });
+                layer.Add(new SetCommand { Position = position, IntGridValue = intGridValue }, _threadIndex);
             }
         }
         

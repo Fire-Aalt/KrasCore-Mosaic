@@ -285,7 +285,6 @@ namespace KrasCore.Mosaic
                 RulesBufferLookup.TryGetBuffer(intGridEntity, out _rulesBuffer);
                 EntitiesBufferLookup.TryGetBuffer(intGridEntity, out _entityBuffer);
 
-                EntityCommands.Begin();
                 foreach (var posToRefresh in dataLayer.PositionsToRefresh)
                 {
                     var ruleHashExists = dataLayer.RuleGrid.TryGetValue(posToRefresh, out var ruleHash);
@@ -385,7 +384,7 @@ namespace KrasCore.Mosaic
             {
                 if (rule.TryGetEntity(ref random, _entityBuffer, out var newEntity))
                 {
-                    EntityCommands.Write(new EntityCommand
+                    EntityCommands.Add(new EntityCommand
                     {
                         SrcEntity = newEntity,
                         Position = posToRefresh,
