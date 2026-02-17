@@ -26,6 +26,7 @@ Run commands from a host Unity project that references this package.
 ## Coding Style & Naming Conventions
 - C#: 4-space indentation, braces on new lines, one public type per file.
 - Naming: `PascalCase` for types/methods/properties, `camelCase` for locals/parameters, `_camelCase` for private fields.
+- Use `var` for variable declarations whenever possible; use explicit types only where `var` is not possible.
 - Match existing namespace layout (`KrasCore.Mosaic.*`) and keep filenames aligned with primary type names.
 - Unity assets must keep paired `.meta` files in commits.
 
