@@ -3,7 +3,6 @@ using KrasCore.Mosaic.Data;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
-using UnityEngine;
 using Hash128 = Unity.Entities.Hash128;
 
 namespace KrasCore.Mosaic.Authoring
@@ -11,7 +10,7 @@ namespace KrasCore.Mosaic.Authoring
     public static class BakerUtils
     {
         public static void AddRenderingData(IBaker baker, Entity entity, Hash128 meshHash, RenderingData renderingData,
-            GridAuthoring gridAuthoring, Texture2D materialTexture)
+            GridAuthoring gridAuthoring, RefSprite refSprite)
         {
             if (renderingData.material == null)
             {
@@ -27,12 +26,12 @@ namespace KrasCore.Mosaic.Authoring
                 Orientation = renderingData.orientation,
             });
             
-            baker.AddComponent(entity, new RuntimeMaterialLookup(renderingData.material, materialTexture));
+            baker.AddComponent(entity, new RuntimeMaterialLookup(renderingData.material, refSprite.Sprite));
             baker.AddComponent<RuntimeMaterial>(entity);
         }
         
-        public static Texture2D AddIntGridLayerData(IBaker baker, Entity entity, IntGridDefinition intGrid,
-            Texture2D materialTexture, bool constPivotAndSize, ref float2 tilePivot, ref float2 tileSize)
+        public static void AddIntGridLayerData(IBaker baker, Entity entity, IntGridDefinition intGrid,
+            RefSprite refSprite, bool constPivotAndSize, ref float2 tilePivot, ref float2 tileSize)
         {
             var ruleBlobBuffer = baker.AddBuffer<RuleBlobReferenceElement>(entity);
             var weightedEntityBuffer = baker.AddBuffer<WeightedEntityElement>(entity);
@@ -56,7 +55,7 @@ namespace KrasCore.Mosaic.Authoring
                         Value = blob
                     });
                     
-                    materialTexture = AddResults(baker, rule, weightedEntityBuffer, materialTexture, constPivotAndSize, ref tilePivot, ref tileSize);
+                    AddResults(baker, rule, weightedEntityBuffer, refSprite, constPivotAndSize, ref tilePivot, ref tileSize);
                     entityCount += rule.TileEntities.Count;
                 }
             }
@@ -71,11 +70,10 @@ namespace KrasCore.Mosaic.Authoring
             
             var refreshPositionsBuffer = baker.AddBuffer<RefreshPositionElement>(entity);
             refreshPositionsBuffer.AddRange(refreshPositions.ToNativeArray(Allocator.Temp).Reinterpret<RefreshPositionElement>());
-            return materialTexture;
         }
         
-        private static Texture2D AddResults(IBaker baker, RuleGroup.Rule rule,
-            DynamicBuffer<WeightedEntityElement> weightedEntityBuffer, Texture2D materialTexture,
+        private static void AddResults(IBaker baker, RuleGroup.Rule rule,
+            DynamicBuffer<WeightedEntityElement> weightedEntityBuffer, RefSprite refSprite,
             bool constPivotAndSize, ref float2 tilePivot, ref float2 tileSize)
         {
             for (var i = 0; i < rule.TileEntities.Count; i++)
@@ -91,7 +89,6 @@ namespace KrasCore.Mosaic.Authoring
             for (int i = 0; i < rule.TileSprites.Count; i++)
             {
                 var sprite = rule.TileSprites[i].result;
-                var spriteTexture = sprite.texture;
 
                 if (constPivotAndSize)
                 {
@@ -120,16 +117,15 @@ namespace KrasCore.Mosaic.Authoring
                     }
                 }
 
-                if (materialTexture == null)
+                if (refSprite == null || refSprite.Sprite == null)
                 {
-                    materialTexture = spriteTexture;
+                    refSprite = new RefSprite { Sprite = sprite };
                 }
-                else if (materialTexture != spriteTexture)
+                else if (refSprite.Sprite.texture != sprite.texture)
                 {
                     throw new Exception("Different textures in one tilemap. This is not supported");
                 }
             }
-            return materialTexture;
         }
     }
 }

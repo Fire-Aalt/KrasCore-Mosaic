@@ -49,7 +49,7 @@ namespace KrasCore.Mosaic.Authoring
                 
                 var entity = GetEntity(TransformUsageFlags.Dynamic);
                 var layersBuffer = AddBuffer<TilemapTerrainLayerElement>(entity);
-                Texture2D materialTexture = null;
+                var refSprite = new RefSprite();
                 
                 // Bake layers
                 var intGridLayersEntities = new NativeArray<Entity>(authoring.intGridLayers.Count, Allocator.Temp);
@@ -59,8 +59,8 @@ namespace KrasCore.Mosaic.Authoring
                 var tileSize = float2.zero;
                 for (int i = 0; i < intGridLayersEntities.Length; i++)
                 {
-                    materialTexture = BakerUtils.AddIntGridLayerData(this, intGridLayersEntities[i], authoring.intGridLayers[i],
-                        materialTexture, true, ref tilePivot, ref tileSize);
+                    BakerUtils.AddIntGridLayerData(this, intGridLayersEntities[i], authoring.intGridLayers[i],
+                        refSprite, true, ref tilePivot, ref tileSize);
                     layersBuffer.Add(new TilemapTerrainLayerElement { IntGridHash = authoring.intGridLayers[i].Hash });
                     AddComponent(intGridLayersEntities[i], new Data.TerrainLayer { TerrainEntity = entity });
                 }
@@ -76,7 +76,7 @@ namespace KrasCore.Mosaic.Authoring
                     MaxLayersBlend = authoring.maxLayersBlend,
                 });
 
-                BakerUtils.AddRenderingData(this, entity, terrainHash, authoring.renderingData, gridAuthoring, materialTexture);
+                BakerUtils.AddRenderingData(this, entity, terrainHash, authoring.renderingData, gridAuthoring, refSprite);
             }
         }
     }

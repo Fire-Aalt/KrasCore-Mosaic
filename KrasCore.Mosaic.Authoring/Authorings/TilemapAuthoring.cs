@@ -24,9 +24,10 @@ namespace KrasCore.Mosaic.Authoring
 
                 var tilePivot = float2.zero;
                 var tileSize = float2.zero;
-                var materialTexture = BakerUtils.AddIntGridLayerData(this, entity, authoring.intGrid,
-                    null, false, ref tilePivot, ref tileSize);
-                BakerUtils.AddRenderingData(this, entity, authoring.intGrid.Hash, authoring.renderingData, gridAuthoring, materialTexture);
+                var refSprite = new RefSprite();
+                BakerUtils.AddIntGridLayerData(this, entity, authoring.intGrid,
+                    refSprite, false, ref tilePivot, ref tileSize);
+                BakerUtils.AddRenderingData(this, entity, authoring.intGrid.Hash, authoring.renderingData, gridAuthoring, refSprite);
             }
         }
     }
