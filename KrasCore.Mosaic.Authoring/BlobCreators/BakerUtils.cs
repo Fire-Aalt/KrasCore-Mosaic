@@ -3,6 +3,7 @@ using KrasCore.Mosaic.Data;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using UnityEngine;
 using Hash128 = Unity.Entities.Hash128;
 
 namespace KrasCore.Mosaic.Authoring
@@ -117,9 +118,9 @@ namespace KrasCore.Mosaic.Authoring
                     }
                 }
 
-                if (refSprite == null || refSprite.Sprite == null)
+                if (refSprite.Sprite == null)
                 {
-                    refSprite = new RefSprite { Sprite = sprite };
+                    refSprite.Sprite = sprite;
                 }
                 else if (refSprite.Sprite.texture != sprite.texture)
                 {
