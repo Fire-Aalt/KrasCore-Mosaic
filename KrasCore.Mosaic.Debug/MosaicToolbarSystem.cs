@@ -137,7 +137,7 @@ namespace KrasCore.Mosaic.Debug
                     str.Append(value);
                     
                     var cellCenter = MosaicUtils.ToWorldSpace((float2)pos + 0.5f, rendererData);
-                    Drawer.SolidRectangleXZ(cellCenter, MosaicUtils.ApplySwizzle(rendererData.CellSize, rendererData.Swizzle).xy, color);
+                    Drawer.SolidSquareXZ(cellCenter, MosaicUtils.ApplySwizzle(rendererData.CellSize, rendererData.Swizzle).xy, color);
                     Drawer.Text32(cellCenter, str, Color.black, size: 32f);
                 }
             }
