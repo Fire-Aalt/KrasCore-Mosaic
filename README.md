@@ -67,6 +67,11 @@ For Dual-Grid to work, a "Use Dual Grid" checkbox has to be ticked at the top of
 Works the same as having multiple `TilemapAuthoring` separately, but instead of multiple meshes produces only 1 using a custom shader for blending. 
 ![TilemapTerrainAuthoring.png](Documentation%7E/Images/TilemapTerrainAuthoring.png)
 
+### Tilemap Cell
+Add `TilemapCellAuthoring` to an entity prefab that is used in a rule result if you need to know which `IntGrid` cell spawned it.
+
+This authoring adds a `TilemapCell` component during baking. When Mosaic instantiates the entity at runtime, `TilemapCell.Cell` is set to the spawned cell position (`int2`) on the source `IntGrid`.
+
 ### Code
 Reference to an `IntGrid`'s `IntGridHash` is required to send commands to `TilemapCommandBufferSystem`. Code is identical for both single grid and Dual-Grid configurations
 

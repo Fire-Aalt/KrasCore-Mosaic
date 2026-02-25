@@ -45,28 +45,33 @@ namespace KrasCore.Mosaic
             if (length <= 0) return;
             
             var srcTransform = state.EntityManager.GetComponentData<LocalTransform>(srcEntity);
+            var hasTilemapCellComponent = state.EntityManager.HasComponent<TilemapCell>(srcEntity);
             
             var instances = new NativeArray<Entity>(length, Allocator.Temp);
             state.EntityManager.Instantiate(srcEntity, instances);
-                
+
             for (var i = 0; i < instances.Length; i++)
             {
                 var currentCommand = _commandsList[beginIndex + i];
                 var instance = instances[i];
                     
-                var position = currentCommand.Position;
+                var cell = currentCommand.Position;
 
                 ref var dataLayer = ref _intGridLayers.GetValueAsRef(currentCommand.IntGridHash);
                 var rendererData = state.EntityManager.GetComponentData<TilemapRendererData>(dataLayer.IntGridEntity);
                 
                 state.EntityManager.SetComponentData(instance, new LocalTransform
                 {
-                    Position = MosaicUtils.ToWorldSpace(position, rendererData) + srcTransform.Position, 
+                    Position = MosaicUtils.ToWorldSpace(cell, rendererData) + srcTransform.Position, 
                     Scale = srcTransform.Scale,
                     Rotation = srcTransform.Rotation
                 });
+                if (hasTilemapCellComponent)
+                {
+                    state.EntityManager.SetComponentData(instance, new TilemapCell { Cell = cell });
+                }
                 
-                dataLayer.SpawnedEntities[position] = instance;
+                dataLayer.SpawnedEntities[cell] = instance;
             }
         }
     }

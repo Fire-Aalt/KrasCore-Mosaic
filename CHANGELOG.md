@@ -1,3 +1,8 @@
+## [2.0.1] - 2026-02-25
+
+### Changed
+* Added `TilemapCellAuthoring` and `TilemapCell` runtime cell assignment.
+
 # Changelog
 ## [2.0.0] - 2025-09-12
 
