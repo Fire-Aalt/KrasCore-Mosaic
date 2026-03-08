@@ -22,6 +22,7 @@ namespace KrasCore.Mosaic.Authoring
             {
                 MeshHash = meshHash,
                 GridEntity = baker.GetEntity(gridAuthoring, TransformUsageFlags.None),
+                RenderingLayerMask = renderingData.renderingLayerMask,
                 ShadowCastingMode = renderingData.shadowCastingMode,
                 ReceiveShadows = renderingData.receiveShadows,
                 Orientation = renderingData.orientation,

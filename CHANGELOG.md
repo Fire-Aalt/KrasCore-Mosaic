@@ -1,3 +1,8 @@
+## [2.0.2] - 2026-03-08
+
+### Changed
+* Added support for `RenderingLayerMask`.
+
 ## [2.0.1] - 2026-02-25
 
 ### Changed

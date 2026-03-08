@@ -1,6 +1,8 @@
 using Unity.Entities;
 using Unity.Mathematics;
+using UnityEngine;
 using UnityEngine.Rendering;
+using Hash128 = Unity.Entities.Hash128;
 
 namespace KrasCore.Mosaic.Data
 {
@@ -9,6 +11,7 @@ namespace KrasCore.Mosaic.Data
         public Hash128 MeshHash;
         public Entity GridEntity;
         
+        public RenderingLayerMask RenderingLayerMask;
         public ShadowCastingMode ShadowCastingMode;
         public bool ReceiveShadows;
         

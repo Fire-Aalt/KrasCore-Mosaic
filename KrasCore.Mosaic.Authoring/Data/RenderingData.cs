@@ -11,5 +11,6 @@ namespace KrasCore.Mosaic.Authoring
         public Material material;
         public ShadowCastingMode shadowCastingMode = ShadowCastingMode.TwoSided;
         public bool receiveShadows = true;
+        public RenderingLayerMask renderingLayerMask = RenderingLayerMask.defaultRenderingLayerMask;
     }
 }

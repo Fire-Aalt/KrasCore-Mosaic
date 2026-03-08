@@ -57,7 +57,8 @@ namespace KrasCore.Mosaic
 
                     var desc = new RenderMeshDescription(
                         tilemapRenderingData.ShadowCastingMode,
-                        tilemapRenderingData.ReceiveShadows);
+                        tilemapRenderingData.ReceiveShadows,
+                        renderingLayerMask: tilemapRenderingData.RenderingLayerMask);
                     var materialMeshInfo = new MaterialMeshInfo(materialId, meshId);
 
                     RenderMeshUtility.AddComponents(entity, EntityManager, desc, materialMeshInfo);
