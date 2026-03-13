@@ -1,3 +1,11 @@
+## [2.1.0] - 2026-03-13
+
+### Changed
+* Added `IntGridLayerHash` to `TilemapCell`.
+
+### Fixed
+* Cell entity spawning for Terrain Tilemaps by separating TilemapTransform.
+
 ## [2.0.2] - 2026-03-08
 
 ### Changed

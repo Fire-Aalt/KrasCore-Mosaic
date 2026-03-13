@@ -68,7 +68,11 @@ namespace KrasCore.Mosaic
                 });
                 if (hasTilemapCellComponent)
                 {
-                    state.EntityManager.SetComponentData(instance, new TilemapCell { Cell = cell });
+                    state.EntityManager.SetComponentData(instance, new TilemapCell 
+                    { 
+                        IntGridLayerHash = currentCommand.IntGridHash,
+                        Cell = cell 
+                    });
                 }
                 
                 dataLayer.SpawnedEntities[cell] = instance;
