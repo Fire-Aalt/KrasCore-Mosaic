@@ -140,7 +140,7 @@ namespace KrasCore.Mosaic
             state.Dependency = new GenerateTerrainMeshDataJob
             {
 	            TerrainDataLookup = terrainDataLookup,
-	            TilemapRendererDataLookup = SystemAPI.GetComponentLookup<TilemapRendererData>(true),
+	            TilemapTransformLookup = SystemAPI.GetComponentLookup<TilemapTransform>(true),
 	            Layout = singleton.Layout,
 	            HashesToUpdate = singleton.HashesToUpdate.AsDeferredJobArray(),
 	            Terrains = singleton.Terrains,
@@ -232,7 +232,7 @@ namespace KrasCore.Mosaic
         private struct GenerateTerrainMeshDataJob : IJobParallelForDefer
         {
 	        [ReadOnly]
-	        public ComponentLookup<TilemapRendererData> TilemapRendererDataLookup;
+	        public ComponentLookup<TilemapTransform> TilemapTransformLookup;
 	        [ReadOnly]
 	        public ComponentLookup<TerrainData> TerrainDataLookup;
 	        
@@ -251,7 +251,7 @@ namespace KrasCore.Mosaic
 		        var hash = HashesToUpdate[index];
 		        var meshData = MeshDataArray[index];
 		        ref var terrainData = ref Terrains.GetValueAsRef(hash);
-		        var rendererData = TilemapRendererDataLookup[terrainData.TerrainEntity];
+		        var rendererData = TilemapTransformLookup[terrainData.TerrainEntity];
 		        var tileSize = TerrainDataLookup[terrainData.TerrainEntity].TileSize;
 
 		        var quadCount = terrainData.RawTilesToBlend.Count;

@@ -116,7 +116,7 @@ namespace KrasCore.Mosaic
             
             state.Dependency = new GenerateIntGridMeshDataJob
             {
-	            TilemapRendererDataLookup = SystemAPI.GetComponentLookup<TilemapRendererData>(true),
+	            TilemapTransformLookup = SystemAPI.GetComponentLookup<TilemapTransform>(true),
 	            Layout = singleton.Layout,
 	            Tilemaps = singleton.Tilemaps,
 	            HashesToUpdate = singleton.HashesToUpdate.AsDeferredJobArray(),
@@ -185,7 +185,7 @@ namespace KrasCore.Mosaic
         private struct GenerateIntGridMeshDataJob : IJobParallelForDefer
         {
 	        [ReadOnly]
-	        public ComponentLookup<TilemapRendererData> TilemapRendererDataLookup;
+	        public ComponentLookup<TilemapTransform> TilemapTransformLookup;
 	        
 	        [ReadOnly]
 	        public NativeArray<VertexAttributeDescriptor> Layout;
@@ -203,7 +203,7 @@ namespace KrasCore.Mosaic
 		        var hash = HashesToUpdate[index];
 		        var meshData = MeshDataArray[index];
 		        ref var intGrid = ref Tilemaps.GetValueAsRef(hash);
-		        var rendererData = TilemapRendererDataLookup[intGrid.IntGridEntity];
+		        var rendererData = TilemapTransformLookup[intGrid.IntGridEntity];
 		     
 				var quadCount = intGrid.SpriteMeshes.Count;
                 

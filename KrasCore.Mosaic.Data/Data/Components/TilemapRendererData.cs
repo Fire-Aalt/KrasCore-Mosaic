@@ -9,11 +9,15 @@ namespace KrasCore.Mosaic.Data
     public struct TilemapRendererData : IComponentData
     {
         public Hash128 MeshHash;
-        public Entity GridEntity;
         
         public RenderingLayerMask RenderingLayerMask;
         public ShadowCastingMode ShadowCastingMode;
         public bool ReceiveShadows;
+    }
+    
+    public struct TilemapTransform : IComponentData
+    {
+        public Entity GridEntity;
         
         public float3 CellSize;
         public Orientation Orientation;

@@ -10,8 +10,16 @@ namespace KrasCore.Mosaic.Authoring
 {
     public static class BakerUtils
     {
-        public static void AddRenderingData(IBaker baker, Entity entity, Hash128 meshHash, RenderingData renderingData,
-            GridAuthoring gridAuthoring, RefSprite refSprite)
+        public static void AddTilemapTransform(IBaker baker, Entity entity, RenderingData renderingData, GridAuthoring gridAuthoring)
+        {
+            baker.AddComponent(entity, new TilemapTransform
+            {
+                GridEntity = baker.GetEntity(gridAuthoring, TransformUsageFlags.None),
+                Orientation = renderingData.orientation,
+            });
+        }
+        
+        public static void AddRenderingData(IBaker baker, Entity entity, Hash128 meshHash, RenderingData renderingData, RefSprite refSprite)
         {
             if (renderingData.material == null)
             {
@@ -21,11 +29,9 @@ namespace KrasCore.Mosaic.Authoring
             baker.AddComponent(entity, new TilemapRendererData
             {
                 MeshHash = meshHash,
-                GridEntity = baker.GetEntity(gridAuthoring, TransformUsageFlags.None),
                 RenderingLayerMask = renderingData.renderingLayerMask,
                 ShadowCastingMode = renderingData.shadowCastingMode,
                 ReceiveShadows = renderingData.receiveShadows,
-                Orientation = renderingData.orientation,
             });
             
             baker.AddComponent(entity, new RuntimeMaterialLookup(renderingData.material, refSprite.Sprite));

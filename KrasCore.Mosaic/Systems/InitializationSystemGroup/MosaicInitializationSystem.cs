@@ -113,7 +113,7 @@ namespace KrasCore.Mosaic
             [ReadOnly]
             public ComponentLookup<GridData> GridDataLookup;
             
-            private void Execute(ref TilemapRendererData rendererData)
+            private void Execute(ref TilemapTransform rendererData)
             {
                 var gridData = GridDataLookup[rendererData.GridEntity];
                 rendererData.Swizzle = gridData.Swizzle;

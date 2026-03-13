@@ -76,7 +76,7 @@ namespace KrasCore.Mosaic.Data
             };
         }
         
-        public static float3 ToWorldSpace(float2 pos, TilemapRendererData rendererData)
+        public static float3 ToWorldSpace(float2 pos, TilemapTransform rendererData)
         {
             return ApplySwizzle(pos, rendererData.Swizzle) * ApplySwizzle(rendererData.CellSize, rendererData.Swizzle);
         }

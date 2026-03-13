@@ -59,10 +59,12 @@ namespace KrasCore.Mosaic.Authoring
                 var tileSize = float2.zero;
                 for (int i = 0; i < intGridLayersEntities.Length; i++)
                 {
-                    BakerUtils.AddIntGridLayerData(this, intGridLayersEntities[i], authoring.intGridLayers[i],
-                        refSprite, true, ref tilePivot, ref tileSize);
+                    var intGridLayerEntity = intGridLayersEntities[i];
+                    
+                    BakerUtils.AddTilemapTransform(this, intGridLayerEntity, authoring.renderingData, gridAuthoring);
+                    BakerUtils.AddIntGridLayerData(this, intGridLayerEntity, authoring.intGridLayers[i], refSprite, true, ref tilePivot, ref tileSize);
                     layersBuffer.Add(new TilemapTerrainLayerElement { IntGridHash = authoring.intGridLayers[i].Hash });
-                    AddComponent(intGridLayersEntities[i], new Data.TerrainLayer { TerrainEntity = entity });
+                    AddComponent(intGridLayerEntity, new Data.TerrainLayer { TerrainEntity = entity });
                 }
 
                 // The system ensures that IntGrids are not shared, so we can just use the first one as hash
@@ -76,7 +78,8 @@ namespace KrasCore.Mosaic.Authoring
                     MaxLayersBlend = authoring.maxLayersBlend,
                 });
 
-                BakerUtils.AddRenderingData(this, entity, terrainHash, authoring.renderingData, gridAuthoring, refSprite);
+                BakerUtils.AddTilemapTransform(this, entity, authoring.renderingData, gridAuthoring);
+                BakerUtils.AddRenderingData(this, entity, terrainHash, authoring.renderingData, refSprite);
             }
         }
     }

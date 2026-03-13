@@ -58,7 +58,7 @@ namespace KrasCore.Mosaic
                 var cell = currentCommand.Position;
 
                 ref var dataLayer = ref _intGridLayers.GetValueAsRef(currentCommand.IntGridHash);
-                var rendererData = state.EntityManager.GetComponentData<TilemapRendererData>(dataLayer.IntGridEntity);
+                var rendererData = state.EntityManager.GetComponentData<TilemapTransform>(dataLayer.IntGridEntity);
                 
                 state.EntityManager.SetComponentData(instance, new LocalTransform
                 {

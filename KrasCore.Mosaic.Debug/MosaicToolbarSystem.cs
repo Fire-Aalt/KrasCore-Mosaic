@@ -80,7 +80,7 @@ namespace KrasCore.Mosaic.Debug
             state.Dependency = new DrawIntGridJob
             {
                 Drawer = drawer,
-                TilemapRendererDataLookup = SystemAPI.GetComponentLookup<TilemapRendererData>(true),
+                TilemapTransformLookup = SystemAPI.GetComponentLookup<TilemapTransform>(true),
                 TilemapTerrainLayerLookup = SystemAPI.GetComponentLookup<TerrainLayer>(true),
                 SelectedIndices = data.IntGridValues.Value.ToArray(state.WorldUpdateAllocator),
                 IntGridsBuffer = _intGridsBuffer.AsArray(),
@@ -96,7 +96,7 @@ namespace KrasCore.Mosaic.Debug
             public Drawer Drawer;
 
             [ReadOnly]
-            public ComponentLookup<TilemapRendererData> TilemapRendererDataLookup;
+            public ComponentLookup<TilemapTransform> TilemapTransformLookup;
             [ReadOnly]
             public ComponentLookup<TerrainLayer> TilemapTerrainLayerLookup;
             
@@ -113,15 +113,15 @@ namespace KrasCore.Mosaic.Debug
                 var key = IntGridsBuffer[SelectedIndices[index]].IntGridHash;
                 var layer = IntGridLayers[key];
 
-                TilemapRendererData rendererData;
+                TilemapTransform rendererData;
                 if (layer.IsTerrainLayer)
                 {
                     var terrainEntity = TilemapTerrainLayerLookup[layer.IntGridEntity].TerrainEntity;
-                    rendererData = TilemapRendererDataLookup[terrainEntity];
+                    rendererData = TilemapTransformLookup[terrainEntity];
                 }
                 else
                 {
-                    rendererData = TilemapRendererDataLookup[layer.IntGridEntity];
+                    rendererData = TilemapTransformLookup[layer.IntGridEntity];
                 }
 
                 var rnd = new Random((uint)key.GetHashCode());
