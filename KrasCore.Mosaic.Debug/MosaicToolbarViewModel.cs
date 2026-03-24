@@ -8,7 +8,7 @@ using Unity.Properties;
 
 namespace KrasCore.Mosaic.Debug
 {
-    public partial class MosaicToolbarViewModel : SystemObservableObject<MosaicToolbarViewModel.Data>, IInitializable, IDisposable
+    public partial class MosaicToolbarViewModel : SystemObservableObject<MosaicToolbarViewModel.Data>, ILoadable
     {
         [CreateProperty]
         public UIArray<Data.IntGridName> IntGrids => Value.IntGrids;
@@ -20,12 +20,12 @@ namespace KrasCore.Mosaic.Debug
             set => SetProperty(Value.IntGridValues, value);
         }
         
-        public void Initialize()
+        public void Load()
         {
             Value.Initialize();
         }
 
-        public void Dispose()
+        public void Unload()
         {
             Value.Dispose();
         }
