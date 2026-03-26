@@ -30,7 +30,7 @@ namespace KrasCore.Mosaic.Debug
             
             _intGridsBuffer = new NativeList<MosaicToolbarViewModel.Data.IntGridName>(Allocator.Persistent);
             
-            state.RequireForUpdate<RuleEngineSystem.Singleton>();
+            state.RequireForUpdate<TilemapIntGridSingleton>();
         }
         
         public void OnDestroy(ref SystemState state)
@@ -68,7 +68,7 @@ namespace KrasCore.Mosaic.Debug
                 data.IntGrids = _intGridsBuffer;
             }
             
-            var singleton = SystemAPI.GetSingleton<RuleEngineSystem.Singleton>();
+            var singleton = SystemAPI.GetSingleton<TilemapIntGridSingleton>();
             
 #if BL_QUILL
             var drawer = SystemAPI.GetSingleton<DrawSystem.Singleton>().CreateDrawer();
@@ -106,7 +106,7 @@ namespace KrasCore.Mosaic.Debug
             public NativeArray<MosaicToolbarViewModel.Data.IntGridName> IntGridsBuffer;
             
             [ReadOnly]
-            public NativeHashMap<Hash128, RuleEngineSystem.IntGridLayer> IntGridLayers;
+            public NativeHashMap<Hash128, TilemapIntGridSingleton.IntGridLayer> IntGridLayers;
             
             public void Execute(int index)
             {

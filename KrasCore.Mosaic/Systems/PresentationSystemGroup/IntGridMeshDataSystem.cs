@@ -90,7 +90,7 @@ namespace KrasCore.Mosaic
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-	        var dataSingleton = SystemAPI.GetSingleton<RuleEngineSystem.Singleton>();
+	        var dataSingleton = SystemAPI.GetSingleton<TilemapIntGridSingleton>();
 	        var tcb = SystemAPI.GetSingleton<TilemapCommandBufferSingleton>();
 	        
 	        var singleton = SystemAPI.GetSingletonRW<Singleton>().ValueRW;
@@ -129,7 +129,7 @@ namespace KrasCore.Mosaic
         private partial struct FindHashesToUpdateJob : IJobEntity
         {
 	        [ReadOnly]
-	        public NativeHashMap<Hash128, RuleEngineSystem.IntGridLayer> IntGridLayers;
+	        public NativeHashMap<Hash128, TilemapIntGridSingleton.IntGridLayer> IntGridLayers;
             
 	        public bool CullingBoundsChanged;
 	        
@@ -160,7 +160,7 @@ namespace KrasCore.Mosaic
 	        [ReadOnly]
 	        public NativeArray<Hash128> HashesToUpdate;
 	        [ReadOnly]
-	        public NativeHashMap<Hash128, RuleEngineSystem.IntGridLayer> IntGridLayers;
+	        public NativeHashMap<Hash128, TilemapIntGridSingleton.IntGridLayer> IntGridLayers;
 	        [ReadOnly]
 	        public NativeHashMap<Hash128, Singleton.IntGrid> Tilemaps;
 

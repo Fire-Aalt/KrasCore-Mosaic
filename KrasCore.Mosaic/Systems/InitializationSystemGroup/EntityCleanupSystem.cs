@@ -25,8 +25,8 @@ namespace KrasCore.Mosaic
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            state.EntityManager.CompleteDependencyBeforeRO<RuleEngineSystem.Singleton>();
-            var dataSingleton = SystemAPI.GetSingletonRW<RuleEngineSystem.Singleton>().ValueRW;
+            state.EntityManager.CompleteDependencyBeforeRO<TilemapIntGridSingleton>();
+            var dataSingleton = SystemAPI.GetSingletonRW<TilemapIntGridSingleton>().ValueRW;
             
             foreach (var kvp in dataSingleton.IntGridLayers)
             {

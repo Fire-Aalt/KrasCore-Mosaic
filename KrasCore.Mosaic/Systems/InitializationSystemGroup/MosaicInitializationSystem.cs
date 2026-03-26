@@ -72,7 +72,7 @@ namespace KrasCore.Mosaic
             {
                 TilemapTerrainLayerTagLookup = SystemAPI.GetComponentLookup<Data.TerrainLayer>(true),
                 Tcb = SystemAPI.GetSingletonRW<TilemapCommandBufferSingleton>().ValueRW,
-                DataSingleton = SystemAPI.GetSingletonRW<RuleEngineSystem.Singleton>().ValueRW,
+                DataTilemapIntGridSingleton = SystemAPI.GetSingletonRW<TilemapIntGridSingleton>().ValueRW,
             }.Schedule(Dependency);
             
             Dependency = new UpdateTilemapRendererDataJob
@@ -89,14 +89,14 @@ namespace KrasCore.Mosaic
             public ComponentLookup<Data.TerrainLayer> TilemapTerrainLayerTagLookup;
             
             public TilemapCommandBufferSingleton Tcb;
-            public RuleEngineSystem.Singleton DataSingleton;
+            public TilemapIntGridSingleton DataTilemapIntGridSingleton;
             
             private void Execute(ref IntGridData intGridData, EnabledRefRW<IntGridData> enabled, Entity entity)
             {
                 var isTerrainLayer = TilemapTerrainLayerTagLookup.HasComponent(entity);
 
                 if (Tcb.TryRegisterIntGridLayer(intGridData.Hash) 
-                    && DataSingleton.TryRegisterIntGridLayer(intGridData, isTerrainLayer, entity))
+                    && DataTilemapIntGridSingleton.TryRegisterIntGridLayer(intGridData, isTerrainLayer, entity))
                 {
                     enabled.ValueRW = true;
                 }

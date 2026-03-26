@@ -11,13 +11,13 @@ namespace KrasCore.Mosaic
     public partial struct EntityInitializationSystem : ISystem
     {
         private NativeList<EntityCommand> _commandsList;
-        private NativeHashMap<Hash128, RuleEngineSystem.IntGridLayer> _intGridLayers;
+        private NativeHashMap<Hash128, TilemapIntGridSingleton.IntGridLayer> _intGridLayers;
         
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            state.EntityManager.CompleteDependencyBeforeRO<RuleEngineSystem.Singleton>();
-            var dataSingleton = SystemAPI.GetSingletonRW<RuleEngineSystem.Singleton>().ValueRW;
+            state.EntityManager.CompleteDependencyBeforeRO<TilemapIntGridSingleton>();
+            var dataSingleton = SystemAPI.GetSingletonRW<TilemapIntGridSingleton>().ValueRW;
             _commandsList = dataSingleton.EntityCommands.List;
             _intGridLayers = dataSingleton.IntGridLayers;
             
