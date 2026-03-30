@@ -103,14 +103,17 @@ inline void BlendLayers(
   float a_accumulated = 0.0;
   float3 rgb = 0.0;
   
-  [loop] for (uint index = indices.start_index; index < indices.end_index; ++index)
+  #if MOSAIC_BLEND_128
+  [unroll(10)]
+  #else
+  [unroll(5)]
+  #endif
+  for (uint index = indices.start_index; index < indices.end_index; ++index)
   {
     float2 uv;
     ComputeLayer(index, TileSize, BaseUV, uv);
     
     float4 layer = SAMPLE_TEXTURE2D(Texture, Sampler, uv);
-    // TODO: either remove or unroll loop
-    
     BlendColor(layer, a_accumulated, rgb);
   }
   BlendColor(DefaultBlendColor, a_accumulated, rgb);
