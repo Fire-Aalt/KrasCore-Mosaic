@@ -7,7 +7,7 @@ using UnityEngine;
 
 namespace KrasCore.Mosaic
 {
-    [UpdateInGroup(typeof(TilemapInitializationSystemGroup), OrderFirst = true)]
+    [UpdateInGroup(typeof(RuntimeBakingSystemGroup), OrderLast = true)]
     public partial class MosaicInitializationSystem : SystemBase
     {
         protected override void OnUpdate()
