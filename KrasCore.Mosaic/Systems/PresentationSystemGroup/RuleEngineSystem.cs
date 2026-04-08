@@ -114,10 +114,10 @@ namespace KrasCore.Mosaic
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             private bool TryClearAll(ref TilemapCommandBufferSingleton.IntGridLayer commandsLayer, ref TilemapIntGridSingleton.IntGridLayer dataLayer)
             {
-                if (!commandsLayer.ClearCommand.Value) return false;
+                if (!commandsLayer.ClearCommand) return false;
 
                 commandsLayer.SetCommands.Clear();
-                commandsLayer.ClearCommand.Value = false;
+                commandsLayer.ClearCommand = false;
                 
                 dataLayer.IntGrid.Clear();
                 dataLayer.RuleGrid.Clear();
