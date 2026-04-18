@@ -22,7 +22,7 @@ namespace KrasCore.Mosaic
             state.EntityManager.CreateSingleton(new TilemapIntGridSingleton
             {
                 IntGridLayers = new NativeHashMap<Hash128, TilemapIntGridSingleton.IntGridLayer>(256, Allocator.Persistent),
-                EntityCommands = new ParallelToListMapper<EntityCommand>(256, Allocator.Persistent)
+                EntityCommands = new NativeThreadToListMapper<EntityCommand>(256, Allocator.Persistent)
             });
             
             _query = SystemAPI.QueryBuilder()
@@ -177,7 +177,7 @@ namespace KrasCore.Mosaic
             
             [NativeDisableParallelForRestriction]
             public NativeHashMap<Hash128, TilemapIntGridSingleton.IntGridLayer> IntGridLayers;
-            public ParallelList<EntityCommand>.ThreadWriter EntityCommands;
+            public NativeThreadList<EntityCommand>.ThreadWriter EntityCommands;
             
             public uint Seed;
 

@@ -10,12 +10,12 @@ namespace KrasCore.Mosaic.Data
     {
         public struct IntGridLayer : IDisposable
         {
-            public UnsafeParallelList<SetCommand> SetCommands;
+            public UnsafeThreadList<SetCommand> SetCommands;
             public bool ClearCommand;
 
             public IntGridLayer(int capacity, Allocator allocator)
             {
-                SetCommands = new UnsafeParallelList<SetCommand>(capacity, allocator);
+                SetCommands = new UnsafeThreadList<SetCommand>(capacity, allocator);
                 ClearCommand = false;
             }
 
