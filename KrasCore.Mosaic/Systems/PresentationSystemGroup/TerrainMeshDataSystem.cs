@@ -214,7 +214,7 @@ namespace KrasCore.Mosaic
                     {
 	                    if (!CullingBounds.Contains(kvp.Key)) continue;
 	                    
-	                    ref var layers = ref terrainData.RawTilesToBlend.GetOrAddRef(kvp.Key);
+	                    ref var layers = ref terrainData.RawTilesToBlend.GetOrAddRefUnsafe(kvp.Key);
 
 	                    if (layers.Length == maxLayersBlend)
 	                    {
