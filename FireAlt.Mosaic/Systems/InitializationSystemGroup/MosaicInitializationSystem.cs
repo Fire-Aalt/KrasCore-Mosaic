@@ -22,6 +22,8 @@ namespace FireAlt.Mosaic
 
         protected override void OnUpdate()
         {
+            // Restore nonserialized registries after reload before cleanup or renderer registration uses them.
+            SystemAPI.GetSingletonRW<PresentationDataSingleton>().ValueRW.EnsureCreated(4);
             AssignRuntimeHashes(EntityManager);
             CleanupRenderers();
             var staleHashes = new NativeHashSet<Hash128>(

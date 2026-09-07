@@ -35,14 +35,7 @@ namespace FireAlt.Mosaic
 			_terrainMeshesToUpdate.Clear();
 
 			ref var presentationData = ref SystemAPI.GetSingletonRW<PresentationDataSingleton>().ValueRW;
-			if (presentationData.Value.Value == null)
-			{
-				presentationData = new PresentationDataSingleton(4);
-			}
-			else if (!presentationData.Value.Value.IsCreated)
-			{
-				presentationData.Value.Value.Init(4);
-			}
+			presentationData.EnsureCreated(4);
 
 			EntityManager.CompleteDependencyBeforeRW<IntGridMeshDataSystem.Singleton>();
 			EntityManager.CompleteDependencyBeforeRW<TerrainMeshDataSystem.Singleton>();

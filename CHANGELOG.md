@@ -1,3 +1,8 @@
+## [4.0.2] - 2026-09-07
+
+### Fixed
+* Domain reload clears the nonserialized `RenderingEntityMap` dictionary.
+
 ## [4.0.1] - 2026-08-27
 
 ### Fixed

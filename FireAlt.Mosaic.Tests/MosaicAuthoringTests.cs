@@ -38,6 +38,54 @@ namespace FireAlt.Mosaic.Tests
         private Material _material;
         private World _world;
 
+        [Test]
+        public void PresentationData_RestoresNonserializedRegistriesAfterReload()
+        {
+            var singleton = new PresentationDataSingleton(4);
+            try
+            {
+                var data = singleton.Value.Value;
+                data.MeshMap = null;
+                data.TerrainMap = null;
+                data.RenderingEntityMap = null;
+
+                singleton.EnsureCreated(4);
+
+                Assert.AreSame(data, singleton.Value.Value);
+                Assert.IsTrue(data.IsCreated);
+                var hash = new Unity.Entities.Hash128(1, 2, 3, 4);
+                var mesh = data.GetOrCreateMesh(hash);
+                data.RenderingEntityMap.Add(hash, Entity.Null);
+
+                singleton.EnsureCreated(4);
+
+                Assert.AreSame(mesh, data.GetOrCreateMesh(hash));
+                Assert.IsTrue(data.RenderingEntityMap.ContainsKey(hash));
+            }
+            finally
+            {
+                singleton.Dispose();
+            }
+        }
+
+        [Test]
+        public void PresentationData_RecreatesDestroyedObject()
+        {
+            var singleton = new PresentationDataSingleton(4);
+            Object.DestroyImmediate(singleton.Value.Value);
+            try
+            {
+                singleton.EnsureCreated(4);
+
+                Assert.IsNotNull(singleton.Value.Value);
+                Assert.IsTrue(singleton.Value.Value.IsCreated);
+            }
+            finally
+            {
+                singleton.Dispose();
+            }
+        }
+
         [SetUp]
         public void SetUp()
         {

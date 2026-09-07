@@ -18,6 +18,18 @@ namespace FireAlt.Mosaic
             Value = ScriptableObject.CreateInstance<PresentationDataObject>();
             Value.Value.Init(capacity);
         }
+
+        public void EnsureCreated(int capacity)
+        {
+            if (Value.Value == null)
+            {
+                this = new PresentationDataSingleton(capacity);
+            }
+            else if (!Value.Value.IsCreated)
+            {
+                Value.Value.Init(capacity);
+            }
+        }
 			
         [BurstDiscard]
         public void Dispose()
