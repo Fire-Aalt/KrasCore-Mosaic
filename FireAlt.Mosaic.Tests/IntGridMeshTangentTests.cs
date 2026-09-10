@@ -32,7 +32,7 @@ namespace FireAlt.Mosaic.Tests
                     rotation, orientation);
                 var minUv = new float2(flipX ? 1 : 0, flipY ? 1 : 0);
                 var maxUv = new float2(flipX ? 0 : 1, flipY ? 0 : 1);
-                var tangent = IntGridMeshDataSystem.CalculateTangent(
+                var tangent = MosaicUtils.CalculateTangent(
                     normal, up, up + right, float3.zero, minUv, maxUv);
                 var expectedTangent = right * (flipX ? -1 : 1);
                 var expectedBitangent = up * (flipY ? -1 : 1);
@@ -41,6 +41,33 @@ namespace FireAlt.Mosaic.Tests
                 Assert.That(math.dot(tangent.xyz, expectedTangent), Is.EqualTo(1).Within(0.0001f));
                 Assert.That(math.dot(actualBitangent, expectedBitangent), Is.EqualTo(1).Within(0.0001f));
                 Assert.That(math.dot(normal, tangent.xyz), Is.EqualTo(0).Within(0.0001f));
+            }
+        }
+
+        [Test]
+        public void TerrainTangentLayoutAndBasisMatchQuadGeometryAndUvs()
+        {
+            var singleton = new TerrainMeshDataSystem.Singleton(1, Allocator.Persistent);
+            try
+            {
+                Assert.That(singleton.Layout.Length, Is.EqualTo(4));
+                Assert.That(singleton.Layout[2].attribute, Is.EqualTo(VertexAttribute.Tangent));
+                Assert.That(singleton.Layout[2].dimension, Is.EqualTo(4));
+            }
+            finally { singleton.Dispose(); }
+
+            foreach (var orientation in new[] { Orientation.XY, Orientation.XZ })
+            {
+                var normal = MosaicUtils.ApplyOrientation(new float3(0, 0, 1), orientation);
+                var up = MosaicUtils.ApplyOrientation(new float3(0, 1, 0), orientation);
+                var right = MosaicUtils.ApplyOrientation(new float3(1, 0, 0), orientation);
+                var tangent = MosaicUtils.CalculateTangent(
+                    normal, up, up + right, float3.zero, float2.zero, new float2(1));
+                var bitangent = math.cross(normal, tangent.xyz) * tangent.w;
+
+                Assert.That(math.dot(tangent.xyz, right), Is.EqualTo(1).Within(0.0001f));
+                Assert.That(math.dot(bitangent, up), Is.EqualTo(1).Within(0.0001f));
+                Assert.That(tangent.w, Is.EqualTo(-1));
             }
         }
     }

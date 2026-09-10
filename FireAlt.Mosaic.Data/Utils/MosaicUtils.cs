@@ -79,6 +79,15 @@ namespace FireAlt.Mosaic.Data
         {
             return ApplySwizzle(pos, rendererData.Swizzle) * ApplySwizzle(rendererData.CellSize, rendererData.Swizzle);
         }
+
+        internal static float4 CalculateTangent(float3 normal, float3 vertex0, float3 vertex1,
+            float3 vertex3, float2 minUv, float2 maxUv)
+        {
+            var tangent = math.normalizesafe(vertex1 - vertex0) * math.sign(maxUv.x - minUv.x);
+            var bitangent = math.normalizesafe(vertex0 - vertex3) * math.sign(maxUv.y - minUv.y);
+            var handedness = math.dot(math.cross(normal, tangent), bitangent) < 0 ? -1f : 1f;
+            return new float4(tangent, handedness);
+        }
         
         public static float3 ApplySwizzle(float2 pos, Swizzle swizzle)
         {

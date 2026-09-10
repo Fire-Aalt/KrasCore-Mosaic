@@ -67,10 +67,11 @@ namespace FireAlt.Mosaic
 
 	        public Singleton(int capacity, Allocator allocator)
 	        {
-	            Layout = new NativeArray<VertexAttributeDescriptor>(3, allocator);
+	            Layout = new NativeArray<VertexAttributeDescriptor>(4, allocator);
 	            Layout[0] = new VertexAttributeDescriptor(VertexAttribute.Position);
 	            Layout[1] = new VertexAttributeDescriptor(VertexAttribute.Normal);
-	            Layout[2] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 2);
+	            Layout[2] = new VertexAttributeDescriptor(VertexAttribute.Tangent, VertexAttributeFormat.Float32, 4);
+	            Layout[3] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 2);
 
 	            HashesToUpdate = new NativeList<Hash128>(capacity, allocator);
 	            MeshDataArray = default;
@@ -319,6 +320,8 @@ namespace FireAlt.Mosaic
 			        
 			        var minVertexPos = worldPos;
 			        var maxVertexPos = worldPos + up + right;
+			        var tangent = MosaicUtils.CalculateTangent(normal, worldPos + up, maxVertexPos, minVertexPos,
+			            float2.zero, tileSize);
 
 			        minPos = math.min(minPos, minVertexPos);
 			        maxPos = math.max(maxPos, maxVertexPos);
@@ -327,24 +330,28 @@ namespace FireAlt.Mosaic
 			        {
 				        Position = worldPos + up,
 				        Normal = normal,
+				        Tangent = tangent,
 				        TexCoord0 = new float2(0f, tileSize.y)
 			        };
 			        vertices[vc + 1] = new Vertex
 			        {
 				        Position = maxVertexPos,
 				        Normal = normal,
+				        Tangent = tangent,
 				        TexCoord0 = new float2(tileSize.x, tileSize.y)
 			        };
 			        vertices[vc + 2] = new Vertex
 			        {
 				        Position = worldPos + right,
 				        Normal = normal,
+				        Tangent = tangent,
 				        TexCoord0 = new float2(tileSize.x, 0f)
 			        };
 			        vertices[vc + 3] = new Vertex
 			        {
 				        Position = minVertexPos,
 				        Normal = normal,
+				        Tangent = tangent,
 				        TexCoord0 = new float2(0f, 0f)
 			        };
 
@@ -399,6 +406,7 @@ namespace FireAlt.Mosaic
 	    {
 		    public float3 Position;
 		    public float3 Normal;
+		    public float4 Tangent;
 		    public float2 TexCoord0;
 	    }
     }

@@ -266,7 +266,7 @@ namespace FireAlt.Mosaic
 			        var vertex1 = worldPos + MosaicUtils.Rotate(up + right - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint;
 			        var vertex2 = worldPos + MosaicUtils.Rotate(right - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint;
 			        var vertex3 = worldPos + MosaicUtils.Rotate(-pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint;
-			        var tangent = CalculateTangent(normal, vertex0, vertex1, vertex3, minUv, maxUv);
+			        var tangent = MosaicUtils.CalculateTangent(normal, vertex0, vertex1, vertex3, minUv, maxUv);
 
 			        minPos = math.min(minPos, math.min(math.min(vertex0, vertex1), math.min(vertex2, vertex3)));
 			        maxPos = math.max(maxPos, math.max(math.max(vertex0, vertex1), math.max(vertex2, vertex3)));
@@ -336,15 +336,6 @@ namespace FireAlt.Mosaic
 	        }
         }
 
-	    internal static float4 CalculateTangent(float3 normal, float3 vertex0, float3 vertex1,
-		    float3 vertex3, float2 minUv, float2 maxUv)
-	    {
-		    var tangent = math.normalizesafe(vertex1 - vertex0) * math.sign(maxUv.x - minUv.x);
-		    var bitangent = math.normalizesafe(vertex0 - vertex3) * math.sign(maxUv.y - minUv.y);
-		    var handedness = math.dot(math.cross(normal, tangent), bitangent) < 0 ? -1f : 1f;
-		    return new float4(tangent, handedness);
-	    }
-        
 		[StructLayout(LayoutKind.Sequential)]
 	    private struct Vertex
 	    {
