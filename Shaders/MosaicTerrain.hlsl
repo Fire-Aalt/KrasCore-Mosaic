@@ -32,23 +32,46 @@ inline float2 Flip(float2 uv, float flip_x, float flip_y, float2 rect_size) {
   return t2 * rect_size;
 }
 
-// rot: 0,1,2,3 -> 0°,90°,180°,270° (CCW)
+// Match the source-tile mesh rotation in the default XZ terrain basis. The
+// terrain mesh stays axis aligned, so this rotates the sampled source UV into
+// that mesh.
 inline float2 Rotate90(float2 uv, uint rot, float2 rect_size) {
   float2 t = uv / rect_size;
   rot &= 3u;
-  uint sw = rot & 1u;
-  uint fb = (rot >> 1u) & 1u;
 
-  float2 c = float2(0.5, 0.5);
-  float2 v = lerp(t - c, (t - c).yx, (float)sw);
+  if (rot == 1u)
+    return float2(1.0 - t.y, t.x) * rect_size;
+  if (rot == 2u)
+    return float2(1.0 - t.x, 1.0 - t.y) * rect_size;
+  if (rot == 3u)
+    return float2(t.y, 1.0 - t.x) * rect_size;
+  return uv;
+}
 
-  float2 s = float2(
-      1.0 - 2.0 * (float)(sw ^ fb),
-      1.0 - 2.0 * (float)fb
-  );
+// The sampled normal is expressed in the rotated source UV basis. Convert it
+// back into the axis-aligned terrain basis with the inverse UV rotation. This
+// is the normal-space counterpart of Rotate90 above.
+inline float2 RotateNormalXY(float2 normal_xy, uint rot) {
+  rot &= 3u;
 
-  float2 t2 = v * s + c;
-  return t2 * rect_size;
+  if (rot == 1u)
+    return float2(normal_xy.y, -normal_xy.x);
+  if (rot == 2u)
+    return -normal_xy;
+  if (rot == 3u)
+    return float2(-normal_xy.y, normal_xy.x);
+  return normal_xy;
+}
+
+// Unity's normal-map import can decode the generated neutral 128/255 channel
+// into the neighbouring signed 8-bit bin. Keep a neutral layer neutral so a
+// random result mirror cannot turn that representation error into lighting.
+inline float3 DecodeTerrainNormal(float4 packed_normal) {
+  float3 normal = UnpackNormal(packed_normal);
+  const float center_bin = 1.0 / 255.0;
+  if (all(abs(normal.xy) <= center_bin))
+    return float3(0.0, 0.0, 1.0);
+  return normal;
 }
 
 // Read all params for an id
@@ -118,19 +141,15 @@ inline void BlendLayers(
     ComputeLayer(index, TileSize, BaseUV, uv);
     
     float4 layer = SAMPLE_TEXTURE2D(Texture, Sampler, uv);
-    float3 layer_normal = UnpackNormal(SAMPLE_TEXTURE2D(NormalTexture, NormalSampler, uv));
+    float3 layer_normal = DecodeTerrainNormal(
+      SAMPLE_TEXTURE2D(NormalTexture, NormalSampler, uv));
 
     uint flags = _TerrainTileBuffer[index].flags;
     float2 flip = float2(GetFlipX(flags), GetFlipY(flags));
     layer_normal.xy *= 1.0 - 2.0 * flip;
 
     uint rot = GetRot(flags);
-    uint swap = rot & 1u;
-    uint reverse = (rot >> 1u) & 1u;
-    layer_normal.xy = lerp(layer_normal.xy, layer_normal.yx, (float)swap) * float2(
-      1.0 - 2.0 * (float)reverse,
-      1.0 - 2.0 * (float)(swap ^ reverse)
-    );
+    layer_normal.xy = RotateNormalXY(layer_normal.xy, rot);
 
     float normal_weight = (1.0 - a_accumulated) * saturate(layer.a);
     normal_accumulated += layer_normal * normal_weight;
