@@ -49,10 +49,11 @@ namespace FireAlt.Mosaic
 		    
 		    public Singleton(int capacity, Allocator allocator)
 		    {
-			    Layout = new NativeArray<VertexAttributeDescriptor>(3, Allocator.Persistent);
+			    Layout = new NativeArray<VertexAttributeDescriptor>(4, Allocator.Persistent);
 			    Layout[0] = new VertexAttributeDescriptor(VertexAttribute.Position);
 			    Layout[1] = new VertexAttributeDescriptor(VertexAttribute.Normal);
-			    Layout[2] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 2);
+			    Layout[2] = new VertexAttributeDescriptor(VertexAttribute.Tangent, VertexAttributeFormat.Float32, 4);
+			    Layout[3] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 2);
 
 			    HashesToUpdate = new NativeList<Hash128>(capacity, allocator);
 			    MeshDataArray = default;
@@ -265,6 +266,7 @@ namespace FireAlt.Mosaic
 			        var vertex1 = worldPos + MosaicUtils.Rotate(up + right - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint;
 			        var vertex2 = worldPos + MosaicUtils.Rotate(right - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint;
 			        var vertex3 = worldPos + MosaicUtils.Rotate(-pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint;
+			        var tangent = CalculateTangent(normal, vertex0, vertex1, vertex3, minUv, maxUv);
 
 			        minPos = math.min(minPos, math.min(math.min(vertex0, vertex1), math.min(vertex2, vertex3)));
 			        maxPos = math.max(maxPos, math.max(math.max(vertex0, vertex1), math.max(vertex2, vertex3)));
@@ -273,6 +275,7 @@ namespace FireAlt.Mosaic
         			{
 					        Position = vertex0,
 				        Normal = normal,
+				        Tangent = tangent,
         				TexCoord0 = new float2(minUv.x, maxUv.y)
         			};
 
@@ -280,6 +283,7 @@ namespace FireAlt.Mosaic
         			{
 					        Position = vertex1,
 				        Normal = normal,
+				        Tangent = tangent,
         				TexCoord0 = new float2(maxUv.x, maxUv.y)
         			};
 
@@ -287,6 +291,7 @@ namespace FireAlt.Mosaic
         			{
 					        Position = vertex2,
 				        Normal = normal,
+				        Tangent = tangent,
         				TexCoord0 = new float2(maxUv.x, minUv.y)
         			};
 
@@ -294,6 +299,7 @@ namespace FireAlt.Mosaic
         			{
 					        Position = vertex3,
 				        Normal = normal,
+				        Tangent = tangent,
         				TexCoord0 = new float2(minUv.x, minUv.y)
         			};
 				        
@@ -309,8 +315,8 @@ namespace FireAlt.Mosaic
 		        }
 		        
 		        FinalizeMeshData(hash, meshData, indexCount, maxPos, minPos);
-        	}
-	        
+	        }
+
 	        private void PrepareMeshData(Mesh.MeshData meshData, int vertexCount, int indexCount)
 	        {
 		        meshData.SetVertexBufferParams(vertexCount, Layout);
@@ -329,12 +335,22 @@ namespace FireAlt.Mosaic
 		        });
 	        }
         }
+
+	    internal static float4 CalculateTangent(float3 normal, float3 vertex0, float3 vertex1,
+		    float3 vertex3, float2 minUv, float2 maxUv)
+	    {
+		    var tangent = math.normalizesafe(vertex1 - vertex0) * math.sign(maxUv.x - minUv.x);
+		    var bitangent = math.normalizesafe(vertex0 - vertex3) * math.sign(maxUv.y - minUv.y);
+		    var handedness = math.dot(math.cross(normal, tangent), bitangent) < 0 ? -1f : 1f;
+		    return new float4(tangent, handedness);
+	    }
         
 		[StructLayout(LayoutKind.Sequential)]
 	    private struct Vertex
 	    {
 	        public float3 Position;
 	        public float3 Normal;
+	        public float4 Tangent;
 	        public float2 TexCoord0;
 	    }
     }

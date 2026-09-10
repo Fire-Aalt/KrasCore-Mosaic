@@ -1,11 +1,11 @@
-// Made with Amplify Shader Editor v1.9.9.6
+// Made with Amplify Shader Editor v1.9.9.12
 // Available at the Unity Asset Store - http://u3d.as/y3X 
 Shader "TerrainShader"
 {
 	Properties
 	{
-		[HideInInspector] _EmissionColor("Emission Color", Color) = (1,1,1,1)
 		_MainTex( "MainTex", 2D ) = "white" {}
+		_NormalMap( "NormalMap", 2D ) = "white" {}
 		_TileSize( "TileSize", Vector ) = ( 1, 1, 0, 0 )
 		_DefaultBlendColor( "DefaultBlendColor", Color ) = ( 0, 0, 0, 1 )
 
@@ -29,6 +29,8 @@ Shader "TerrainShader"
 
 		[ToggleOff(_SPECULARHIGHLIGHTS_OFF)] _SpecularHighlights("Specular Highlights", Float) = 1.0
 		[ToggleOff] _EnvironmentReflections("Environment Reflections", Float) = 1.0
+		[ToggleOff] _ScreenSpaceReflections("Screen Space Reflections", Float) = 1.0
+		[ToggleOff] _ScreenSpaceReflectionsContributeTransparent("Screen Space Reflections Contribute Transparent", Float) = 1.0
 		[HideInInspector][ToggleUI] _ReceiveShadows("Receive Shadows", Float) = 1.0
 
 		[HideInInspector] _QueueOffset("_QueueOffset", Float) = 0
@@ -39,7 +41,6 @@ Shader "TerrainShader"
         [HideInInspector][NoScaleOffset] unity_ShadowMasks("unity_ShadowMasks", 2DArray) = "" {}
 
 		//[HideInInspector][ToggleUI] _AddPrecomputedVelocity("Add Precomputed Velocity", Float) = 1
-
 		//[HideInInspector] _XRMotionVectorsPass("_XRMotionVectorsPass", Float) = 1
 
 		//[HideInInspector] _AlphaClip("__clip", Float) = 0.0
@@ -47,13 +48,18 @@ Shader "TerrainShader"
 
 	SubShader
 	{
-		LOD 0
+		PackageRequirements
+		{
+			"com.unity.render-pipelines.universal": "[17.0,18.0]"
+		}
 
 		
 
 		
 
 		Tags { "RenderPipeline"="UniversalPipeline" "RenderType"="Opaque" "Queue"="Geometry" "UniversalMaterialType"="Lit" }
+
+	LOD 0
 
 		Cull Back
 		ZWrite On
@@ -68,12 +74,10 @@ Shader "TerrainShader"
 		#pragma prefer_hlslcc gles
 		// ensure rendering platforms toggle list is visible
 
-		#if ( SHADER_TARGET > 35 ) && defined( SHADER_API_GLES3 )
-			#error For WebGL2/GLES3, please set your shader target to 3.5 via SubShader options. URP shaders in ASE use target 4.5 by default.
-		#endif
-
 		#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
 		#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Filtering.hlsl"
+
+		#define ASE_ADJUST_CLIP_POSITION( x ) x
 
 		#ifndef ASE_TESS_FUNCS
 		#define ASE_TESS_FUNCS
@@ -203,8 +207,9 @@ Shader "TerrainShader"
 			#pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define ASE_FOG 1
-			#define ASE_VERSION 19906
-			#define ASE_SRP_VERSION 170300
+			#define _NORMALMAP 1
+			#define ASE_VERSION 19912
+			#define ASE_SRP_VERSION 170600
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
 
@@ -215,20 +220,42 @@ Shader "TerrainShader"
 			#pragma multi_compile_fragment _ _ADDITIONAL_LIGHT_SHADOWS
 			#pragma multi_compile_fragment _ _REFLECTION_PROBE_BLENDING
 			#pragma multi_compile_fragment _ _REFLECTION_PROBE_BOX_PROJECTION
+			#if ( UNITY_VERSION >= 60010000 )
 			#pragma multi_compile_fragment _ _REFLECTION_PROBE_ATLAS
+			#endif
+
+			#if defined(UNITY_PLATFORM_META_QUEST) && ( UNITY_VERSION >= 60050000 )
+            #pragma multi_compile _ META_QUEST_LIGHTUNROLL
+            #endif
+
 			#pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
+			#if ( UNITY_VERSION >= 60030000 )
 			#pragma multi_compile_fragment _ _SCREEN_SPACE_IRRADIANCE
+			#endif
 			#pragma multi_compile_fragment _ _DBUFFER_MRT1 _DBUFFER_MRT2 _DBUFFER_MRT3
 			#pragma multi_compile _ _LIGHT_LAYERS
 			#pragma multi_compile_fragment _ _LIGHT_COOKIES
+			#if ( UNITY_VERSION >= 60010000 )
 			#pragma multi_compile _ _CLUSTER_LIGHT_LOOP
+			#else
+			#pragma multi_compile _ _FORWARD_PLUS
+			#endif
+
+            #if defined(UNITY_PLATFORM_META_QUEST) && ( UNITY_VERSION >= 60050000 )
+            #pragma multi_compile _ META_QUEST_ORTHO_PROJ
+            #pragma multi_compile _ META_QUEST_NO_SPOTLIGHTS_LIGHT_LOOP
+            #endif
 
 			#pragma multi_compile _ LIGHTMAP_SHADOW_MIXING
 			#pragma multi_compile _ SHADOWS_SHADOWMASK
 			#pragma multi_compile _ DIRLIGHTMAP_COMBINED
 			#pragma multi_compile _ LIGHTMAP_ON
-			#pragma multi_compile_fragment _ LIGHTMAP_BICUBIC_SAMPLING
+			#if ( UNITY_VERSION >= 60010000 )
+			#pragma multi_compile _ LIGHTMAP_BICUBIC_SAMPLING
+			#endif
+			#if ( UNITY_VERSION >= 60030000 )
 			#pragma multi_compile_fragment _ REFLECTION_PROBE_ROTATION
+			#endif
 			#pragma multi_compile _ DYNAMICLIGHTMAP_ON
 			#pragma multi_compile _ USE_LEGACY_LIGHTMAPS
 
@@ -247,7 +274,11 @@ Shader "TerrainShader"
 
 			#include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DOTS.hlsl"
 			#include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/RenderingLayers.hlsl"
+			#if ( UNITY_VERSION >= 60010000 )
 			#include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Fog.hlsl"
+			#else
+			#pragma multi_compile_fog
+			#endif
 			#include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/ProbeVolumeVariants.hlsl"
 			#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Color.hlsl"
 			#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Texture.hlsl"
@@ -276,12 +307,17 @@ Shader "TerrainShader"
 			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 
 
-			#if defined(ASE_EARLY_Z_DEPTH_OPTIMIZE) && (SHADER_TARGET >= 45)
+			#if defined(ASE_WRITE_DEPTH_CONSERVATIVE) && (SHADER_TARGET >= 45)
 				#define ASE_SV_DEPTH SV_DepthLessEqual
 				#define ASE_SV_POSITION_QUALIFIERS linear noperspective centroid
 			#else
 				#define ASE_SV_DEPTH SV_Depth
 				#define ASE_SV_POSITION_QUALIFIERS
+			#endif
+
+			#if ( UNITY_VERSION < 60010000 )
+				#define USE_CLUSTER_LIGHT_LOOP USE_FORWARD_PLUS
+				#define CLUSTER_LIGHT_LOOP_SUBTRACTIVE_LIGHT_CHECK FORWARD_PLUS_SUBTRACTIVE_LIGHT_CHECK
 			#endif
 
 			struct Attributes
@@ -357,7 +393,9 @@ Shader "TerrainShader"
 			#endif
 
 			TEXTURE2D(_MainTex);
+			TEXTURE2D(_NormalMap);
 			SAMPLER(sampler_MainTex);
+			SAMPLER(sampler_NormalMap);
 
 
 			
@@ -390,6 +428,11 @@ Shader "TerrainShader"
 				input.normalOS = input.normalOS;
 				input.tangentOS = input.tangentOS;
 
+				#ifdef ASE_CUSTOM_MOTION_VECTOR
+					// Declared so the Motion Vector output port surfaces on the master node; only consumed by the motion vector passes.
+					float3 aseCustomMotionVector = float3(0, 0, 0);
+				#endif
+
 				VertexPositionInputs vertexInput = GetVertexPositionInputs( input.positionOS.xyz );
 				VertexNormalInputs normalInput = GetVertexNormalInputs( input.normalOS, input.tangentOS );
 
@@ -410,7 +453,7 @@ Shader "TerrainShader"
 					#endif
 				#endif
 
-				output.positionCS = vertexInput.positionCS;
+				output.positionCS = ASE_ADJUST_CLIP_POSITION( vertexInput.positionCS );
 				output.positionWS = vertexInput.positionWS;
 				output.normalWS = normalInput.normalWS;
 				output.tangentWS = float4( normalInput.tangentWS, ( input.tangentOS.w > 0.0 ? 1.0 : -1.0 ) * GetOddNegativeScale() );
@@ -527,11 +570,15 @@ Shader "TerrainShader"
 			#endif
 
 			half4 frag ( PackedVaryings input
-						#if defined( ASE_DEPTH_WRITE_ON )
+						#if defined( ASE_WRITE_DEPTH )
 						,out float outputDepth : ASE_SV_DEPTH
 						#endif
 						#ifdef _WRITE_RENDERING_LAYERS
+						#if ( UNITY_VERSION >= 60020000 )
 						, out uint outRenderingLayers : SV_Target1
+						#else
+						, out float4 outRenderingLayers : SV_Target1
+						#endif
 						#endif
 						 ) : SV_Target
 			{
@@ -575,22 +622,25 @@ Shader "TerrainShader"
 					BitangentWS = cross(NormalWS, -TangentWS);
 				#endif
 
-				float localBlendLayers4_g27 = ( 0.0 );
-				int VertexID4_g27 = input.ase_texcoord7.x;
-				float2 TileSize4_g27 = _TileSize;
-				float2 BaseUV4_g27 = input.ase_texcoord7.yz;
-				float4 DefaultBlendColor4_g27 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g27) = _MainTex;
-				SamplerState Sampler4_g27 = sampler_MainTex;
-				float4 RGBA4_g27 = float4( 0,0,0,0 );
+				float localBlendLayers4_g30 = ( 0.0 );
+				int VertexID4_g30 = input.ase_texcoord7.x;
+				float2 TileSize4_g30 = _TileSize;
+				float2 BaseUV4_g30 = input.ase_texcoord7.yz;
+				float4 DefaultBlendColor4_g30 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g30) = _MainTex;
+				TEXTURE2D(NormalTexture4_g30) = _NormalMap;
+				SamplerState Sampler4_g30 = sampler_MainTex;
+				SamplerState NormalSampler4_g30 = sampler_NormalMap;
+				float4 RGBA4_g30 = float4( 0,0,0,0 );
+				float3 Normal4_g30 = float3( 0,0,0 );
 				{
-				BlendLayers(VertexID4_g27, TileSize4_g27, BaseUV4_g27, DefaultBlendColor4_g27, Texture4_g27, Sampler4_g27, RGBA4_g27);
+				BlendLayers(VertexID4_g30, TileSize4_g30, BaseUV4_g30, DefaultBlendColor4_g30, Texture4_g30, NormalTexture4_g30, Sampler4_g30, NormalSampler4_g30, RGBA4_g30, Normal4_g30);
 				}
-				float4 temp_output_2_0_g28 = RGBA4_g27;
+				float4 temp_output_2_0_g28 = RGBA4_g30;
 				
 
 				float3 BaseColor = (temp_output_2_0_g28).xyz;
-				float3 Normal = float3(0, 0, 1);
+				float3 Normal = Normal4_g30;
 				float3 Specular = 0.5;
 				float Metallic = 0;
 				float Smoothness = 0.5;
@@ -607,7 +657,7 @@ Shader "TerrainShader"
 				float3 Transmission = 1;
 				float3 Translucency = 1;
 
-				#if defined( ASE_DEPTH_WRITE_ON )
+				#if defined( ASE_WRITE_DEPTH )
 					input.positionCS.z = input.positionCS.z;
 				#endif
 
@@ -657,8 +707,12 @@ Shader "TerrainShader"
 					float3 SH = input.lightmapUVOrVertexSH.xyz;
 				#endif
 
-				#if defined(_SCREEN_SPACE_IRRADIANCE)
-					inputData.bakedGI = SAMPLE_GI(_ScreenSpaceIrradiance, input.positionCS.xy);
+				#if defined(_SCREEN_SPACE_IRRADIANCE) && ( UNITY_VERSION >= 60030000 )
+					#if ( UNITY_VERSION >= 60060000 )
+						inputData.bakedGI = SAMPLE_GI(_ScreenSpaceIrradiance, input.positionCS.xy, inputData.normalWS));
+					#else
+						inputData.bakedGI = SAMPLE_GI(_ScreenSpaceIrradiance, input.positionCS.xy);
+					#endif
 				#elif defined(DYNAMICLIGHTMAP_ON)
 					inputData.bakedGI = SAMPLE_GI(input.lightmapUVOrVertexSH.xy, input.dynamicLightmapUV.xy, SH, inputData.normalWS);
 					inputData.shadowMask = SAMPLE_SHADOWMASK(input.lightmapUVOrVertexSH.xy);
@@ -831,12 +885,17 @@ Shader "TerrainShader"
 					#endif
 				#endif
 
-				#if defined( ASE_DEPTH_WRITE_ON )
+				#if defined( ASE_WRITE_DEPTH )
 					outputDepth = input.positionCS.z;
 				#endif
 
 				#ifdef _WRITE_RENDERING_LAYERS
+					#if ( UNITY_VERSION >= 60020000 )
 					outRenderingLayers = EncodeMeshRenderingLayer();
+					#else
+					uint renderingLayers = GetMeshRenderingLayer();
+					outRenderingLayers = float4( EncodeMeshRenderingLayer( renderingLayers ), 0, 0, 0 );
+					#endif
 				#endif
 
 				#if defined( ASE_OPAQUE_KEEP_ALPHA )
@@ -866,13 +925,14 @@ Shader "TerrainShader"
 			#define _NORMAL_DROPOFF_TS 1
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define ASE_FOG 1
-			#define ASE_VERSION 19906
-			#define ASE_SRP_VERSION 170300
+			#define _NORMALMAP 1
+			#define ASE_VERSION 19912
+			#define ASE_SRP_VERSION 170600
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
 
 
-			#pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
+			#pragma multi_compile _ _CASTING_PUNCTUAL_LIGHT_SHADOW // @diogo: removed _vertex for POM node
 
 			#pragma vertex vert
 			#pragma fragment frag
@@ -909,7 +969,7 @@ Shader "TerrainShader"
 			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 
 
-			#if defined(ASE_EARLY_Z_DEPTH_OPTIMIZE) && (SHADER_TARGET >= 45)
+			#if defined(ASE_WRITE_DEPTH_CONSERVATIVE) && (SHADER_TARGET >= 45)
 				#define ASE_SV_DEPTH SV_DepthLessEqual
 				#define ASE_SV_POSITION_QUALIFIERS linear noperspective centroid
 			#else
@@ -972,7 +1032,9 @@ Shader "TerrainShader"
 			#endif
 
 			TEXTURE2D(_MainTex);
+			TEXTURE2D(_NormalMap);
 			SAMPLER(sampler_MainTex);
+			SAMPLER(sampler_NormalMap);
 
 
 			float3 _LightDirection;
@@ -1017,7 +1079,7 @@ Shader "TerrainShader"
 					float3 lightDirectionWS = _LightDirection;
 				#endif
 
-				float4 positionCS = TransformWorldToHClip(ApplyShadowBias(positionWS, normalWS, lightDirectionWS));
+				float4 positionCS = ASE_ADJUST_CLIP_POSITION( TransformWorldToHClip(ApplyShadowBias(positionWS, normalWS, lightDirectionWS)) );
 
 				//code for UNITY_REVERSED_Z is moved into Shadows.hlsl from 6000.0.22 and or higher
 				positionCS = ApplyShadowClamping(positionCS);
@@ -1114,7 +1176,7 @@ Shader "TerrainShader"
 			#endif
 
 			half4 frag(	PackedVaryings input
-						#if defined( ASE_DEPTH_WRITE_ON )
+						#if defined( ASE_WRITE_DEPTH )
 						,out float outputDepth : ASE_SV_DEPTH
 						#endif
 						 ) : SV_Target
@@ -1135,18 +1197,21 @@ Shader "TerrainShader"
 				float4 ClipPos = ComputeClipSpacePosition( ScreenPosNorm.xy, input.positionCS.z ) * input.positionCS.w;
 				float4 ScreenPos = ComputeScreenPos( ClipPos );
 
-				float localBlendLayers4_g27 = ( 0.0 );
-				int VertexID4_g27 = input.ase_texcoord1.x;
-				float2 TileSize4_g27 = _TileSize;
-				float2 BaseUV4_g27 = input.ase_texcoord1.yz;
-				float4 DefaultBlendColor4_g27 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g27) = _MainTex;
-				SamplerState Sampler4_g27 = sampler_MainTex;
-				float4 RGBA4_g27 = float4( 0,0,0,0 );
+				float localBlendLayers4_g30 = ( 0.0 );
+				int VertexID4_g30 = input.ase_texcoord1.x;
+				float2 TileSize4_g30 = _TileSize;
+				float2 BaseUV4_g30 = input.ase_texcoord1.yz;
+				float4 DefaultBlendColor4_g30 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g30) = _MainTex;
+				TEXTURE2D(NormalTexture4_g30) = _NormalMap;
+				SamplerState Sampler4_g30 = sampler_MainTex;
+				SamplerState NormalSampler4_g30 = sampler_NormalMap;
+				float4 RGBA4_g30 = float4( 0,0,0,0 );
+				float3 Normal4_g30 = float3( 0,0,0 );
 				{
-				BlendLayers(VertexID4_g27, TileSize4_g27, BaseUV4_g27, DefaultBlendColor4_g27, Texture4_g27, Sampler4_g27, RGBA4_g27);
+				BlendLayers(VertexID4_g30, TileSize4_g30, BaseUV4_g30, DefaultBlendColor4_g30, Texture4_g30, NormalTexture4_g30, Sampler4_g30, NormalSampler4_g30, RGBA4_g30, Normal4_g30);
 				}
-				float4 temp_output_2_0_g28 = RGBA4_g27;
+				float4 temp_output_2_0_g28 = RGBA4_g30;
 				
 
 				float Alpha = (temp_output_2_0_g28).w;
@@ -1155,7 +1220,7 @@ Shader "TerrainShader"
 					float AlphaClipThresholdShadow = 0.5;
 				#endif
 
-				#if defined( ASE_DEPTH_WRITE_ON )
+				#if defined( ASE_WRITE_DEPTH )
 					input.positionCS.z = input.positionCS.z;
 				#endif
 
@@ -1171,7 +1236,7 @@ Shader "TerrainShader"
 					LODFadeCrossFade( input.positionCS );
 				#endif
 
-				#if defined( ASE_DEPTH_WRITE_ON )
+				#if defined( ASE_WRITE_DEPTH )
 					outputDepth = input.positionCS.z;
 				#endif
 
@@ -1197,8 +1262,9 @@ Shader "TerrainShader"
 			#define _NORMAL_DROPOFF_TS 1
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define ASE_FOG 1
-			#define ASE_VERSION 19906
-			#define ASE_SRP_VERSION 170300
+			#define _NORMALMAP 1
+			#define ASE_VERSION 19912
+			#define ASE_SRP_VERSION 170600
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
 
@@ -1238,7 +1304,7 @@ Shader "TerrainShader"
 			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 
 
-			#if defined(ASE_EARLY_Z_DEPTH_OPTIMIZE) && (SHADER_TARGET >= 45)
+			#if defined(ASE_WRITE_DEPTH_CONSERVATIVE) && (SHADER_TARGET >= 45)
 				#define ASE_SV_DEPTH SV_DepthLessEqual
 				#define ASE_SV_POSITION_QUALIFIERS linear noperspective centroid
 			#else
@@ -1301,7 +1367,9 @@ Shader "TerrainShader"
 			#endif
 
 			TEXTURE2D(_MainTex);
+			TEXTURE2D(_NormalMap);
 			SAMPLER(sampler_MainTex);
+			SAMPLER(sampler_NormalMap);
 
 
 			
@@ -1337,7 +1405,7 @@ Shader "TerrainShader"
 
 				VertexPositionInputs vertexInput = GetVertexPositionInputs( input.positionOS.xyz );
 
-				output.positionCS = vertexInput.positionCS;
+				output.positionCS = ASE_ADJUST_CLIP_POSITION( vertexInput.positionCS );
 				output.positionWS = vertexInput.positionWS;
 				return output;
 			}
@@ -1429,7 +1497,7 @@ Shader "TerrainShader"
 			#endif
 
 			half4 frag(	PackedVaryings input
-						#if defined( ASE_DEPTH_WRITE_ON )
+						#if defined( ASE_WRITE_DEPTH )
 						,out float outputDepth : ASE_SV_DEPTH
 						#endif
 						 ) : SV_Target
@@ -1450,24 +1518,29 @@ Shader "TerrainShader"
 				float4 ClipPos = ComputeClipSpacePosition( ScreenPosNorm.xy, input.positionCS.z ) * input.positionCS.w;
 				float4 ScreenPos = ComputeScreenPos( ClipPos );
 
-				float localBlendLayers4_g27 = ( 0.0 );
-				int VertexID4_g27 = input.ase_texcoord1.x;
-				float2 TileSize4_g27 = _TileSize;
-				float2 BaseUV4_g27 = input.ase_texcoord1.yz;
-				float4 DefaultBlendColor4_g27 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g27) = _MainTex;
-				SamplerState Sampler4_g27 = sampler_MainTex;
-				float4 RGBA4_g27 = float4( 0,0,0,0 );
+				float localBlendLayers4_g30 = ( 0.0 );
+				int VertexID4_g30 = input.ase_texcoord1.x;
+				float2 TileSize4_g30 = _TileSize;
+				float2 BaseUV4_g30 = input.ase_texcoord1.yz;
+				float4 DefaultBlendColor4_g30 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g30) = _MainTex;
+				TEXTURE2D(NormalTexture4_g30) = _NormalMap;
+				SamplerState Sampler4_g30 = sampler_MainTex;
+				SamplerState NormalSampler4_g30 = sampler_NormalMap;
+				float4 RGBA4_g30 = float4( 0,0,0,0 );
+				float3 Normal4_g30 = float3( 0,0,0 );
 				{
-				BlendLayers(VertexID4_g27, TileSize4_g27, BaseUV4_g27, DefaultBlendColor4_g27, Texture4_g27, Sampler4_g27, RGBA4_g27);
+				BlendLayers(VertexID4_g30, TileSize4_g30, BaseUV4_g30, DefaultBlendColor4_g30, Texture4_g30, NormalTexture4_g30, Sampler4_g30, NormalSampler4_g30, RGBA4_g30, Normal4_g30);
 				}
-				float4 temp_output_2_0_g28 = RGBA4_g27;
+				float4 temp_output_2_0_g28 = RGBA4_g30;
 				
 
 				float Alpha = (temp_output_2_0_g28).w;
-				float AlphaClipThreshold = _Cutoff;
+				#if defined( _ALPHATEST_ON )
+					float AlphaClipThreshold = _Cutoff;
+				#endif
 
-				#if defined( ASE_DEPTH_WRITE_ON )
+				#if defined( ASE_WRITE_DEPTH )
 					input.positionCS.z = input.positionCS.z;
 				#endif
 
@@ -1479,7 +1552,7 @@ Shader "TerrainShader"
 					LODFadeCrossFade( input.positionCS );
 				#endif
 
-				#if defined( ASE_DEPTH_WRITE_ON )
+				#if defined( ASE_WRITE_DEPTH )
 					outputDepth = input.positionCS.z;
 				#endif
 
@@ -1502,8 +1575,9 @@ Shader "TerrainShader"
 			#define _NORMAL_DROPOFF_TS 1
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define ASE_FOG 1
-			#define ASE_VERSION 19906
-			#define ASE_SRP_VERSION 170300
+			#define _NORMALMAP 1
+			#define ASE_VERSION 19912
+			#define ASE_SRP_VERSION 170600
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
 
@@ -1601,7 +1675,9 @@ Shader "TerrainShader"
 			#endif
 
 			TEXTURE2D(_MainTex);
+			TEXTURE2D(_NormalMap);
 			SAMPLER(sampler_MainTex);
+			SAMPLER(sampler_NormalMap);
 
 
 			
@@ -1755,18 +1831,21 @@ Shader "TerrainShader"
 				float3 PositionRWS = GetCameraRelativePositionWS( input.positionWS );
 				float4 ShadowCoord = shadowCoord;
 
-				float localBlendLayers4_g27 = ( 0.0 );
-				int VertexID4_g27 = input.ase_texcoord3.x;
-				float2 TileSize4_g27 = _TileSize;
-				float2 BaseUV4_g27 = input.ase_texcoord3.yz;
-				float4 DefaultBlendColor4_g27 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g27) = _MainTex;
-				SamplerState Sampler4_g27 = sampler_MainTex;
-				float4 RGBA4_g27 = float4( 0,0,0,0 );
+				float localBlendLayers4_g30 = ( 0.0 );
+				int VertexID4_g30 = input.ase_texcoord3.x;
+				float2 TileSize4_g30 = _TileSize;
+				float2 BaseUV4_g30 = input.ase_texcoord3.yz;
+				float4 DefaultBlendColor4_g30 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g30) = _MainTex;
+				TEXTURE2D(NormalTexture4_g30) = _NormalMap;
+				SamplerState Sampler4_g30 = sampler_MainTex;
+				SamplerState NormalSampler4_g30 = sampler_NormalMap;
+				float4 RGBA4_g30 = float4( 0,0,0,0 );
+				float3 Normal4_g30 = float3( 0,0,0 );
 				{
-				BlendLayers(VertexID4_g27, TileSize4_g27, BaseUV4_g27, DefaultBlendColor4_g27, Texture4_g27, Sampler4_g27, RGBA4_g27);
+				BlendLayers(VertexID4_g30, TileSize4_g30, BaseUV4_g30, DefaultBlendColor4_g30, Texture4_g30, NormalTexture4_g30, Sampler4_g30, NormalSampler4_g30, RGBA4_g30, Normal4_g30);
 				}
-				float4 temp_output_2_0_g28 = RGBA4_g27;
+				float4 temp_output_2_0_g28 = RGBA4_g30;
 				
 
 				float3 BaseColor = (temp_output_2_0_g28).xyz;
@@ -1812,8 +1891,9 @@ Shader "TerrainShader"
 			#define _NORMAL_DROPOFF_TS 1
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define ASE_FOG 1
-			#define ASE_VERSION 19906
-			#define ASE_SRP_VERSION 170300
+			#define _NORMALMAP 1
+			#define ASE_VERSION 19912
+			#define ASE_SRP_VERSION 170600
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
 
@@ -1903,7 +1983,9 @@ Shader "TerrainShader"
 			#endif
 
 			TEXTURE2D(_MainTex);
+			TEXTURE2D(_NormalMap);
 			SAMPLER(sampler_MainTex);
+			SAMPLER(sampler_NormalMap);
 
 
 			
@@ -2045,18 +2127,21 @@ Shader "TerrainShader"
 				float3 PositionRWS = GetCameraRelativePositionWS( input.positionWS );
 				float4 ShadowCoord = shadowCoord;
 
-				float localBlendLayers4_g27 = ( 0.0 );
-				int VertexID4_g27 = input.ase_texcoord1.x;
-				float2 TileSize4_g27 = _TileSize;
-				float2 BaseUV4_g27 = input.ase_texcoord1.yz;
-				float4 DefaultBlendColor4_g27 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g27) = _MainTex;
-				SamplerState Sampler4_g27 = sampler_MainTex;
-				float4 RGBA4_g27 = float4( 0,0,0,0 );
+				float localBlendLayers4_g30 = ( 0.0 );
+				int VertexID4_g30 = input.ase_texcoord1.x;
+				float2 TileSize4_g30 = _TileSize;
+				float2 BaseUV4_g30 = input.ase_texcoord1.yz;
+				float4 DefaultBlendColor4_g30 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g30) = _MainTex;
+				TEXTURE2D(NormalTexture4_g30) = _NormalMap;
+				SamplerState Sampler4_g30 = sampler_MainTex;
+				SamplerState NormalSampler4_g30 = sampler_NormalMap;
+				float4 RGBA4_g30 = float4( 0,0,0,0 );
+				float3 Normal4_g30 = float3( 0,0,0 );
 				{
-				BlendLayers(VertexID4_g27, TileSize4_g27, BaseUV4_g27, DefaultBlendColor4_g27, Texture4_g27, Sampler4_g27, RGBA4_g27);
+				BlendLayers(VertexID4_g30, TileSize4_g30, BaseUV4_g30, DefaultBlendColor4_g30, Texture4_g30, NormalTexture4_g30, Sampler4_g30, NormalSampler4_g30, RGBA4_g30, Normal4_g30);
 				}
-				float4 temp_output_2_0_g28 = RGBA4_g27;
+				float4 temp_output_2_0_g28 = RGBA4_g30;
 				
 
 				float3 BaseColor = (temp_output_2_0_g28).xyz;
@@ -2094,8 +2179,9 @@ Shader "TerrainShader"
 			#define _NORMAL_DROPOFF_TS 1
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define ASE_FOG 1
-			#define ASE_VERSION 19906
-			#define ASE_SRP_VERSION 170300
+			#define _NORMALMAP 1
+			#define ASE_VERSION 19912
+			#define ASE_SRP_VERSION 170600
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
 
@@ -2141,7 +2227,7 @@ Shader "TerrainShader"
 			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 
 
-			#if defined(ASE_EARLY_Z_DEPTH_OPTIMIZE) && (SHADER_TARGET >= 45)
+			#if defined(ASE_WRITE_DEPTH_CONSERVATIVE) && (SHADER_TARGET >= 45)
 				#define ASE_SV_DEPTH SV_DepthLessEqual
 				#define ASE_SV_POSITION_QUALIFIERS linear noperspective centroid
 			#else
@@ -2206,7 +2292,9 @@ Shader "TerrainShader"
 			#endif
 
 			TEXTURE2D(_MainTex);
+			TEXTURE2D(_NormalMap);
 			SAMPLER(sampler_MainTex);
+			SAMPLER(sampler_NormalMap);
 
 
 			
@@ -2242,7 +2330,7 @@ Shader "TerrainShader"
 				VertexPositionInputs vertexInput = GetVertexPositionInputs( input.positionOS.xyz );
 				VertexNormalInputs normalInput = GetVertexNormalInputs( input.normalOS, input.tangentOS );
 
-				output.positionCS = vertexInput.positionCS;
+				output.positionCS = ASE_ADJUST_CLIP_POSITION( vertexInput.positionCS );
 				output.positionWS = vertexInput.positionWS;
 				output.normalWS = normalInput.normalWS;
 				output.tangentWS = float4( normalInput.tangentWS, ( input.tangentOS.w > 0.0 ? 1.0 : -1.0 ) * GetOddNegativeScale() );
@@ -2342,11 +2430,15 @@ Shader "TerrainShader"
 
 			void frag(	PackedVaryings input
 						, out half4 outNormalWS : SV_Target0
-						#if defined( ASE_DEPTH_WRITE_ON )
+						#if defined( ASE_WRITE_DEPTH )
 						,out float outputDepth : ASE_SV_DEPTH
 						#endif
 						#ifdef _WRITE_RENDERING_LAYERS
+						#if ( UNITY_VERSION >= 60020000 )
 						, out uint outRenderingLayers : SV_Target1
+						#else
+						, out float4 outRenderingLayers : SV_Target1
+						#endif
 						#endif
 						 )
 			{
@@ -2379,27 +2471,31 @@ Shader "TerrainShader"
 					BitangentWS = cross(NormalWS, -TangentWS);
 				#endif
 
-				float localBlendLayers4_g27 = ( 0.0 );
-				int VertexID4_g27 = input.ase_texcoord3.x;
-				float2 TileSize4_g27 = _TileSize;
-				float2 BaseUV4_g27 = input.ase_texcoord3.yz;
-				float4 DefaultBlendColor4_g27 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g27) = _MainTex;
-				SamplerState Sampler4_g27 = sampler_MainTex;
-				float4 RGBA4_g27 = float4( 0,0,0,0 );
+				float localBlendLayers4_g30 = ( 0.0 );
+				int VertexID4_g30 = input.ase_texcoord3.x;
+				float2 TileSize4_g30 = _TileSize;
+				float2 BaseUV4_g30 = input.ase_texcoord3.yz;
+				float4 DefaultBlendColor4_g30 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g30) = _MainTex;
+				TEXTURE2D(NormalTexture4_g30) = _NormalMap;
+				SamplerState Sampler4_g30 = sampler_MainTex;
+				SamplerState NormalSampler4_g30 = sampler_NormalMap;
+				float4 RGBA4_g30 = float4( 0,0,0,0 );
+				float3 Normal4_g30 = float3( 0,0,0 );
 				{
-				BlendLayers(VertexID4_g27, TileSize4_g27, BaseUV4_g27, DefaultBlendColor4_g27, Texture4_g27, Sampler4_g27, RGBA4_g27);
+				BlendLayers(VertexID4_g30, TileSize4_g30, BaseUV4_g30, DefaultBlendColor4_g30, Texture4_g30, NormalTexture4_g30, Sampler4_g30, NormalSampler4_g30, RGBA4_g30, Normal4_g30);
 				}
-				float4 temp_output_2_0_g28 = RGBA4_g27;
+				
+				float4 temp_output_2_0_g28 = RGBA4_g30;
 				
 
-				float3 Normal = float3(0, 0, 1);
+				float3 Normal = Normal4_g30;
 				float Alpha = (temp_output_2_0_g28).w;
 				#if defined( _ALPHATEST_ON )
 					float AlphaClipThreshold = _Cutoff;
 				#endif
 
-				#if defined( ASE_DEPTH_WRITE_ON )
+				#if defined( ASE_WRITE_DEPTH )
 					input.positionCS.z = input.positionCS.z;
 				#endif
 
@@ -2411,7 +2507,7 @@ Shader "TerrainShader"
 					LODFadeCrossFade( input.positionCS );
 				#endif
 
-				#if defined( ASE_DEPTH_WRITE_ON )
+				#if defined( ASE_WRITE_DEPTH )
 					outputDepth = input.positionCS.z;
 				#endif
 
@@ -2436,7 +2532,12 @@ Shader "TerrainShader"
 				#endif
 
 				#ifdef _WRITE_RENDERING_LAYERS
+					#if ( UNITY_VERSION >= 60020000 )
 					outRenderingLayers = EncodeMeshRenderingLayer();
+					#else
+					uint renderingLayers = GetMeshRenderingLayer();
+					outRenderingLayers = float4( EncodeMeshRenderingLayer( renderingLayers ), 0, 0, 0 );
+					#endif
 				#endif
 			}
 			ENDHLSL
@@ -2465,8 +2566,9 @@ Shader "TerrainShader"
 			#pragma shader_feature_local_fragment _ENVIRONMENTREFLECTIONS_OFF
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define ASE_FOG 1
-			#define ASE_VERSION 19906
-			#define ASE_SRP_VERSION 170300
+			#define _NORMALMAP 1
+			#define ASE_VERSION 19912
+			#define ASE_SRP_VERSION 170600
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
 
@@ -2476,15 +2578,21 @@ Shader "TerrainShader"
 			#pragma exclude_renderers glcore gles3 
 
 			#pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+			#if ( UNITY_VERSION >= 60000058 )
 			#pragma multi_compile _ EVALUATE_SH_MIXED EVALUATE_SH_VERTEX
+			#endif
 			#pragma multi_compile_fragment _ _REFLECTION_PROBE_BLENDING
 			#pragma multi_compile_fragment _ _REFLECTION_PROBE_BOX_PROJECTION
 			#pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
+			#if ( UNITY_VERSION >= 60030000 )
 			#pragma multi_compile_fragment _ _SCREEN_SPACE_IRRADIANCE
+			#endif
 			#pragma multi_compile_fragment _ _DBUFFER_MRT1 _DBUFFER_MRT2 _DBUFFER_MRT3
 			#pragma multi_compile_fragment _ _GBUFFER_NORMALS_OCT
 			#pragma multi_compile_fragment _ _RENDER_PASS_ENABLED
+			#if ( UNITY_VERSION >= 60010000 )
 			#pragma multi_compile _ _CLUSTER_LIGHT_LOOP
+			#endif
 
 			#pragma multi_compile _ LIGHTMAP_SHADOW_MIXING
 			#pragma multi_compile _ _MIXED_LIGHTING_SUBTRACTIVE
@@ -2492,8 +2600,12 @@ Shader "TerrainShader"
 			#pragma multi_compile _ DIRLIGHTMAP_COMBINED
 			#pragma multi_compile _ USE_LEGACY_LIGHTMAPS
 			#pragma multi_compile _ LIGHTMAP_ON
-			#pragma multi_compile_fragment _ LIGHTMAP_BICUBIC_SAMPLING
+			#if ( UNITY_VERSION >= 60010000 )
+			#pragma multi_compile _ LIGHTMAP_BICUBIC_SAMPLING
+			#endif
+			#if ( UNITY_VERSION >= 60030000 )
 			#pragma multi_compile_fragment _ REFLECTION_PROBE_ROTATION
+			#endif
 			#pragma multi_compile _ DYNAMICLIGHTMAP_ON
 
 			#pragma vertex vert
@@ -2526,6 +2638,10 @@ Shader "TerrainShader"
 			#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DBuffer.hlsl"
 			#include "Packages/com.unity.render-pipelines.universal/Editor/ShaderGraph/Includes/ShaderPass.hlsl"
 
+			#if ( UNITY_VERSION >= 60030016 && UNITY_VERSION < 60040000 ) || ( UNITY_VERSION >= 60040010 )
+			#include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/GBufferOutputFormat.hlsl"
+			#endif
+
 			#if defined(LOD_FADE_CROSSFADE)
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/LODCrossFade.hlsl"
             #endif
@@ -2539,7 +2655,7 @@ Shader "TerrainShader"
 			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 
 
-			#if defined(ASE_EARLY_Z_DEPTH_OPTIMIZE) && (SHADER_TARGET >= 45)
+			#if defined(ASE_WRITE_DEPTH_CONSERVATIVE) && (SHADER_TARGET >= 45)
 				#define ASE_SV_DEPTH SV_DepthLessEqual
 				#define ASE_SV_POSITION_QUALIFIERS linear noperspective centroid
 			#else
@@ -2620,10 +2736,16 @@ Shader "TerrainShader"
 			#endif
 
 			TEXTURE2D(_MainTex);
+			TEXTURE2D(_NormalMap);
 			SAMPLER(sampler_MainTex);
+			SAMPLER(sampler_NormalMap);
 
 
+			#if ( UNITY_VERSION >= 60010000 )
 			#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/GBufferOutput.hlsl"
+			#else
+			#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/UnityGBuffer.hlsl"
+			#endif
 
 			
 			PackedVaryings VertexFunction( Attributes input  )
@@ -2655,6 +2777,11 @@ Shader "TerrainShader"
 				input.normalOS = input.normalOS;
 				input.tangentOS = input.tangentOS;
 
+				#ifdef ASE_CUSTOM_MOTION_VECTOR
+					// Declared so the Motion Vector output port surfaces on the master node; only consumed by the motion vector passes.
+					float3 aseCustomMotionVector = float3(0, 0, 0);
+				#endif
+
 				VertexPositionInputs vertexInput = GetVertexPositionInputs( input.positionOS.xyz );
 				VertexNormalInputs normalInput = GetVertexNormalInputs( input.normalOS, input.tangentOS );
 
@@ -2675,7 +2802,7 @@ Shader "TerrainShader"
 					#endif
 				#endif
 
-				output.positionCS = vertexInput.positionCS;
+				output.positionCS = ASE_ADJUST_CLIP_POSITION( vertexInput.positionCS );
 				output.positionWS = vertexInput.positionWS;
 				output.normalWS = normalInput.normalWS;
 				output.tangentWS = float4( normalInput.tangentWS, ( input.tangentOS.w > 0.0 ? 1.0 : -1.0 ) * GetOddNegativeScale() );
@@ -2791,8 +2918,12 @@ Shader "TerrainShader"
 			}
 			#endif
 
+		#if ( UNITY_VERSION >= 60010000 )
 			GBufferFragOutput frag ( PackedVaryings input
-								#if defined( ASE_DEPTH_WRITE_ON )
+		#else
+			FragmentOutput frag ( PackedVaryings input
+		#endif
+								#if defined( ASE_WRITE_DEPTH )
 								,out float outputDepth : ASE_SV_DEPTH
 								#endif
 								 )
@@ -2831,22 +2962,25 @@ Shader "TerrainShader"
 					BitangentWS = cross(NormalWS, -TangentWS);
 				#endif
 
-				float localBlendLayers4_g27 = ( 0.0 );
-				int VertexID4_g27 = input.ase_texcoord7.x;
-				float2 TileSize4_g27 = _TileSize;
-				float2 BaseUV4_g27 = input.ase_texcoord7.yz;
-				float4 DefaultBlendColor4_g27 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g27) = _MainTex;
-				SamplerState Sampler4_g27 = sampler_MainTex;
-				float4 RGBA4_g27 = float4( 0,0,0,0 );
+				float localBlendLayers4_g30 = ( 0.0 );
+				int VertexID4_g30 = input.ase_texcoord7.x;
+				float2 TileSize4_g30 = _TileSize;
+				float2 BaseUV4_g30 = input.ase_texcoord7.yz;
+				float4 DefaultBlendColor4_g30 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g30) = _MainTex;
+				TEXTURE2D(NormalTexture4_g30) = _NormalMap;
+				SamplerState Sampler4_g30 = sampler_MainTex;
+				SamplerState NormalSampler4_g30 = sampler_NormalMap;
+				float4 RGBA4_g30 = float4( 0,0,0,0 );
+				float3 Normal4_g30 = float3( 0,0,0 );
 				{
-				BlendLayers(VertexID4_g27, TileSize4_g27, BaseUV4_g27, DefaultBlendColor4_g27, Texture4_g27, Sampler4_g27, RGBA4_g27);
+				BlendLayers(VertexID4_g30, TileSize4_g30, BaseUV4_g30, DefaultBlendColor4_g30, Texture4_g30, NormalTexture4_g30, Sampler4_g30, NormalSampler4_g30, RGBA4_g30, Normal4_g30);
 				}
-				float4 temp_output_2_0_g28 = RGBA4_g27;
+				float4 temp_output_2_0_g28 = RGBA4_g30;
 				
 
 				float3 BaseColor = (temp_output_2_0_g28).xyz;
-				float3 Normal = float3(0, 0, 1);
+				float3 Normal = Normal4_g30;
 				float3 Specular = 0.5;
 				float Metallic = 0;
 				float Smoothness = 0.5;
@@ -2863,7 +2997,7 @@ Shader "TerrainShader"
 				float3 Transmission = 1;
 				float3 Translucency = 1;
 
-				#if defined( ASE_DEPTH_WRITE_ON )
+				#if defined( ASE_WRITE_DEPTH )
 					input.positionCS.z = input.positionCS.z;
 				#endif
 
@@ -2909,8 +3043,12 @@ Shader "TerrainShader"
 					float3 SH = input.lightmapUVOrVertexSH.xyz;
 				#endif
 
-				#if defined(_SCREEN_SPACE_IRRADIANCE)
-					inputData.bakedGI = SAMPLE_GI(_ScreenSpaceIrradiance, input.positionCS.xy);
+				#if defined(_SCREEN_SPACE_IRRADIANCE) && ( UNITY_VERSION >= 60030000 )
+					#if ( UNITY_VERSION >= 60060000 )
+						inputData.bakedGI = SAMPLE_GI(_ScreenSpaceIrradiance, input.positionCS.xy, inputData.normalWS));
+					#else
+						inputData.bakedGI = SAMPLE_GI(_ScreenSpaceIrradiance, input.positionCS.xy);
+					#endif
 				#elif defined(DYNAMICLIGHTMAP_ON)
 					inputData.bakedGI = SAMPLE_GI(input.lightmapUVOrVertexSH.xy, input.dynamicLightmapUV.xy, SH, inputData.normalWS);
 					inputData.shadowMask = SAMPLE_SHADOWMASK(input.lightmapUVOrVertexSH.xy);
@@ -2962,9 +3100,13 @@ Shader "TerrainShader"
 				half4 color;
 				MixRealtimeAndBakedGI(mainLight, inputData.normalWS, inputData.bakedGI, inputData.shadowMask);
 
+			#if ( UNITY_VERSION >= 60010000 )
 				color.rgb = GlobalIllumination(brdfData, (BRDFData)0, 0,
                               inputData.bakedGI, Occlusion, inputData.positionWS,
                               inputData.normalWS, inputData.viewDirectionWS, inputData.normalizedScreenSpaceUV);
+			#else
+				color.rgb = GlobalIllumination(brdfData, inputData.bakedGI, Occlusion, inputData.positionWS, inputData.normalWS, inputData.viewDirectionWS);
+			#endif
 
 				color.a = Alpha;
 
@@ -2972,11 +3114,15 @@ Shader "TerrainShader"
 					color.rgb *= color.a;
 				#endif
 
-				#if defined( ASE_DEPTH_WRITE_ON )
+				#if defined( ASE_WRITE_DEPTH )
 					outputDepth = input.positionCS.z;
 				#endif
 
+			#if ( UNITY_VERSION >= 60010000 )
 				return PackGBuffersBRDFData(brdfData, inputData, Smoothness, Emission + color.rgb, Occlusion);
+			#else
+				return BRDFDataToGbuffer(brdfData, inputData, Smoothness, Emission + color.rgb, Occlusion);
+			#endif
 			}
 
 			ENDHLSL
@@ -2998,8 +3144,9 @@ Shader "TerrainShader"
 			#define _NORMAL_DROPOFF_TS 1
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define ASE_FOG 1
-			#define ASE_VERSION 19906
-			#define ASE_SRP_VERSION 170300
+			#define _NORMALMAP 1
+			#define ASE_VERSION 19912
+			#define ASE_SRP_VERSION 170600
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
 
@@ -3039,7 +3186,7 @@ Shader "TerrainShader"
 			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 
 
-			#if defined(ASE_EARLY_Z_DEPTH_OPTIMIZE) && (SHADER_TARGET >= 45)
+			#if defined(ASE_WRITE_DEPTH_CONSERVATIVE) && (SHADER_TARGET >= 45)
 				#define ASE_SV_DEPTH SV_DepthLessEqual
 				#define ASE_SV_POSITION_QUALIFIERS linear noperspective centroid
 			#else
@@ -3102,7 +3249,9 @@ Shader "TerrainShader"
 			#endif
 
 			TEXTURE2D(_MainTex);
+			TEXTURE2D(_NormalMap);
 			SAMPLER(sampler_MainTex);
+			SAMPLER(sampler_NormalMap);
 
 
 			
@@ -3145,7 +3294,7 @@ Shader "TerrainShader"
 
 				VertexPositionInputs vertexInput = GetVertexPositionInputs( input.positionOS.xyz );
 
-				output.positionCS = vertexInput.positionCS;
+				output.positionCS = ASE_ADJUST_CLIP_POSITION( vertexInput.positionCS );
 				output.positionWS = vertexInput.positionWS;
 				return output;
 			}
@@ -3237,7 +3386,7 @@ Shader "TerrainShader"
 			#endif
 
 			half4 frag( PackedVaryings input
-				#if defined( ASE_DEPTH_WRITE_ON )
+				#if defined( ASE_WRITE_DEPTH )
 				,out float outputDepth : ASE_SV_DEPTH
 				#endif
 				 ) : SV_Target
@@ -3249,18 +3398,21 @@ Shader "TerrainShader"
 				float4 ScreenPosNorm = float4( GetNormalizedScreenSpaceUV( input.positionCS ), input.positionCS.zw );
 				float4 ClipPos = ComputeClipSpacePosition( ScreenPosNorm.xy, input.positionCS.z ) * input.positionCS.w;
 
-				float localBlendLayers4_g27 = ( 0.0 );
-				int VertexID4_g27 = input.ase_texcoord1.x;
-				float2 TileSize4_g27 = _TileSize;
-				float2 BaseUV4_g27 = input.ase_texcoord1.yz;
-				float4 DefaultBlendColor4_g27 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g27) = _MainTex;
-				SamplerState Sampler4_g27 = sampler_MainTex;
-				float4 RGBA4_g27 = float4( 0,0,0,0 );
+				float localBlendLayers4_g30 = ( 0.0 );
+				int VertexID4_g30 = input.ase_texcoord1.x;
+				float2 TileSize4_g30 = _TileSize;
+				float2 BaseUV4_g30 = input.ase_texcoord1.yz;
+				float4 DefaultBlendColor4_g30 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g30) = _MainTex;
+				TEXTURE2D(NormalTexture4_g30) = _NormalMap;
+				SamplerState Sampler4_g30 = sampler_MainTex;
+				SamplerState NormalSampler4_g30 = sampler_NormalMap;
+				float4 RGBA4_g30 = float4( 0,0,0,0 );
+				float3 Normal4_g30 = float3( 0,0,0 );
 				{
-				BlendLayers(VertexID4_g27, TileSize4_g27, BaseUV4_g27, DefaultBlendColor4_g27, Texture4_g27, Sampler4_g27, RGBA4_g27);
+				BlendLayers(VertexID4_g30, TileSize4_g30, BaseUV4_g30, DefaultBlendColor4_g30, Texture4_g30, NormalTexture4_g30, Sampler4_g30, NormalSampler4_g30, RGBA4_g30, Normal4_g30);
 				}
-				float4 temp_output_2_0_g28 = RGBA4_g27;
+				float4 temp_output_2_0_g28 = RGBA4_g30;
 				
 
 				surfaceDescription.Alpha = (temp_output_2_0_g28).w;
@@ -3268,7 +3420,7 @@ Shader "TerrainShader"
 					surfaceDescription.AlphaClipThreshold = _Cutoff;
 				#endif
 
-				#if defined( ASE_DEPTH_WRITE_ON )
+				#if defined( ASE_WRITE_DEPTH )
 					input.positionCS.z = input.positionCS.z;
 				#endif
 
@@ -3276,7 +3428,7 @@ Shader "TerrainShader"
 					clip(surfaceDescription.Alpha - surfaceDescription.AlphaClipThreshold);
 				#endif
 
-				#if defined( ASE_DEPTH_WRITE_ON )
+				#if defined( ASE_WRITE_DEPTH )
 					outputDepth = input.positionCS.z;
 				#endif
 
@@ -3301,8 +3453,9 @@ Shader "TerrainShader"
 			#define _NORMAL_DROPOFF_TS 1
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define ASE_FOG 1
-			#define ASE_VERSION 19906
-			#define ASE_SRP_VERSION 170300
+			#define _NORMALMAP 1
+			#define ASE_VERSION 19912
+			#define ASE_SRP_VERSION 170600
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
 
@@ -3342,7 +3495,7 @@ Shader "TerrainShader"
 			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 
 
-			#if defined(ASE_EARLY_Z_DEPTH_OPTIMIZE) && (SHADER_TARGET >= 45)
+			#if defined(ASE_WRITE_DEPTH_CONSERVATIVE) && (SHADER_TARGET >= 45)
 				#define ASE_SV_DEPTH SV_DepthLessEqual
 				#define ASE_SV_POSITION_QUALIFIERS linear noperspective centroid
 			#else
@@ -3405,7 +3558,9 @@ Shader "TerrainShader"
 			#endif
 
 			TEXTURE2D(_MainTex);
+			TEXTURE2D(_NormalMap);
 			SAMPLER(sampler_MainTex);
+			SAMPLER(sampler_NormalMap);
 
 
 			
@@ -3448,7 +3603,7 @@ Shader "TerrainShader"
 
 				VertexPositionInputs vertexInput = GetVertexPositionInputs( input.positionOS.xyz );
 
-				output.positionCS = vertexInput.positionCS;
+				output.positionCS = ASE_ADJUST_CLIP_POSITION( vertexInput.positionCS );
 				output.positionWS = vertexInput.positionWS;
 				return output;
 			}
@@ -3540,7 +3695,7 @@ Shader "TerrainShader"
 			#endif
 
 			half4 frag( PackedVaryings input
-				#if defined( ASE_DEPTH_WRITE_ON )
+				#if defined( ASE_WRITE_DEPTH )
 				,out float outputDepth : ASE_SV_DEPTH
 				#endif
 				 ) : SV_Target
@@ -3552,18 +3707,21 @@ Shader "TerrainShader"
 				float4 ScreenPosNorm = float4( GetNormalizedScreenSpaceUV( input.positionCS ), input.positionCS.zw );
 				float4 ClipPos = ComputeClipSpacePosition( ScreenPosNorm.xy, input.positionCS.z ) * input.positionCS.w;
 
-				float localBlendLayers4_g27 = ( 0.0 );
-				int VertexID4_g27 = input.ase_texcoord1.x;
-				float2 TileSize4_g27 = _TileSize;
-				float2 BaseUV4_g27 = input.ase_texcoord1.yz;
-				float4 DefaultBlendColor4_g27 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g27) = _MainTex;
-				SamplerState Sampler4_g27 = sampler_MainTex;
-				float4 RGBA4_g27 = float4( 0,0,0,0 );
+				float localBlendLayers4_g30 = ( 0.0 );
+				int VertexID4_g30 = input.ase_texcoord1.x;
+				float2 TileSize4_g30 = _TileSize;
+				float2 BaseUV4_g30 = input.ase_texcoord1.yz;
+				float4 DefaultBlendColor4_g30 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g30) = _MainTex;
+				TEXTURE2D(NormalTexture4_g30) = _NormalMap;
+				SamplerState Sampler4_g30 = sampler_MainTex;
+				SamplerState NormalSampler4_g30 = sampler_NormalMap;
+				float4 RGBA4_g30 = float4( 0,0,0,0 );
+				float3 Normal4_g30 = float3( 0,0,0 );
 				{
-				BlendLayers(VertexID4_g27, TileSize4_g27, BaseUV4_g27, DefaultBlendColor4_g27, Texture4_g27, Sampler4_g27, RGBA4_g27);
+				BlendLayers(VertexID4_g30, TileSize4_g30, BaseUV4_g30, DefaultBlendColor4_g30, Texture4_g30, NormalTexture4_g30, Sampler4_g30, NormalSampler4_g30, RGBA4_g30, Normal4_g30);
 				}
-				float4 temp_output_2_0_g28 = RGBA4_g27;
+				float4 temp_output_2_0_g28 = RGBA4_g30;
 				
 
 				surfaceDescription.Alpha = (temp_output_2_0_g28).w;
@@ -3571,7 +3729,7 @@ Shader "TerrainShader"
 					surfaceDescription.AlphaClipThreshold = _Cutoff;
 				#endif
 
-				#if defined( ASE_DEPTH_WRITE_ON )
+				#if defined( ASE_WRITE_DEPTH )
 					input.positionCS.z = input.positionCS.z;
 				#endif
 
@@ -3579,7 +3737,7 @@ Shader "TerrainShader"
 					clip(surfaceDescription.Alpha - surfaceDescription.AlphaClipThreshold);
 				#endif
 
-				#if defined( ASE_DEPTH_WRITE_ON )
+				#if defined( ASE_WRITE_DEPTH )
 					outputDepth = input.positionCS.z;
 				#endif
 
@@ -3601,10 +3759,12 @@ Shader "TerrainShader"
 
 			#define ASE_GEOMETRY
 			#define _NORMAL_DROPOFF_TS 1
+			#define ASE_TIME_BASED_MOTION_VECTORS
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define ASE_FOG 1
-			#define ASE_VERSION 19906
-			#define ASE_SRP_VERSION 170300
+			#define _NORMALMAP 1
+			#define ASE_VERSION 19912
+			#define ASE_SRP_VERSION 170600
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
 
@@ -3647,12 +3807,16 @@ Shader "TerrainShader"
 			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 
 
-			#if defined(ASE_EARLY_Z_DEPTH_OPTIMIZE) && (SHADER_TARGET >= 45)
+			#if defined(ASE_WRITE_DEPTH_CONSERVATIVE) && (SHADER_TARGET >= 45)
 				#define ASE_SV_DEPTH SV_DepthLessEqual
 				#define ASE_SV_POSITION_QUALIFIERS linear noperspective centroid
 			#else
 				#define ASE_SV_DEPTH SV_Depth
 				#define ASE_SV_POSITION_QUALIFIERS
+			#endif
+
+			#if ( UNITY_VERSION < 60010000 )
+				#define APPLICATION_SPACE_WARP_MOTION APLICATION_SPACE_WARP_MOTION
 			#endif
 
 			struct Attributes
@@ -3671,7 +3835,7 @@ Shader "TerrainShader"
 
 			struct PackedVaryings
 			{
-				float4 positionCS : SV_POSITION;
+				ASE_SV_POSITION_QUALIFIERS float4 positionCS : SV_POSITION;
 				float4 positionCSNoJitter : TEXCOORD0;
 				float4 previousPositionCSNoJitter : TEXCOORD1;
 				float3 positionWS : TEXCOORD2;
@@ -3716,16 +3880,18 @@ Shader "TerrainShader"
 			#endif
 
 			TEXTURE2D(_MainTex);
+			TEXTURE2D(_NormalMap);
 			SAMPLER(sampler_MainTex);
+			SAMPLER(sampler_NormalMap);
 
 
 			
-			PackedVaryings VertexFunction( Attributes input  )
+			// Applies the graph's vertex stage at a given time so the motion vector pass can
+			// evaluate the current frame and re-evaluate the previous frame (procedural / time-based animation).
+			Attributes ASEApplyVertexModification( Attributes input, float3 timeParameters, inout PackedVaryings output, out float3 customMotionVector  )
 			{
-				PackedVaryings output = (PackedVaryings)0;
-				UNITY_SETUP_INSTANCE_ID(input);
-				UNITY_TRANSFER_INSTANCE_ID(input, output);
-				UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+				float3 currentTimeParameters = _TimeParameters.xyz;
+				_TimeParameters.xyz = timeParameters;
 
 				output.ase_texcoord3.x = input.ase_vertexId;
 				output.ase_texcoord3.yz = input.ase_texcoord.xy;
@@ -3747,28 +3913,58 @@ Shader "TerrainShader"
 					input.positionOS.xyz += vertexValue;
 				#endif
 
+				customMotionVector = float3(0, 0, 0);
+
+				_TimeParameters.xyz = currentTimeParameters;
+				return input;
+			}
+
+			PackedVaryings VertexFunction( Attributes input )
+			{
+				PackedVaryings output = (PackedVaryings)0;
+				UNITY_SETUP_INSTANCE_ID(input);
+				UNITY_TRANSFER_INSTANCE_ID(input, output);
+				UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+
+				Attributes defaultInput = input;
+				float3 currentMotionVector;
+				input = ASEApplyVertexModification( input, _TimeParameters.xyz, output, currentMotionVector );
+
 				VertexPositionInputs vertexInput = GetVertexPositionInputs( input.positionOS.xyz );
 
 				#if defined(APPLICATION_SPACE_WARP_MOTION)
-					output.positionCSNoJitter = mul(_NonJitteredViewProjMatrix, mul(UNITY_MATRIX_M, input.positionOS));
-					output.positionCS = output.positionCSNoJitter;
+					float4 positionCSNoJitter = mul(_NonJitteredViewProjMatrix, mul(UNITY_MATRIX_M, input.positionOS));
+					float4 positionCS = positionCSNoJitter;
 				#else
-					output.positionCS = vertexInput.positionCS;
-					output.positionCSNoJitter = mul(_NonJitteredViewProjMatrix, mul(UNITY_MATRIX_M, input.positionOS));
+					float4 positionCS = vertexInput.positionCS;
+					float4 positionCSNoJitter = mul(_NonJitteredViewProjMatrix, mul(UNITY_MATRIX_M, input.positionOS));
 				#endif
 
-				float4 prevPos = ( unity_MotionVectorsParams.x == 1 ) ? float4( input.positionOld, 1 ) : input.positionOS;
-
+				// Custom output and automatic time-based motion are mutually exclusive.
+				#if defined(ASE_CUSTOM_MOTION_VECTOR)
+					float3 prevPositionOS = ( unity_MotionVectorsParams.x == 1 ) ? input.positionOld : input.positionOS.xyz;
+					prevPositionOS -= currentMotionVector;
+				#else
+					float3 prevPositionOS = ( unity_MotionVectorsParams.x == 1 ) ? input.positionOld : defaultInput.positionOS.xyz;
+					#ifdef ASE_TIME_BASED_MOTION_VECTORS
+						Attributes prevInput = defaultInput;
+						prevInput.positionOS.xyz = prevPositionOS;
+						PackedVaryings prevOutput = (PackedVaryings)0;
+						float3 prevMotionVector;
+						prevInput = ASEApplyVertexModification( prevInput, _LastTimeParameters.xyz, prevOutput, prevMotionVector );
+						prevPositionOS = prevInput.positionOS.xyz;
+					#endif
+				#endif
 				#if _ADD_PRECOMPUTED_VELOCITY
-					prevPos = prevPos - float4(input.alembicMotionVector, 0);
+					prevPositionOS -= input.alembicMotionVector;
 				#endif
+				float4 previousPositionCSNoJitter = mul( _PrevViewProjMatrix, mul( UNITY_PREV_MATRIX_M, float4( prevPositionOS, 1 ) ) );
 
-				output.previousPositionCSNoJitter = mul( _PrevViewProjMatrix, mul( UNITY_PREV_MATRIX_M, prevPos ) );
-
+				output.positionCS = ASE_ADJUST_CLIP_POSITION( positionCS );
+				output.positionCSNoJitter = ASE_ADJUST_CLIP_POSITION( positionCSNoJitter );
+				output.previousPositionCSNoJitter = ASE_ADJUST_CLIP_POSITION( previousPositionCSNoJitter );
 				output.positionWS = vertexInput.positionWS;
 
-				// removed in ObjectMotionVectors.hlsl found in unity 6000.0.23 and higher
-				//ApplyMotionVectorZBias( output.positionCS );
 				return output;
 			}
 
@@ -3778,7 +3974,7 @@ Shader "TerrainShader"
 			}
 
 			half4 frag(	PackedVaryings input
-				#if defined( ASE_DEPTH_WRITE_ON )
+				#if defined( ASE_WRITE_DEPTH )
 				,out float outputDepth : ASE_SV_DEPTH
 				#endif
 				 ) : SV_Target
@@ -3791,18 +3987,21 @@ Shader "TerrainShader"
 				float4 ScreenPosNorm = float4( GetNormalizedScreenSpaceUV( input.positionCS ), input.positionCS.zw );
 				float4 ClipPos = ComputeClipSpacePosition( ScreenPosNorm.xy, input.positionCS.z ) * input.positionCS.w;
 
-				float localBlendLayers4_g27 = ( 0.0 );
-				int VertexID4_g27 = input.ase_texcoord3.x;
-				float2 TileSize4_g27 = _TileSize;
-				float2 BaseUV4_g27 = input.ase_texcoord3.yz;
-				float4 DefaultBlendColor4_g27 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g27) = _MainTex;
-				SamplerState Sampler4_g27 = sampler_MainTex;
-				float4 RGBA4_g27 = float4( 0,0,0,0 );
+				float localBlendLayers4_g30 = ( 0.0 );
+				int VertexID4_g30 = input.ase_texcoord3.x;
+				float2 TileSize4_g30 = _TileSize;
+				float2 BaseUV4_g30 = input.ase_texcoord3.yz;
+				float4 DefaultBlendColor4_g30 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g30) = _MainTex;
+				TEXTURE2D(NormalTexture4_g30) = _NormalMap;
+				SamplerState Sampler4_g30 = sampler_MainTex;
+				SamplerState NormalSampler4_g30 = sampler_NormalMap;
+				float4 RGBA4_g30 = float4( 0,0,0,0 );
+				float3 Normal4_g30 = float3( 0,0,0 );
 				{
-				BlendLayers(VertexID4_g27, TileSize4_g27, BaseUV4_g27, DefaultBlendColor4_g27, Texture4_g27, Sampler4_g27, RGBA4_g27);
+				BlendLayers(VertexID4_g30, TileSize4_g30, BaseUV4_g30, DefaultBlendColor4_g30, Texture4_g30, NormalTexture4_g30, Sampler4_g30, NormalSampler4_g30, RGBA4_g30, Normal4_g30);
 				}
-				float4 temp_output_2_0_g28 = RGBA4_g27;
+				float4 temp_output_2_0_g28 = RGBA4_g30;
 				
 
 				float Alpha = (temp_output_2_0_g28).w;
@@ -3810,7 +4009,7 @@ Shader "TerrainShader"
 					float AlphaClipThreshold = _Cutoff;
 				#endif
 
-				#if defined( ASE_DEPTH_WRITE_ON )
+				#if defined( ASE_WRITE_DEPTH )
 					input.positionCS.z = input.positionCS.z;
 				#endif
 
@@ -3829,7 +4028,7 @@ Shader "TerrainShader"
 					LODFadeCrossFade( input.positionCS );
 				#endif
 
-				#if defined( ASE_DEPTH_WRITE_ON )
+				#if defined( ASE_WRITE_DEPTH )
 					outputDepth = input.positionCS.z;
 				#endif
 
@@ -3845,36 +4044,41 @@ Shader "TerrainShader"
 	
 	}
 	
+
+	
+
 	CustomEditor "UnityEditor.ShaderGraphLitGUI"
 	FallBack "Hidden/Shader Graph/FallbackError"
 	
 	Fallback Off
 }
-
 /*ASEBEGIN
-Version=19906
-Node;AmplifyShaderEditor.TexturePropertyNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;50;-304,64;Inherit;True;Property;_MainTex;MainTex;0;0;Create;True;0;0;0;False;0;False;None;None;False;white;Auto;Texture2D;False;-1;0;2;SAMPLER2D;0;SAMPLERSTATE;1
-Node;AmplifyShaderEditor.ColorNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;84;-304,-144;Inherit;False;Property;_DefaultBlendColor;DefaultBlendColor;3;0;Create;True;0;0;0;False;0;False;0,0,0,1;0,0,0,0;True;True;0;6;COLOR;0;FLOAT;1;FLOAT;2;FLOAT;3;FLOAT;4;FLOAT3;5
-Node;AmplifyShaderEditor.FunctionNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;88;-48,-16;Inherit;False;MosaicBlendLayers;1;;27;34be181aab269424fa7648145160b7fa;0;3;10;FLOAT4;0,0,0,0;False;8;SAMPLER2D;0;False;9;SAMPLERSTATE;0;False;1;FLOAT4;7
-Node;AmplifyShaderEditor.RangedFloatNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;28;352,256;Inherit;False;Constant;_Float0;Float 0;3;0;Create;True;0;0;0;False;0;False;0.1;0;0;0;0;1;FLOAT;0
-Node;AmplifyShaderEditor.FunctionNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;55;240,-16;Inherit;False;Alpha Split;-1;;28;07dab7960105b86429ac8eebd729ed6d;0;1;2;FLOAT4;0,0,0,0;False;2;FLOAT3;0;FLOAT;6
-Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;0;32,0;Float;False;False;-1;3;UnityEditor.ShaderGraphLitGUI;0;12;New Amplify Shader;94348b07e5e8bab40bd6c8a1e3df54cd;True;ExtraPrePass;0;0;ExtraPrePass;6;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;True;0;False;;False;False;False;False;False;False;False;False;False;True;False;0;False;;255;False;;255;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;1;False;;True;3;False;;True;True;0;False;;0;False;;False;True;4;RenderPipeline=UniversalPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;UniversalMaterialType=Lit;True;5;True;14;all;0;False;True;1;1;False;;0;False;;0;1;False;;0;False;;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;True;True;True;True;True;0;False;;False;False;False;False;False;False;False;True;False;0;False;;255;False;;255;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;1;False;;True;3;False;;True;True;0;False;;0;False;;False;True;0;False;False;0;;0;0;Standard;0;False;0
-Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;2;0,0;Float;False;False;-1;3;UnityEditor.ShaderGraphLitGUI;0;12;New Amplify Shader;94348b07e5e8bab40bd6c8a1e3df54cd;True;ShadowCaster;0;2;ShadowCaster;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;True;0;False;;False;False;False;False;False;False;False;False;False;True;False;0;False;;255;False;;255;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;1;False;;True;3;False;;True;True;0;False;;0;False;;False;True;4;RenderPipeline=UniversalPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;UniversalMaterialType=Lit;True;5;True;14;all;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;False;False;True;False;False;False;False;0;False;;False;False;False;False;False;False;False;False;False;True;1;False;;True;3;False;;False;False;True;1;LightMode=ShadowCaster;False;False;0;;0;0;Standard;0;False;0
-Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;3;0,0;Float;False;False;-1;3;UnityEditor.ShaderGraphLitGUI;0;12;New Amplify Shader;94348b07e5e8bab40bd6c8a1e3df54cd;True;DepthOnly;0;3;DepthOnly;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;True;0;False;;False;False;False;False;False;False;False;False;False;True;False;0;False;;255;False;;255;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;1;False;;True;3;False;;True;True;0;False;;0;False;;False;True;4;RenderPipeline=UniversalPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;UniversalMaterialType=Lit;True;5;True;14;all;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;False;False;True;True;False;False;False;0;False;;False;False;False;False;False;False;False;False;False;True;1;False;;False;False;False;True;1;LightMode=DepthOnly;False;False;0;;0;0;Standard;0;False;0
-Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;4;0,0;Float;False;False;-1;3;UnityEditor.ShaderGraphLitGUI;0;12;New Amplify Shader;94348b07e5e8bab40bd6c8a1e3df54cd;True;Meta;0;4;Meta;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;True;0;False;;False;False;False;False;False;False;False;False;False;True;False;0;False;;255;False;;255;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;1;False;;True;3;False;;True;True;0;False;;0;False;;False;True;4;RenderPipeline=UniversalPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;UniversalMaterialType=Lit;True;5;True;14;all;0;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;2;False;;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;1;LightMode=Meta;False;False;0;;0;0;Standard;0;False;0
-Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;5;0,0;Float;False;False;-1;3;UnityEditor.ShaderGraphLitGUI;0;12;New Amplify Shader;94348b07e5e8bab40bd6c8a1e3df54cd;True;Universal2D;0;5;Universal2D;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;True;0;False;;False;False;False;False;False;False;False;False;False;True;False;0;False;;255;False;;255;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;1;False;;True;3;False;;True;True;0;False;;0;False;;False;True;4;RenderPipeline=UniversalPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;UniversalMaterialType=Lit;True;5;True;14;all;0;False;True;1;1;False;;0;False;;1;1;False;;0;False;;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;True;True;True;True;0;False;;False;False;False;False;False;False;False;False;False;True;1;False;;True;3;False;;True;True;0;False;;0;False;;False;True;1;LightMode=Universal2D;False;False;0;;0;0;Standard;0;False;0
-Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;6;0,0;Float;False;False;-1;3;UnityEditor.ShaderGraphLitGUI;0;12;New Amplify Shader;94348b07e5e8bab40bd6c8a1e3df54cd;True;DepthNormals;0;6;DepthNormals;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;True;0;False;;False;False;False;False;False;False;False;False;False;True;False;0;False;;255;False;;255;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;1;False;;True;3;False;;True;True;0;False;;0;False;;False;True;4;RenderPipeline=UniversalPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;UniversalMaterialType=Lit;True;5;True;14;all;0;False;True;1;1;False;;0;False;;0;1;False;;0;False;;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;1;False;;True;3;False;;False;False;True;1;LightMode=DepthNormals;False;False;0;;0;0;Standard;0;False;0
-Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;7;0,0;Float;False;False;-1;3;UnityEditor.ShaderGraphLitGUI;0;12;New Amplify Shader;94348b07e5e8bab40bd6c8a1e3df54cd;True;GBuffer;0;7;GBuffer;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;True;0;False;;False;False;False;False;False;False;False;False;False;True;False;0;False;;255;False;;255;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;1;False;;True;3;False;;True;True;0;False;;0;False;;False;True;4;RenderPipeline=UniversalPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;UniversalMaterialType=Lit;True;5;True;14;all;0;False;True;1;1;False;;0;False;;1;1;False;;0;False;;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;True;True;True;True;0;False;;False;False;False;False;False;False;False;True;False;0;False;;255;False;;255;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;1;False;;True;3;False;;True;True;0;False;;0;False;;False;True;1;LightMode=UniversalGBuffer;False;True;12;d3d11;gles;metal;vulkan;xboxone;xboxseries;playstation;ps4;ps5;switch;switch2;webgpu;0;;0;0;Standard;0;False;0
-Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;8;0,0;Float;False;False;-1;3;UnityEditor.ShaderGraphLitGUI;0;12;New Amplify Shader;94348b07e5e8bab40bd6c8a1e3df54cd;True;SceneSelectionPass;0;8;SceneSelectionPass;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;True;0;False;;False;False;False;False;False;False;False;False;False;True;False;0;False;;255;False;;255;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;1;False;;True;3;False;;True;True;0;False;;0;False;;False;True;4;RenderPipeline=UniversalPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;UniversalMaterialType=Lit;True;5;True;14;all;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;True;2;False;;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;1;LightMode=SceneSelectionPass;False;False;0;;0;0;Standard;0;False;0
-Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;9;0,0;Float;False;False;-1;3;UnityEditor.ShaderGraphLitGUI;0;12;New Amplify Shader;94348b07e5e8bab40bd6c8a1e3df54cd;True;ScenePickingPass;0;9;ScenePickingPass;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;True;0;False;;False;False;False;False;False;False;False;False;False;True;False;0;False;;255;False;;255;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;1;False;;True;3;False;;True;True;0;False;;0;False;;False;True;4;RenderPipeline=UniversalPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;UniversalMaterialType=Lit;True;5;True;14;all;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;1;LightMode=Picking;False;False;0;;0;0;Standard;0;False;0
-Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;10;0,0;Float;False;False;-1;3;UnityEditor.ShaderGraphLitGUI;0;12;New Amplify Shader;94348b07e5e8bab40bd6c8a1e3df54cd;True;MotionVectors;0;10;MotionVectors;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;True;0;False;;False;False;False;False;False;False;False;False;False;True;False;0;False;;255;False;;255;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;1;False;;True;3;False;;True;True;0;False;;0;False;;False;True;4;RenderPipeline=UniversalPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;UniversalMaterialType=Lit;True;5;True;14;all;0;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;True;True;False;False;0;False;;False;False;False;False;False;False;False;False;False;False;False;False;False;True;1;LightMode=MotionVectors;False;False;0;;0;0;Standard;0;False;0
-Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;11;0,0;Float;False;False;-1;3;UnityEditor.ShaderGraphLitGUI;0;12;New Amplify Shader;94348b07e5e8bab40bd6c8a1e3df54cd;True;XRMotionVectors;0;11;XRMotionVectors;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;True;0;False;;False;False;False;False;False;False;False;False;False;True;False;0;False;;255;False;;255;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;1;False;;True;3;False;;True;True;0;False;;0;False;;False;True;4;RenderPipeline=UniversalPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;UniversalMaterialType=Lit;True;5;True;14;all;0;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;True;True;True;True;0;False;;False;False;False;False;False;False;False;True;True;1;False;;255;False;;1;False;;7;False;;3;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;False;False;False;False;True;1;LightMode=XRMotionVectors;False;False;0;;0;0;Standard;0;False;0
-Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;1;496,0;Float;False;True;-1;3;UnityEditor.ShaderGraphLitGUI;0;18;TerrainShader;94348b07e5e8bab40bd6c8a1e3df54cd;True;Forward;0;1;Forward;21;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;;False;True;0;False;;False;False;False;False;False;False;False;False;False;True;False;0;False;;255;False;;255;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;1;False;;True;3;False;;True;True;0;False;;0;False;;False;True;4;RenderPipeline=UniversalPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;UniversalMaterialType=Lit;True;5;True;14;all;0;False;True;1;1;False;;0;False;;1;1;False;;0;False;;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;True;True;True;True;0;False;;False;False;False;False;False;False;False;True;False;0;False;;255;False;;255;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;0;False;;False;True;1;False;;True;3;False;;True;True;0;False;;0;False;;False;True;1;LightMode=UniversalForward;False;False;2;Include;;False;;Native;False;0;0;;Include;;True;f407207b82532924f9f8f903a9f29c32;Custom;False;0;0;;;0;0;Standard;51;Category;0;0;  Instanced Terrain Normals;1;0;Lighting Model;0;0;Workflow;1;0;Surface;0;0;  Keep Alpha;0;0;  Refraction Model;0;0;  Blend;0;0;Two Sided;1;0;Alpha Clipping;0;638918163137198311;  Use Shadow Threshold;0;638913139129558050;Fragment Normal Space;0;0;Forward Only;0;0;Transmission;0;0;  Transmission Shadow;0.5,False,;0;Translucency;0;0;  Translucency Strength;1,False,;0;  Normal Distortion;0.5,False,;0;  Scattering;2,False,;0;  Direct;0.9,False,;0;  Ambient;0.1,False,;0;  Shadow;0.5,False,;0;Cast Shadows;1;0;Receive Shadows;2;0;Specular Highlights;2;0;Environment Reflections;2;0;Receive SSAO;1;0;Motion Vectors;1;0;  Add Precomputed Velocity;0;0;  XR Motion Vectors;0;0;GPU Instancing;0;638913139400457197;LOD CrossFade;0;638913139434204775;Built-in Fog;1;638913139484284097;_FinalColorxAlpha;0;0;Meta Pass;1;0;Override Baked GI;0;0;Extra Pre Pass;0;0;Tessellation;0;0;  Phong;0;0;  Strength;0.5,False,;0;  Type;0;0;  Tess;16,False,;0;  Min;10,False,;0;  Max;25,False,;0;  Edge Length;16,False,;0;  Max Displacement;25,False,;0;Write Depth;0;0;  Early Z;0;0;Vertex Position;1;0;Debug Display;1;0;Clear Coat;0;0;0;12;False;True;True;True;True;True;True;True;True;True;True;False;False;;True;0
-WireConnection;88;10;84;0
-WireConnection;88;8;50;0
-WireConnection;88;9;50;1
-WireConnection;55;2;88;7
-WireConnection;1;0;55;0
-WireConnection;1;6;55;6
+Version=19912
+{"type":"AmplifyShaderEditor.ColorNode, AmplifyShaderEditor","id":84,"pos":[-304,-144],"params":["Inherit","False","Property","_DefaultBlendColor","DefaultBlendColor","4","0","Create","True","0","0","0","False","0","False","Object","-1","","0,0,0,1","0.7686275,0.4352941,0.3058823,1","True","True","0","6","COLOR","0","FLOAT","1","FLOAT","2","FLOAT","3","FLOAT","4","FLOAT3","5"]}
+{"type":"AmplifyShaderEditor.TexturePropertyNode, AmplifyShaderEditor","id":50,"pos":[-304,64],"params":["Inherit","True","Property","_MainTex","MainTex","0","0","Create","True","0","0","0","False","0","False","","None","None","False","white","Auto","Texture2D","False","-1","0","2","SAMPLER2D","0","SAMPLERSTATE","1"]}
+{"type":"AmplifyShaderEditor.TexturePropertyNode, AmplifyShaderEditor","id":90,"pos":[-304,264],"params":["Inherit","True","Property","_NormalMap","NormalMap","1","0","Create","True","0","0","0","False","0","False","","None","None","False","white","Auto","Texture2D","False","-1","0","2","SAMPLER2D","0","SAMPLERSTATE","1"]}
+{"type":"AmplifyShaderEditor.FunctionNode, AmplifyShaderEditor","id":91,"pos":[-48,-16],"params":["Inherit","False","MosaicBlendLayers","2","","30","34be181aab269424fa7648145160b7fa","0","5","10","FLOAT4","0,0,0,0","False","8","SAMPLER2D","0","False","9","SAMPLERSTATE","0","False","11","SAMPLER2D","_Sampler1191","False","13","SAMPLERSTATE","0","False","2","FLOAT3","12","FLOAT4","7"]}
+{"type":"AmplifyShaderEditor.FunctionNode, AmplifyShaderEditor","id":55,"pos":[288,8],"params":["Inherit","False","Alpha Split","-1","","28","07dab7960105b86429ac8eebd729ed6d","0","1","2","FLOAT4","0,0,0,0","False","2","FLOAT3","0","FLOAT","6"]}
+{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":0,"pos":[32,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","ExtraPrePass","0","0","ExtraPrePass","6","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","True","1","1","False","","0","False","","0","1","False","","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","True","True","True","True","0","False","","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","0","False","False","0","","0","0","Standard","0","False","0"]}
+{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":2,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","ShadowCaster","0","2","ShadowCaster","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","False","False","True","False","False","False","False","0","False","","False","False","False","False","False","False","False","False","False","True","1","False","","True","3","False","","False","False","True","1","LightMode=ShadowCaster","False","False","0","","0","0","Standard","0","False","0"]}
+{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":3,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","DepthOnly","0","3","DepthOnly","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","False","False","True","True","False","False","False","0","False","","False","False","False","False","False","False","False","False","False","True","1","False","","False","False","False","True","1","LightMode=DepthOnly","False","False","0","","0","0","Standard","0","False","0"]}
+{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":4,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","Meta","0","4","Meta","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","2","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","1","LightMode=Meta","False","False","0","","0","0","Standard","0","False","0"]}
+{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":5,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","Universal2D","0","5","Universal2D","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","True","1","1","False","","0","False","","1","1","False","","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","True","True","True","True","0","False","","False","False","False","False","False","False","False","False","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","1","LightMode=Universal2D","False","False","0","","0","0","Standard","0","False","0"]}
+{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":6,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","DepthNormals","0","6","DepthNormals","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","True","1","1","False","","0","False","","0","1","False","","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","1","False","","True","3","False","","False","False","True","1","LightMode=DepthNormals","False","False","0","","0","0","Standard","0","False","0"]}
+{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":7,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","GBuffer","0","7","GBuffer","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","True","1","1","False","","0","False","","1","1","False","","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","True","True","True","True","0","False","","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","1","LightMode=UniversalGBuffer","False","True","12","d3d11","gles","metal","vulkan","xboxone","xboxseries","playstation","ps4","ps5","switch","switch2","webgpu","0","","0","0","Standard","0","False","0"]}
+{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":8,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","SceneSelectionPass","0","8","SceneSelectionPass","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","2","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","1","LightMode=SceneSelectionPass","False","False","0","","0","0","Standard","0","False","0"]}
+{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":9,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","ScenePickingPass","0","9","ScenePickingPass","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","1","LightMode=Picking","False","False","0","","0","0","Standard","0","False","0"]}
+{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":10,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","MotionVectors","0","10","MotionVectors","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","True","True","False","False","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","True","1","LightMode=MotionVectors","False","False","0","","0","0","Standard","0","False","0"]}
+{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":11,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","XRMotionVectors","0","11","XRMotionVectors","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","True","True","True","True","0","False","","False","False","False","False","False","False","False","True","True","1","False","","255","False","","1","False","","7","False","","3","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","False","False","False","False","True","1","LightMode=XRMotionVectors","False","False","0","","0","0","Standard","0","False","0"]}
+{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":1,"pos":[496,-128],"params":["Float","False","True","-1","3","UnityEditor.ShaderGraphLitGUI","0","18","TerrainShader","94348b07e5e8bab40bd6c8a1e3df54cd","True","Forward","0","1","Forward","22","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","True","1","1","False","","0","False","","1","1","False","","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","True","True","True","True","0","False","","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","1","LightMode=UniversalForward","False","False","2","Include","","False","","Native","False","0","0","","Include","","True","f407207b82532924f9f8f903a9f29c32","Custom","False","0","0","","","0","0","Standard","52","Category","0","0","  Instanced Terrain Normals","1","0","Lighting Model","0","0","Workflow","1","0","Surface","0","0","  Keep Alpha","0","0","  Refraction Model","0","0","  Blend","0","0","Two Sided","1","0","Alpha Clipping","0","638918163137198311","  Use Shadow Threshold","0","638913139129558050","Fragment Normal Space","0","0","Forward Only","0","0","Transmission","0","0","  Transmission Shadow","0.5,False,","0","Translucency","0","0","  Translucency Strength","1,False,","0","  Normal Distortion","0.5,False,","0","  Scattering","2,False,","0","  Direct","0.9,False,","0","  Ambient","0.1,False,","0","  Shadow","0.5,False,","0","Cast Shadows","1","0","Receive Shadows","2","0","Specular Highlights","2","0","Environment Reflections","2","0","Receive SSAO","1","0","Motion Vectors","1","0","  Additional Motion Vectors","1","0","  Alembic Motion Vectors","0","0","  XR Motion Vectors","0","0","GPU Instancing","0","638913139400457197","LOD CrossFade","0","638913139434204775","Built-in Fog","1","638913139484284097","_FinalColorxAlpha","0","0","Meta Pass","1","0","Override Baked GI","0","0","Extra Pre Pass","0","0","Tessellation","0","0","  Phong","0","0","  Strength","0.5,False,","0","  Type","0","0","  Tess","16,False,","0","  Min","10,False,","0","  Max","25,False,","0","  Edge Length","16,False,","0","  Max Displacement","25,False,","0","Write Depth","0","0","  Conservative","0","0","Vertex Position","1","0","Debug Display","1","0","Clear Coat","0","0","0","12","False","True","True","True","True","True","True","True","True","True","True","False","False","","True","0"]}
+{"wire":[91,10,84,0]}
+{"wire":[91,8,50,0]}
+{"wire":[91,9,50,1]}
+{"wire":[91,11,90,0]}
+{"wire":[91,13,90,1]}
+{"wire":[55,2,91,7]}
+{"wire":[1,0,55,0]}
+{"wire":[1,1,91,12]}
+{"wire":[1,6,55,6]}
 ASEEND*/
-//CHKSM=C50FAEC7A0828540C5BFD5EF02E0152692498A30
+//CHKSM=1E67D5391CFFABD48A221BAA61BB2EAB5457D8F7

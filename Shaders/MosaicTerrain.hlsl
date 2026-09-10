@@ -94,14 +94,18 @@ inline void BlendLayers(
   float2 BaseUV,
   float4 DefaultBlendColor,
   Texture2D Texture,
+  Texture2D NormalTexture,
   SamplerState Sampler,
-  out float4 RGBA
+  SamplerState NormalSampler,
+  out float4 RGBA,
+  out float3 Normal
 ) {
   uint blend_data_index = VertexID / 4;
   TerrainIndex indices = _TerrainIndexBuffer[blend_data_index];
 
   float a_accumulated = 0.0;
   float3 rgb = 0.0;
+  float3 normal_accumulated = 0.0;
   
   #if MOSAIC_BLEND_128
   [unroll(10)]
@@ -114,24 +118,33 @@ inline void BlendLayers(
     ComputeLayer(index, TileSize, BaseUV, uv);
     
     float4 layer = SAMPLE_TEXTURE2D(Texture, Sampler, uv);
+    float3 layer_normal = UnpackNormal(SAMPLE_TEXTURE2D(NormalTexture, NormalSampler, uv));
+
+    uint flags = _TerrainTileBuffer[index].flags;
+    float2 flip = float2(GetFlipX(flags), GetFlipY(flags));
+    layer_normal.xy *= 1.0 - 2.0 * flip;
+
+    uint rot = GetRot(flags);
+    uint swap = rot & 1u;
+    uint reverse = (rot >> 1u) & 1u;
+    layer_normal.xy = lerp(layer_normal.xy, layer_normal.yx, (float)swap) * float2(
+      1.0 - 2.0 * (float)reverse,
+      1.0 - 2.0 * (float)(swap ^ reverse)
+    );
+
+    float normal_weight = (1.0 - a_accumulated) * saturate(layer.a);
+    normal_accumulated += layer_normal * normal_weight;
     BlendColor(layer, a_accumulated, rgb);
   }
+
+  normal_accumulated.z += (1.0 - a_accumulated) * saturate(DefaultBlendColor.a);
   BlendColor(DefaultBlendColor, a_accumulated, rgb);
   
   RGBA = float4(rgb, a_accumulated);
-}
-
-inline void BlendLayers_float(
-  uint VertexID,
-  float2 TileSize,
-  float2 BaseUV,
-  float4 DefaultBlendColor,
-  Texture2D Texture,
-  SamplerState Sampler,
-  out float4 RGBA
-)
-{
-  BlendLayers(VertexID, TileSize, BaseUV, DefaultBlendColor, Texture, Sampler, RGBA);
+  float normal_length_squared = dot(normal_accumulated, normal_accumulated);
+  Normal = normal_length_squared > 0.0
+    ? normal_accumulated * rsqrt(normal_length_squared)
+    : float3(0.0, 0.0, 1.0);
 }
 
 #endif // MOSAICTERRAIN_INCLUDED
